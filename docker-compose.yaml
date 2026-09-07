@@ -1,0 +1,51 @@
+services:
+  kaffehausdb:
+    image: postgres:16-alpine
+    container_name: kaffehausdb
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kaffehausdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - kaffehaus_postgres_data:/var/lib/postgresql/data
+      - ./init-multiple-databases.sql:/docker-entrypoint-initdb.d/init-multiple-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d keycloakdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kaffehaus_net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: kaffehaus_keycloak
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: kaffehausdb
+      KC_DB_URL_PORT: 5432
+      KC_DB_URL_DATABASE: keycloakdb
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgrespassword
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: adminpassword
+    ports:
+      - "8080:8080"
+    depends_on:
+      kaffehausdb:
+        condition: service_healthy
+    networks:
+      - kaffehaus_net
+
+volumes:
+  kaffehaus_postgres_data:
+    driver: local
+
+networks:
+  kaffehaus_net:
+    driver: bridge
