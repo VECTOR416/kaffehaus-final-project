@@ -16,6 +16,7 @@
 | Keycloak | Definido en `docker-compose.yaml`, `start-dev`, puerto `8080` | Colisiona con el puerto por defecto de Spring Boot (ver §1.5). |
 | `application.yaml` | Solo contiene `spring.application.name` | Falta toda la configuración: datasource y ahora también el issuer de Keycloak. |
 | Tabla `usuario` | Tiene columna `contrasena VARCHAR(255)` y FK `id_rol → rol(id)` | Las credenciales se mudan a Keycloak; esa columna queda obsoleta (ver §3.4). |
+| `PasswordEncoder` | Inyectado en `CrearUsuarioUseCase` y `ActualizarUsuarioUseCase`, **pero sin `@Bean` que lo provea** | La app no arranca hoy. Keycloak elimina esta dependencia en lugar de obligar a declararla (ver §5.6). |
 | `GlobalExceptionHandler` | `@RestControllerAdvice` con record `ErrorResponse(codigo, tipo, mensaje, timestamp)` | Los errores 401/403 **no pasan por él** por defecto (ver §2.4). Es el punto más fácil de romper la consistencia del contrato HTTP. |
 
 ---
@@ -36,12 +37,15 @@ com.maestria.kaffehausv4.Shared
 │   ├── Dtos/Pagination/          (existente)
 │   ├── Validation/               (existente)
 │   └── Security/                 ◄── NUEVO — PUERTOS (interfaces)
-│       └── IContextoDeSeguridad.java
+│       ├── IContextoDeSeguridad.java      ¿quién actúa?          §4
+│       ├── IProveedorDeIdentidad.java     usuarios en Keycloak   §5
+│       └── ICatalogoDeRoles.java          roles de realm         §5
 │
 ├── Domain/
 │   ├── Error/                    (existente)
 │   │   └── AutorizacionException.java   ◄── NUEVO — hermana de DomainException
 │   └── Security/                 ◄── NUEVO — VALUE OBJECTS puros
+│       ├── KeycloakId.java       (el claim `sub`, calcado de EntidadId)
 │       ├── UsuarioAutenticado.java
 │       └── RolDeSistema.java     (enum)
 │
@@ -50,7 +54,13 @@ com.maestria.kaffehausv4.Shared
 │       ├── SecurityConfig.java              @Configuration — la cadena de filtros
 │       ├── KeycloakJwtAuthenticationConverter.java   Jwt → Authentication
 │       ├── KeycloakRolesConverter.java      claims → GrantedAuthority
-│       └── ContextoDeSeguridadImpl.java     @Component — adaptador del puerto
+│       ├── ContextoDeSeguridadImpl.java     @Component — adaptador del puerto
+│       └── Keycloak/                        ◄── salida hacia la Admin REST API
+│           ├── KeycloakAdminProperties.java
+│           ├── KeycloakAdminTokenProvider.java
+│           ├── KeycloakAdminClient.java
+│           ├── ProveedorDeIdentidadImpl.java
+│           └── CatalogoDeRolesImpl.java
 │
 └── Presentation/
     ├── GlobalExceptionHandler.java   (existente)
@@ -58,6 +68,15 @@ com.maestria.kaffehausv4.Shared
         ├── JwtAuthenticationEntryPoint.java   (401)
         └── JwtAccessDeniedHandler.java        (403)
 ```
+
+**Las dos direcciones del tráfico.** Conviene no confundirlas, porque usan credenciales distintas y fallan por motivos distintos:
+
+| | Entrada (§4) | Salida (§5) |
+|---|---|---|
+| Dirección | Keycloak → Backend | Backend → Keycloak |
+| Mecanismo | Token del usuario final, validado en el filtro | Token de *service account*, vía Admin REST API |
+| Puerto | `IContextoDeSeguridad` | `IProveedorDeIdentidad`, `ICatalogoDeRoles` |
+| Disparador | Cada petición HTTP entrante | Solo los CRUD de `Usuario` y `Rol` |
 
 ### 1.3 Justificación pieza por pieza
 
@@ -76,11 +95,13 @@ Este objeto es el que circula por la capa `Application` cuando un caso de uso ne
 **`Shared/Application/Security/IContextoDeSeguridad.java`**
 Puerto con prefijo `I`, ubicado en `Application/` — **no en `Domain/`**. Esto no es arbitrario: replica literalmente la decisión ya tomada en el proyecto, donde `IEntidadRepository` e `IEntidadDatasource` viven en `Application/Repositories` y `Application/Datasources`, y no en `Domain`.
 
-Contrato sugerido (métodos en español, como `crear` / `actualizar` / `obtenerPorId`):
+Contrato sugerido (métodos en español, como `crear` / `actualizar` / `obtenerPorId`); se detalla en §4.2:
 
 ```
-UsuarioAutenticado obtenerUsuarioActual();
-boolean tieneRol(RolDeSistema rol);
+KeycloakId          obtenerIdDeUsuarioActual();
+UsuarioAutenticado  obtenerUsuarioActual();
+boolean             tieneRol(RolDeSistema rol);
+boolean             hayUsuarioAutenticado();
 ```
 
 **`Shared/Infrastructure/Security/ContextoDeSeguridadImpl.java`**
@@ -95,6 +116,12 @@ Adaptador `@Component` que lee `SecurityContextHolder`, extrae el `Jwt` y lo con
 - ❌ Anotar el agregado `Entidad` o el VO `EntidadId` con algo de Spring Security.
 - ❌ Importar `org.springframework.security.*` en cualquier clase bajo `Application/UseCases/`.
 - ❌ Usar el adaptador `keycloak-spring-boot-starter` (adaptador legacy de Keycloak, descontinuado). Lo correcto es el soporte nativo de **Spring Security OAuth2 Resource Server**.
+
+> ⚠️ **Esta última regla ya está incumplida hoy.** `CrearUsuarioUseCase` y `ActualizarUsuarioUseCase` importan `org.springframework.security.crypto.password.PasswordEncoder` y lo reciben por constructor. Es la única fuga de infraestructura hacia `Application` en todo el proyecto.
+>
+> Además, **no existe ningún `@Bean PasswordEncoder` declarado en el código**, así que hoy el contexto de Spring no puede resolver esa dependencia y la aplicación no arranca.
+>
+> La buena noticia: la integración con Keycloak **elimina el problema en lugar de agravarlo**. Al mudar las credenciales al IdP, `PasswordEncoder` desaparece de ambos casos de uso, el campo `contrasena` sale del agregado `Usuario` y la fuga se cierra sola. Ver §5.6.
 
 ### 1.4 Dependencia a añadir en `pom.xml`
 
@@ -323,7 +350,306 @@ Pasos en la consola de administración (`http://localhost:8080`, credenciales `a
 
 ---
 
-## 4. Resumen de archivos afectados
+## 4. Requerimiento A — Extracción de Identidad (Token → Backend)
+
+> *"El backend debe tener una forma estandarizada de obtener el ID del usuario que viene en el token JWT, para saber qué persona está realizando la acción."*
+
+### 4.1 El problema real: el `sub` del token no es el `usuario.id` local
+
+Este es el punto que hay que resolver antes de escribir nada. El token trae:
+
+```
+sub = "a3f1c2e4-...-9b7d"     ← UUID generado por KEYCLOAK
+```
+
+Pero el negocio necesita:
+
+```
+usuario.id   → UUID de la tabla `usuario`
+usuario.id_persona → `persona`, que es quien realmente "realiza la acción"
+```
+
+**Son tres identificadores distintos.** El token no sabe nada de `persona`. Por tanto "obtener el ID del usuario" son en realidad **dos operaciones de naturaleza muy distinta**, y mezclarlas es el error de diseño a evitar:
+
+| | Identidad del token | Identidad de negocio |
+|---|---|---|
+| Qué devuelve | `sub`, `correo`, `username`, roles | Agregado `Usuario` + `PersonaId` |
+| De dónde sale | El JWT ya validado, en memoria | Consulta a la tabla `usuario` |
+| Coste | Cero | Un `SELECT` por invocación |
+| Depende de | Nada del dominio | Bounded Context `Usuario` |
+
+### 4.2 Nivel 1 — Identidad del token (en `Shared`)
+
+Resuelto por el puerto ya introducido en §1.3, ahora con su contrato completo:
+
+**`Shared/Application/Security/IContextoDeSeguridad.java`** (puerto, prefijo `I`, en `Application/` como `IEntidadRepository`)
+
+```
+KeycloakId          obtenerIdDeUsuarioActual();
+UsuarioAutenticado  obtenerUsuarioActual();
+boolean             tieneRol(RolDeSistema rol);
+boolean             hayUsuarioAutenticado();
+```
+
+**`Shared/Domain/Security/`** — dos VOs puros, sin anotaciones, calcados de `EntidadId`:
+
+- `KeycloakId` — envuelve el `sub`. `private final String value` + `getValue()`. Idéntico en forma a `EntidadId`, `PersonaId`, `RolId`.
+- `UsuarioAutenticado` — `KeycloakId id`, `String correo`, `String username`, `Set<RolDeSistema> roles`. Inmutable.
+
+**`Shared/Infrastructure/Security/ContextoDeSeguridadImpl.java`** — `@Component`. Lee `SecurityContextHolder`, castea a `JwtAuthenticationToken`, extrae los claims y construye el VO. **Es el único punto del sistema que toca `SecurityContextHolder`.**
+
+Si no hay autenticación en el contexto, lanza `AutorizacionException.throwException(401, "No hay un usuario autenticado en el contexto")` — coherente con la jerarquía de errores de §2.4.
+
+### 4.3 Nivel 2 — Identidad de negocio (en el Bounded Context `Usuario`)
+
+Aquí está la decisión arquitectónica que más fácil se equivoca:
+
+> **`Shared` NO puede devolver un agregado `Usuario`.**
+>
+> Si `IContextoDeSeguridad` devolviera `Usuario`, el kernel compartido pasaría a depender de `BoundedContexts/Personal/Usuario`. La dependencia se invertiría: hoy **los contextos dependen de `Shared`**, nunca al revés. Y todo contexto futuro (Inventario, Ventas) arrastraría `Personal/Usuario` solo por usar paginación o excepciones.
+
+Por tanto, la traducción `sub → Usuario → Persona` pertenece al Bounded Context `Usuario`, y se resuelve con piezas que ya existen en su forma:
+
+1. **Columna nueva:** `usuario.keycloak_id UUID UNIQUE` (ya anticipada en §3.4). Es el puente entre ambos mundos.
+2. **VO en el agregado:** `Usuario` gana un campo `KeycloakId keycloakId`, importado de `Shared/Domain/Security/`. Las factories `crear(...)` y `restaurar(...)` lo incorporan, igual que hoy incorporan `PersonaId` y `RolId`.
+3. **Método nuevo en el puerto existente:** se amplía `IUsuarioRepository` (y su gemelo `IUsuarioDatasource`, que el proyecto mantiene con firma idéntica):
+
+   ```
+   Optional<Usuario> obtenerPorKeycloakId(KeycloakId keycloakId);
+   ```
+
+   Respeta la convención: método en español, recibe un VO, devuelve `Optional<Agregado>`.
+4. **Caso de uso nuevo:** `Usuario/Application/UseCases/ObtenerUsuarioActualUseCase.java`, `@Service @Transactional(readOnly = true)` (como `ObtenerEntidadPorIdUseCase`). Recibe por constructor `IUsuarioRepository` **y** `IContextoDeSeguridad`, y devuelve `UsuarioResponse`:
+
+   ```
+   KeycloakId id = contextoDeSeguridad.obtenerIdDeUsuarioActual();
+   Usuario usuario = usuarioRepository.obtenerPorKeycloakId(id)
+       .orElseThrow(() -> DomainException.throwException(404,
+           "El usuario autenticado no esta registrado en el sistema"));
+   ```
+
+   El `orElseThrow` con `DomainException.throwException(404, ...)` es exactamente el patrón de `ActualizarEntidadUseCase`.
+5. **Endpoint:** `GET /api/v1/usuario/me` en `UsuarioControllerV1`, devolviendo el `UsuarioResponse` que ya compone `Persona` y `Rol`. Es el "quién soy" que consumirá el frontend.
+
+### 4.4 Cómo lo consumen los casos de uso existentes
+
+Cuando `CrearEntidadUseCase` necesite registrar quién creó el registro, recibe el puerto por constructor — **exactamente igual que hoy recibe `IEntidadRepository`**:
+
+```
+public CrearEntidadUseCase(
+        IEntidadRepository entidadRepository,
+        IContextoDeSeguridad contextoDeSeguridad) { ... }
+```
+
+El caso de uso sigue sin saber que existe un JWT: pide `contextoDeSeguridad.obtenerIdDeUsuarioActual()` y recibe un VO de dominio. En un test unitario se sustituye por un doble que devuelve un `KeycloakId` fijo, sin levantar Spring ni Keycloak.
+
+**Alternativa descartada y por qué.** La opción "más pura" sería pasar el usuario como parámetro: `execute(request, usuarioAutenticado)`, dejando el caso de uso como función total sin estado ambiental. Es mejor en teoría, pero obliga a modificar la firma de **los 5 controladores y sus 25 métodos**, rompiendo la promesa central de §2.1 de que los controladores no se tocan. Con el puerto inyectado, el coste es cero para los controladores y el aislamiento se mantiene igual de bien.
+
+**Dónde NO resolver esto:**
+
+- ❌ `@AuthenticationPrincipal Jwt jwt` como parámetro del controlador: mete un tipo de Spring Security en `Presentation` y obliga al controlador a pasarlo hacia abajo, contaminando también la firma del caso de uso.
+- ❌ `SecurityContextHolder.getContext()` dentro de un `UseCase`: es justo la fuga que el puerto evita.
+- ❌ Leer el `sub` dentro de un `*DatasourceImpl`: la identidad no es un detalle de persistencia.
+
+### 4.5 Flujo completo
+
+```
+JWT (sub, email, realm_access.roles)
+   ↓  [Infrastructure]  ContextoDeSeguridadImpl lee SecurityContextHolder
+KeycloakId / UsuarioAutenticado          ← VOs puros de Shared/Domain
+   ↓  [Application]     IContextoDeSeguridad (puerto)
+ObtenerUsuarioActualUseCase / CrearEntidadUseCase
+   ↓  [Application]     IUsuarioRepository.obtenerPorKeycloakId(...)
+Usuario (agregado)  →  PersonaId  →  Persona
+   ↓
+UsuarioResponse.createFromAggregate(usuario, persona, rol)
+```
+
+Nótese que el dominio nunca ve un `Jwt`, y `Shared` nunca ve un `Usuario`.
+
+---
+
+## 5. Requerimiento B — Sincronización (Backend → Keycloak)
+
+> *"Cuando se creen usuarios o roles mediante los endpoints del backend, deben crearse automáticamente en Keycloak."*
+
+### 5.1 Por qué esto NO es un "segundo datasource"
+
+La tentación natural, dado el patrón del proyecto (`Repository` → `Datasource`), es meter Keycloak como un segundo datasource detrás de `UsuarioRepositoryImpl`, de modo que `CrearUsuarioUseCase` no se entere de nada:
+
+```
+UsuarioRepositoryImpl.crear(usuario)
+   ├── usuarioDatasource.crear(usuario)        (JPA)
+   └── identidadDatasource.crear(usuario)      (Keycloak)   ← tentador, pero mal
+```
+
+**Se descarta, por una razón concreta y no estética:** Keycloak es quien **genera el `sub`**, y ese `sub` es justamente el dato que la fila local debe guardar en `keycloak_id` (§4.3). Las dos escrituras no son paralelas: están **ordenadas y son dependientes en datos**. Un repositorio cuyo contrato es "guarda este agregado" no puede expresar "primero llama a un servicio remoto, toma el identificador que devuelve, incorpóralo al agregado y recién entonces persiste". Además escondería una llamada HTTP con latencia y fallos detrás de algo que parece un `INSERT`, haciendo invisible el manejo de errores.
+
+La capa cuya responsabilidad documentada es precisamente **orquestar** es el caso de uso. Ahí va.
+
+### 5.2 Puertos: dos interfaces pequeñas en `Shared/Application/Security/`
+
+Siguiendo la convención del proyecto (puertos con prefijo `I`, en `Application/`), y segregados para que cada contexto dependa solo de lo que usa — el contexto `Usuario` no necesita poder crear roles de realm:
+
+**`IProveedorDeIdentidad`** (lo usa el contexto `Usuario`)
+
+```
+KeycloakId crearUsuario(String correo, String nombres, String apellidos, String contrasenaTemporal);
+void       actualizarUsuario(KeycloakId id, String correo, String nombres, String apellidos);
+void       cambiarContrasena(KeycloakId id, String nuevaContrasena);
+void       habilitarUsuario(KeycloakId id);
+void       deshabilitarUsuario(KeycloakId id);
+void       asignarRol(KeycloakId id, String nombreRol);
+void       quitarRol(KeycloakId id, String nombreRol);
+```
+
+**`ICatalogoDeRoles`** (lo usa el contexto `Rol`)
+
+```
+void crearRol(String nombre);
+void renombrarRol(String nombreActual, String nombreNuevo);
+void eliminarRol(String nombre);
+boolean existeRol(String nombre);
+```
+
+**Detalle crítico del diseño:** los puertos hablan en **tipos primitivos y VOs de `Shared`**, nunca en agregados (`Usuario`, `Rol`). Esto es lo que permite que vivan en `Shared` sin que el kernel dependa de ningún Bounded Context — el mismo razonamiento de §4.3, aplicado en la dirección contraria.
+
+### 5.3 Adaptador: una Capa Anticorrupción en `Shared/Infrastructure/Security/Keycloak/`
+
+```
+Shared/Infrastructure/Security/Keycloak/
+├── KeycloakAdminProperties.java      @ConfigurationProperties — URLs, client, secret
+├── KeycloakAdminTokenProvider.java   obtiene y cachea el token de servicio
+├── KeycloakAdminClient.java          RestClient contra la Admin REST API
+├── ProveedorDeIdentidadImpl.java     @Component — implementa IProveedorDeIdentidad
+└── CatalogoDeRolesImpl.java          @Component — implementa ICatalogoDeRoles
+```
+
+Los `*Impl` son a estos puertos lo que `EntidadRepositoryImpl` es a `IEntidadRepository`: adaptadores anotados con estereotipo de Spring que encapsulan la tecnología.
+
+**Anticorrupción:** el JSON de Keycloak (`UserRepresentation`, `CredentialRepresentation`, `RoleRepresentation`) **no puede cruzar hacia `Application`**. Se traduce dentro del adaptador. Si mañana se cambia Keycloak por Auth0, solo cambian estas cinco clases.
+
+**Autenticación del backend contra Keycloak.** La Admin REST API exige un token privilegiado. No se debe reutilizar el token del usuario final. Configuración recomendada:
+
+- Un client **confidencial** aparte, `kaffehaus-admin-cli`, con `Service accounts roles: ON`.
+- A su service account se le asignan los roles del client `realm-management`: `manage-users` y `manage-realm` — **solo esos**, no `realm-admin`.
+- Flujo `client_credentials`; el token se cachea hasta poco antes de `exp` y se renueva. Abrir una sesión nueva por request es el error de rendimiento clásico aquí.
+- El `client-secret` va en variable de entorno, **nunca en `application.yaml` versionado**.
+
+```yaml
+kaffehaus:
+  keycloak:
+    admin:
+      base-url: ${KEYCLOAK_BASE_URL:http://localhost:8080}
+      realm: kaffehaus
+      client-id: kaffehaus-admin-cli
+      client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+```
+
+**Implementación del cliente HTTP:** `RestClient` (incluido en Spring Framework 7 / Boot 4, sin dependencias extra). Se descarta `keycloak-admin-client` como librería: arrastra Jakarta RESTEasy y suele chocar de versiones con Boot 4. La Admin API son cuatro endpoints REST; un `RestClient` tipado es más liviano y más fácil de simular en tests.
+
+### 5.4 Orquestación en el caso de uso — y el problema de la atomicidad
+
+Aquí está la dificultad honesta de este requerimiento: **`@Transactional` no cubre una llamada HTTP.** Si Keycloak responde OK y luego el `INSERT` falla, el rollback de Spring deshace la fila local pero **deja el usuario creado en Keycloak**. Y al revés.
+
+Tres estrategias, con sus costes reales:
+
+| Estrategia | Orden | Qué pasa si falla el segundo paso | Veredicto |
+|---|---|---|---|
+| **A. Keycloak primero + compensación** | KC → BD | Se captura la excepción y se borra el usuario en KC (compensación). Si la compensación también falla → huérfano en KC. | ✅ **Recomendada.** Es la única que permite guardar el `sub` en el mismo `INSERT`. |
+| **B. BD primero, KC después del commit** | BD → *commit* → KC | El rollback de la BD es limpio, pero el `keycloak_id` queda nulo y hay una ventana con el usuario local sin identidad en KC. | Requiere `keycloak_id` nullable + un segundo `UPDATE`. Más piezas, misma incertidumbre. |
+| **C. Outbox / eventos de dominio** | BD + fila `outbox` en la misma transacción; un publicador reintenta contra KC | Reintento automático hasta éxito; consistencia eventual garantizada. | 🔭 **Fase 2.** Es la respuesta correcta a escala, pero añade tabla, publicador y planificador. |
+
+**Recomendación:** estrategia **A** para esta fase, con la compensación escrita explícitamente en el caso de uso y el fallo de compensación registrado en log a nivel `ERROR` con el `sub` afectado, para reconciliación manual.
+
+Forma resultante de `CrearUsuarioUseCase` (sigue siendo `@Service @Transactional`, sigue devolviendo `UsuarioResponse`):
+
+```
+1. Validar que existen Persona y Rol          (ya lo hace hoy, sin cambios)
+2. keycloakId = proveedorDeIdentidad.crearUsuario(correo, nombres, apellidos, contrasena)
+3. proveedorDeIdentidad.asignarRol(keycloakId, rol.getNombre())
+4. try {
+       usuario = Usuario.crear(personaId, correo, rolId, keycloakId)   ← sin contrasena
+       usuarioCreado = usuarioRepository.crear(usuario)
+   } catch (Exception e) {
+       proveedorDeIdentidad.eliminarUsuario(keycloakId);   // compensación
+       throw e;
+   }
+5. return UsuarioResponse.createFromAggregate(usuarioCreado, persona, rol)
+```
+
+El caso de uso gana **un parámetro más en el constructor** (`IProveedorDeIdentidad`) y un bloque de compensación. Sigue sin importar nada de Keycloak ni de Spring Security: solo conoce un puerto y un VO.
+
+> **Ojo con el orden respecto a la transacción.** La llamada del paso 2 ocurre dentro de la transacción JPA abierta por `@Transactional`. Eso mantiene la transacción abierta durante toda la latencia de red hacia Keycloak. Con el volumen de una cafetería es irrelevante; conviene saberlo por si el pool de conexiones se vuelve un problema.
+
+### 5.5 Alcance: qué operaciones sincronizan
+
+| Endpoint | Efecto local | Efecto en Keycloak |
+|---|---|---|
+| `POST /api/v1/usuario` | `INSERT` en `usuario` | Crear usuario + asignar rol de realm |
+| `PUT /api/v1/usuario/{id}` | `UPDATE` | Actualizar correo/nombre; si cambia `idRol`, quitar rol anterior y asignar el nuevo |
+| `DELETE /api/v1/usuario/{id}` | `borrado = true` (borrado lógico) | **`enabled = false`**, *no* borrar |
+| `POST /api/v1/rol` | `INSERT` en `rol` | Crear realm role con el mismo `nombre` |
+| `PUT /api/v1/rol/{id}` | `UPDATE` | Renombrar el realm role |
+| `DELETE /api/v1/rol/{id}` | `borrado = true` | Eliminar el realm role (o dejarlo huérfano — ver §5.7) |
+
+**El borrado lógico encaja de forma natural.** El proyecto ya modela `eliminar()` / `reactivar()` en todos los agregados sobre la columna `borrado`. Keycloak tiene exactamente la misma semántica con `enabled`. La correspondencia es directa:
+
+```
+Usuario.eliminar()   →  borrado = true   →  KC: enabled = false
+Usuario.reactivar()  →  borrado = false  →  KC: enabled = true
+```
+
+Borrar de verdad en Keycloak sería incoherente con el borrado lógico local y destruiría la trazabilidad de los tokens ya emitidos.
+
+### 5.6 Efecto sobre la contraseña (cierre de la fuga de §1.3)
+
+Con Keycloak como autoridad de credenciales:
+
+- `CrearUsuarioRequest` sigue aceptando `contrasena`, pero la usa **solo** como contraseña temporal para Keycloak (con `temporary = true`, forzando cambio en el primer login). Nunca se persiste localmente.
+- `PasswordEncoder` se elimina de `CrearUsuarioUseCase` y `ActualizarUsuarioUseCase` → **desaparece la única fuga de Spring Security hacia `Application`** y, de paso, el bean inexistente que hoy impide arrancar la app.
+- El campo `contrasena` sale del agregado `Usuario`, de `Usuario.crear(...)`, de `Usuario.restaurar(...)` y de `Usuario.actualizar(...)`.
+- La columna `usuario.contrasena` (hoy `NOT NULL`) debe pasar a nullable y luego eliminarse en una migración.
+- El cambio de contraseña deja de ser un `PUT /api/v1/usuario/{id}` y pasa a ser responsabilidad de Keycloak (Account Console) o de un endpoint dedicado que delegue en `IProveedorDeIdentidad.cambiarContrasena(...)`.
+
+### 5.7 Tensión a resolver: CRUD de roles vs. enum `RolDeSistema`
+
+§3.3 propone un enum fijo `RolDeSistema`, pero existe un CRUD que permite crear roles arbitrarios en tiempo de ejecución. Hay que decidir explícitamente, porque son dos modelos incompatibles si no se acotan:
+
+- El enum lista los roles que el **código** referencia en `hasRole(...)` y en las reglas de §2.2. Son parte del contrato de autorización y cambian con un despliegue.
+- El CRUD puede crear roles adicionales para uso de negocio (reportes, agrupaciones), pero **un rol creado por CRUD no otorga ningún permiso** hasta que una regla de autorización lo mencione. Conviene que la respuesta del endpoint o la documentación lo diga, o generará confusión ("creé el rol y no puede entrar").
+- **Renombrar un rol que figura en `RolDeSistema` debe prohibirse**: rompería silenciosamente todas las reglas `hasRole(...)`. `ActualizarRolUseCase` debería rechazarlo con `DomainException.throwException(409, "El rol '...' es un rol de sistema y no puede renombrarse")`.
+- Al crear, normalizar `nombre` a mayúsculas sin espacios antes de enviarlo a Keycloak, y validarlo con el `Validador` existente.
+
+### 5.8 Errores, idempotencia y reconciliación
+
+- **Duplicados:** Keycloak responde `409` si el `username`/`email` ya existe. El adaptador debe traducirlo a `DomainException.throwException(409, "Ya existe un usuario con el correo '...'")`, para que la respuesta siga el mismo formato `ErrorResponse` que el resto de la API (§2.4). **Ninguna excepción propia de Keycloak ni ningún `HttpClientErrorException` debe escapar del adaptador.**
+- **Keycloak caído:** traducir a `SystemException.throwException(503, "El servicio de identidad no esta disponible")`. `SystemException` ya existe y el `GlobalExceptionHandler` ya la maneja; no hace falta nada nuevo.
+- **Timeouts:** configurar timeouts de conexión y lectura explícitos en el `RestClient`. Sin ellos, una caída de Keycloak cuelga hilos del servidor.
+- **Reconciliación:** conviene un comando administrativo (endpoint protegido a `ADMINISTRADOR`, o tarea programada) que liste usuarios de Keycloak sin correspondencia en `usuario.keycloak_id` y viceversa. Con la estrategia A es la red de seguridad para los huérfanos.
+- **Carga inicial:** los usuarios que ya existan en la base de datos antes de la integración necesitan un proceso de alta masiva en Keycloak que rellene `keycloak_id`. No pueden autenticarse hasta entonces.
+
+### 5.9 Diagrama de capas de la sincronización
+
+```
+POST /api/v1/usuario
+   ↓
+UsuarioControllerV1                      [Presentation]   ← sin cambios
+   ↓  CrearUsuarioRequest.createFromRequest(body)
+CrearUsuarioUseCase                      [Application]    ← +1 puerto, +compensación
+   ├──→ IUsuarioRepository               (puerto)  ──→ UsuarioRepositoryImpl ──→ JPA ──→ PostgreSQL
+   └──→ IProveedorDeIdentidad            (puerto)  ──→ ProveedorDeIdentidadImpl
+                                                              ↓  [Infrastructure]
+                                                        KeycloakAdminClient (RestClient)
+                                                              ↓  HTTP + token de servicio
+                                                        Keycloak Admin REST API
+```
+
+Las dos ramas son **simétricas en forma**: el caso de uso solo ve interfaces `I*` que devuelven tipos de dominio. Que una termine en un `INSERT` y la otra en un `POST` HTTP es invisible desde `Application`.
+
+---
+
+## 6. Resumen de archivos afectados
 
 ### Archivos nuevos
 
@@ -340,22 +666,57 @@ Pasos en la consola de administración (`http://localhost:8080`, credenciales `a
 | `Shared/Presentation/Security/JwtAuthenticationEntryPoint.java` | Presentación | 401 en formato `ErrorResponse` |
 | `Shared/Presentation/Security/JwtAccessDeniedHandler.java` | Presentación | 403 en formato `ErrorResponse` |
 
+**Requerimiento A — extracción de identidad (§4)**
+
+| Ruta | Capa | Responsabilidad |
+|---|---|---|
+| `Shared/Domain/Security/KeycloakId.java` | Dominio | VO del `sub`, calcado de `EntidadId` |
+| `Usuario/Application/UseCases/ObtenerUsuarioActualUseCase.java` | Aplicación | `sub` → `Usuario` → `Persona` |
+
+**Requerimiento B — sincronización (§5)**
+
+| Ruta | Capa | Responsabilidad |
+|---|---|---|
+| `Shared/Application/Security/IProveedorDeIdentidad.java` | Aplicación | Puerto: usuarios en Keycloak |
+| `Shared/Application/Security/ICatalogoDeRoles.java` | Aplicación | Puerto: roles de realm |
+| `Shared/Infrastructure/Security/Keycloak/KeycloakAdminProperties.java` | Infraestructura | `@ConfigurationProperties` |
+| `Shared/Infrastructure/Security/Keycloak/KeycloakAdminTokenProvider.java` | Infraestructura | Token de servicio cacheado |
+| `Shared/Infrastructure/Security/Keycloak/KeycloakAdminClient.java` | Infraestructura | `RestClient` contra la Admin REST API |
+| `Shared/Infrastructure/Security/Keycloak/ProveedorDeIdentidadImpl.java` | Infraestructura | Adaptador + capa anticorrupción |
+| `Shared/Infrastructure/Security/Keycloak/CatalogoDeRolesImpl.java` | Infraestructura | Adaptador + capa anticorrupción |
+
 ### Archivos modificados
 
-| Archivo | Cambio |
-|---|---|
-| `pom.xml` | + `spring-boot-starter-security-oauth2-resource-server`, + `spring-boot-starter-security-test` (scope test) |
-| `application.yaml` | + `issuer-uri`, + `server.port` (resolver choque con Keycloak) |
-| `docker-compose.yaml` | (opcional) montar `realm-export.json` |
-| `Shared/Presentation/GlobalExceptionHandler.java` | (opcional) `@ExceptionHandler` para `AutorizacionException` |
+| Archivo | Cambio | Motivo |
+|---|---|---|
+| `pom.xml` | + `spring-boot-starter-security-oauth2-resource-server`, + `spring-boot-starter-security-test` (scope test) | §1.4 |
+| `application.yaml` | + `issuer-uri`, + `server.port`, + bloque `kaffehaus.keycloak.admin` | §1.5, §5.3 |
+| `docker-compose.yaml` | (opcional) montar `realm-export.json` | §3.5 |
+| `Shared/Presentation/GlobalExceptionHandler.java` | (opcional) `@ExceptionHandler` para `AutorizacionException` | §2.4 |
+| `databasev4.sql` | + `usuario.keycloak_id UUID UNIQUE`; `usuario.contrasena` → nullable y luego eliminada | §3.4, §5.6 |
+| `Usuario/Domain/Aggregates/Usuario.java` | + `KeycloakId`; − `contrasena` (afecta `crear`, `restaurar`, `actualizar`) | §4.3, §5.6 |
+| `Usuario/Application/Repositories/IUsuarioRepository.java` | + `obtenerPorKeycloakId(KeycloakId)` | §4.3 |
+| `Usuario/Application/Datasources/IUsuarioDatasource.java` | ídem (el proyecto mantiene ambas firmas idénticas) | §4.3 |
+| `Usuario/Infrastructure/.../UsuarioJpaModel.java` + mapper | + columna `keycloak_id`; − `contrasena` | §5.6 |
+| `Usuario/Application/UseCases/CrearUsuarioUseCase.java` | + `IProveedorDeIdentidad`, orquestación y compensación; − `PasswordEncoder` | §5.4 |
+| `Usuario/Application/UseCases/ActualizarUsuarioUseCase.java` | + sincronización de correo y rol; − `PasswordEncoder` | §5.5 |
+| `Usuario/Application/UseCases/EliminarUsuarioUseCase.java` | + `deshabilitarUsuario` en Keycloak | §5.5 |
+| `Usuario/Presentation/UsuarioControllerV1.java` | + `GET /api/v1/usuario/me` | §4.3 |
+| `Rol/Application/UseCases/CrearRolUseCase.java` | + `ICatalogoDeRoles.crearRol(...)` | §5.5 |
+| `Rol/Application/UseCases/ActualizarRolUseCase.java` | + renombrado en Keycloak; + bloqueo de roles de sistema | §5.7 |
+| `Rol/Application/UseCases/EliminarRolUseCase.java` | + eliminación del realm role | §5.5 |
 
 ### Archivos que NO se tocan
 
-**Los 5 controladores `*ControllerV1`, los 25 `*UseCase`, todos los agregados, Value Objects, DTOs, repositorios, datasources y modelos JPA permanecen sin cambios.** Ese es precisamente el indicador de que la integración respeta la arquitectura: si hiciera falta editar `CrearEntidadUseCase` para añadir seguridad, la propuesta estaría mal planteada.
+**Los 5 controladores `*ControllerV1` (salvo el endpoint nuevo `/me`), los casos de uso de `Entidad`, `Cliente`, `Proveedor` y `Persona`, todos sus agregados, Value Objects, DTOs, repositorios, datasources y modelos JPA permanecen sin cambios.**
+
+Los únicos casos de uso que se modifican son los **6 de `Usuario` y `Rol`**, y no por la seguridad en sí, sino porque *su propio dominio* cambió: ahora las identidades y los roles viven en dos sistemas. Los 19 casos de uso restantes quedan intactos. Ese reparto es el indicador de que la integración respeta la arquitectura: si hiciera falta editar `CrearEntidadUseCase` para autenticar, la propuesta estaría mal planteada.
 
 ---
 
-## 5. Orden de implementación sugerido
+## 7. Orden de implementación sugerido
+
+**Fase 1 — Resource Server (autenticación y autorización)**
 
 1. Levantar Keycloak, crear realm `kaffehaus`, client y roles. Obtener un token y verificarlo en jwt.io.
 2. Resolver el conflicto de puertos (app a `8081`).
@@ -364,6 +725,23 @@ Pasos en la consola de administración (`http://localhost:8080`, credenciales `a
 5. Añadir `KeycloakRolesConverter` y verificar los authorities resultantes. **Aquí es donde falla la mayoría de integraciones** (§3.1).
 6. Introducir las reglas por rol (§2.2).
 7. Añadir `EntryPoint` y `AccessDeniedHandler` para unificar el formato de error (§2.4).
-8. Solo entonces, si un caso de uso necesita saber quién actúa: puerto `IContextoDeSeguridad` + adaptador.
+
+**Fase 2 — Extracción de identidad (§4)**
+
+8. Migración: añadir `usuario.keycloak_id UUID UNIQUE`.
+9. `KeycloakId`, `UsuarioAutenticado`, `IContextoDeSeguridad` y su adaptador.
+10. `obtenerPorKeycloakId` en repositorio y datasource; `KeycloakId` en el agregado `Usuario`.
+11. `ObtenerUsuarioActualUseCase` + `GET /api/v1/usuario/me`. Es la prueba de humo de toda la fase: si `/me` devuelve la persona correcta, la cadena token → dominio funciona.
+
+**Fase 3 — Sincronización (§5)**
+
+12. Crear el client confidencial `kaffehaus-admin-cli` con service account y los roles `manage-users` / `manage-realm`.
+13. `KeycloakAdminTokenProvider` + `KeycloakAdminClient`. Probarlos de forma aislada antes de conectarlos a ningún caso de uso.
+14. `ICatalogoDeRoles` y su adaptador → conectar a los casos de uso de `Rol` (es el más simple: sin `sub` que propagar, sin compensación).
+15. `IProveedorDeIdentidad` y su adaptador → conectar a `CrearUsuarioUseCase` con la compensación de §5.4.
+16. Eliminar `PasswordEncoder`, el campo `contrasena` del agregado y la columna (§5.6).
+17. Migración de los usuarios ya existentes + comando de reconciliación (§5.8).
+
+> **Por qué este orden.** Cada fase se puede verificar sola. Intentar las tres a la vez hace imposible distinguir un fallo del conversor de roles (§3.1) de un fallo del token de servicio (§5.3), que producen síntomas parecidos (403) por causas opuestas.
 
 > **Nota final sobre el estado del proyecto.** Los `*DatasourceImpl` de `Entidad`, `Cliente` y `Proveedor` todavía lanzan `UnsupportedOperationException`, y `application.yaml` no tiene configurado el datasource de PostgreSQL. La integración de Keycloak es **ortogonal** a eso y puede desarrollarse en paralelo, pero conviene tenerlo presente: hasta que la persistencia funcione, una petición autenticada correctamente seguirá fallando con 500 al llegar al datasource. Conviene validar la seguridad contra un endpoint trivial (`/actuator/health` o un `GET` de prueba) antes de darla por buena sobre el CRUD real.
