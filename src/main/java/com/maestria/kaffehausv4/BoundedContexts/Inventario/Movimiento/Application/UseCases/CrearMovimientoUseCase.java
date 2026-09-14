@@ -1,0 +1,48 @@
+package com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.UseCases;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Repositories.IExistenciaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.CrearMovimientoRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.MovimientoResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Repositories.IMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.Repositories.ITipoMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.ValueObjects.TipoMovimientoId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
+
+@Service
+@Transactional
+public class CrearMovimientoUseCase {
+    private final IMovimientoRepository movimientoRepository;
+    private final ITipoMovimientoRepository tipoMovimientoRepository;
+
+    public CrearMovimientoUseCase(
+            IMovimientoRepository movimientoRepository,
+            IExistenciaRepository existenciaRepository,
+            ITipoMovimientoRepository tipoMovimientoRepository) {
+        this.movimientoRepository = movimientoRepository;
+        this.tipoMovimientoRepository = tipoMovimientoRepository;
+    }
+
+    public MovimientoResponse execute(CrearMovimientoRequest crearMovimientoRequest) {
+        ExistenciaId existenciaId = new ExistenciaId(crearMovimientoRequest.getIdExistencia());
+        TipoMovimientoId tipoMovimientoId = new TipoMovimientoId(crearMovimientoRequest.getIdTipoMovimiento());
+        TipoMovimiento tipoMovimiento = tipoMovimientoRepository.obtenerPorId(tipoMovimientoId)
+                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento con id '" + crearMovimientoRequest.getIdTipoMovimiento() + "' no existe"));
+
+        Movimiento movimiento = Movimiento.crear(
+                crearMovimientoRequest.getCantidad(),
+                crearMovimientoRequest.getFechaMovimiento(),
+                crearMovimientoRequest.getMotivo(),
+                existenciaId,
+                tipoMovimientoId);
+
+        Movimiento movimientoCreado = movimientoRepository.crear(movimiento);
+
+        return MovimientoResponse.createFromAggregate(movimientoCreado, tipoMovimiento);
+    }
+}
