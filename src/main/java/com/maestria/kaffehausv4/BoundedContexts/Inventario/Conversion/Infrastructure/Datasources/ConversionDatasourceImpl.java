@@ -80,8 +80,10 @@ public class ConversionDatasourceImpl implements IConversionDatasource {
         ConversionJpaModel model = conversionJpaRepository.findByIdAndBorradoFalse(aUuid(conversionId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "La conversion con id '" + conversionId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Conversion conversion = ConversionJpaMapper.toDomain(model);
+        conversion.eliminar();
+
+        ConversionJpaMapper.copiarCambios(conversion, model);
         conversionJpaRepository.save(model);
     }
 

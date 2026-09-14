@@ -53,8 +53,6 @@ public class VentaJpaModel {
     public void setIdCliente(UUID idCliente) {this.idCliente = idCliente;}
     public UUID getIdEstadoVenta() {return idEstadoVenta;}
     public void setIdEstadoVenta(UUID idEstadoVenta) {this.idEstadoVenta = idEstadoVenta;}
-    public OffsetDateTime getFecC() {return fecC;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
-    public OffsetDateTime getFecU() {return fecU;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
 }

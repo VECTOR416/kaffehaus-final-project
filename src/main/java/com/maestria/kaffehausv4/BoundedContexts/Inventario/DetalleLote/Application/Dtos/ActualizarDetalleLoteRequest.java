@@ -45,15 +45,9 @@ public class ActualizarDetalleLoteRequest {
     }
 
     public BigDecimal getCantidadInicial() {return cantidadInicial;}
-    public void setCantidadInicial(BigDecimal cantidadInicial) {this.cantidadInicial = cantidadInicial;}
     public BigDecimal getCantidadRestante() {return cantidadRestante;}
-    public void setCantidadRestante(BigDecimal cantidadRestante) {this.cantidadRestante = cantidadRestante;}
     public BigDecimal getPrecioUnitario() {return precioUnitario;}
-    public void setPrecioUnitario(BigDecimal precioUnitario) {this.precioUnitario = precioUnitario;}
     public Boolean getFraccionable() {return fraccionable;}
-    public void setFraccionable(Boolean fraccionable) {this.fraccionable = fraccionable;}
     public String getIdLote() {return idLote;}
-    public void setIdLote(String idLote) {this.idLote = idLote;}
     public String getIdProducto() {return idProducto;}
-    public void setIdProducto(String idProducto) {this.idProducto = idProducto;}
 }

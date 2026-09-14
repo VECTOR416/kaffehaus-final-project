@@ -80,8 +80,10 @@ public class DescuentoDatasourceImpl implements IDescuentoDatasource {
         DescuentoJpaModel model = descuentoJpaRepository.findByIdAndBorradoFalse(aUuid(descuentoId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El descuento con id '" + descuentoId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Descuento descuento = DescuentoJpaMapper.toDomain(model);
+        descuento.eliminar();
+
+        DescuentoJpaMapper.copiarCambios(descuento, model);
         descuentoJpaRepository.save(model);
     }
 

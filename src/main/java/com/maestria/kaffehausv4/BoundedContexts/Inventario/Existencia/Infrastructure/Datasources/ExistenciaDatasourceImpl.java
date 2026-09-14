@@ -80,8 +80,10 @@ public class ExistenciaDatasourceImpl implements IExistenciaDatasource {
         ExistenciaJpaModel model = existenciaJpaRepository.findByIdAndBorradoFalse(aUuid(existenciaId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "La existencia con id '" + existenciaId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Existencia existencia = ExistenciaJpaMapper.toDomain(model);
+        existencia.eliminar();
+
+        ExistenciaJpaMapper.copiarCambios(existencia, model);
         existenciaJpaRepository.save(model);
     }
 

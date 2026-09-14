@@ -48,17 +48,10 @@ public class PedidoResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public LocalDateTime getFechaEntrega() {return fechaEntrega;}
-    public void setFechaEntrega(LocalDateTime fechaEntrega) {this.fechaEntrega = fechaEntrega;}
     public BigDecimal getLatitud() {return latitud;}
-    public void setLatitud(BigDecimal latitud) {this.latitud = latitud;}
     public BigDecimal getLongitud() {return longitud;}
-    public void setLongitud(BigDecimal longitud) {this.longitud = longitud;}
     public String getDescripcion() {return descripcion;}
-    public void setDescripcion(String descripcion) {this.descripcion = descripcion;}
     public String getIdVenta() {return idVenta;}
-    public void setIdVenta(String idVenta) {this.idVenta = idVenta;}
     public EstadoPedidoResponse getEstado() {return estado;}
-    public void setEstado(EstadoPedidoResponse estado) {this.estado = estado;}
 }

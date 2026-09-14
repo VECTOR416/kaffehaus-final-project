@@ -36,13 +36,8 @@ public class RecetaResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public String getTitulo() {return titulo;}
-    public void setTitulo(String titulo) {this.titulo = titulo;}
     public String getIdProductoObtenido() {return idProductoObtenido;}
-    public void setIdProductoObtenido(String idProductoObtenido) {this.idProductoObtenido = idProductoObtenido;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

@@ -74,22 +74,11 @@ public class Movimiento {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public MovimientoId getId() {return id;}
-    public void setId(MovimientoId id) {this.id = id;}
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public LocalDateTime getFechaMovimiento() {return fechaMovimiento;}
-    public void setFechaMovimiento(LocalDateTime fechaMovimiento) {this.fechaMovimiento = fechaMovimiento;}
     public String getMotivo() {return motivo;}
-    public void setMotivo(String motivo) {this.motivo = motivo;}
     public ExistenciaId getExistenciaId() {return existenciaId;}
-    public void setExistenciaId(ExistenciaId existenciaId) {this.existenciaId = existenciaId;}
     public TipoMovimientoId getTipoMovimientoId() {return tipoMovimientoId;}
-    public void setTipoMovimientoId(TipoMovimientoId tipoMovimientoId) {this.tipoMovimientoId = tipoMovimientoId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

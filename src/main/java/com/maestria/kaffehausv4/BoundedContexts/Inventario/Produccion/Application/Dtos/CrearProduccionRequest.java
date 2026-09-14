@@ -13,7 +13,6 @@ public class CrearProduccionRequest {
     private String motivoDiferencia;
     private LocalDateTime fechaProduccion;
     private String idReceta;
-    private boolean borrado;
 
     private CrearProduccionRequest(
         BigDecimal cantidadEsperada,
@@ -21,8 +20,7 @@ public class CrearProduccionRequest {
         BigDecimal diferencia,
         String motivoDiferencia,
         LocalDateTime fechaProduccion,
-        String idReceta,
-        boolean borrado
+        String idReceta
     ) {
         this.cantidadEsperada = cantidadEsperada;
         this.cantidadReal = cantidadReal;
@@ -30,7 +28,6 @@ public class CrearProduccionRequest {
         this.motivoDiferencia = motivoDiferencia;
         this.fechaProduccion = fechaProduccion;
         this.idReceta = idReceta;
-        this.borrado = borrado;
     }
 
     public static CrearProduccionRequest createFromRequest(Map<String, Object> request){
@@ -42,21 +39,13 @@ public class CrearProduccionRequest {
         fechaProduccion = fechaProduccion != null ? fechaProduccion : LocalDateTime.now();
         String idReceta = Validador.textoRequerido(request.get("idReceta"), "idReceta");
 
-        return new CrearProduccionRequest(cantidadEsperada, cantidadReal, diferencia, motivoDiferencia, fechaProduccion, idReceta, false);
+        return new CrearProduccionRequest(cantidadEsperada, cantidadReal, diferencia, motivoDiferencia, fechaProduccion, idReceta);
     }
 
     public BigDecimal getCantidadEsperada() {return cantidadEsperada;}
-    public void setCantidadEsperada(BigDecimal cantidadEsperada) {this.cantidadEsperada = cantidadEsperada;}
     public BigDecimal getCantidadReal() {return cantidadReal;}
-    public void setCantidadReal(BigDecimal cantidadReal) {this.cantidadReal = cantidadReal;}
     public BigDecimal getDiferencia() {return diferencia;}
-    public void setDiferencia(BigDecimal diferencia) {this.diferencia = diferencia;}
     public String getMotivoDiferencia() {return motivoDiferencia;}
-    public void setMotivoDiferencia(String motivoDiferencia) {this.motivoDiferencia = motivoDiferencia;}
     public LocalDateTime getFechaProduccion() {return fechaProduccion;}
-    public void setFechaProduccion(LocalDateTime fechaProduccion) {this.fechaProduccion = fechaProduccion;}
     public String getIdReceta() {return idReceta;}
-    public void setIdReceta(String idReceta) {this.idReceta = idReceta;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

@@ -52,19 +52,11 @@ public class DescuentoResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public BigDecimal getDescuento() {return descuento;}
-    public void setDescuento(BigDecimal descuento) {this.descuento = descuento;}
     public LocalDateTime getFechaInicio() {return fechaInicio;}
-    public void setFechaInicio(LocalDateTime fechaInicio) {this.fechaInicio = fechaInicio;}
     public LocalDateTime getFechaFinal() {return fechaFinal;}
-    public void setFechaFinal(LocalDateTime fechaFinal) {this.fechaFinal = fechaFinal;}
     public boolean isEstado() {return estado;}
-    public void setEstado(boolean estado) {this.estado = estado;}
     public String getIdProducto() {return idProducto;}
-    public void setIdProducto(String idProducto) {this.idProducto = idProducto;}
     public TipoDescuentoResponse getTipoDescuento() {return tipoDescuento;}
-    public void setTipoDescuento(TipoDescuentoResponse tipoDescuento) {this.tipoDescuento = tipoDescuento;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

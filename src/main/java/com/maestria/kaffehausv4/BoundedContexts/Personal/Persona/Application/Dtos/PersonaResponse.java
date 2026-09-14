@@ -38,15 +38,9 @@ public class PersonaResponse {
     }
 
     public String getIdPersona() {return idPersona;}
-    public void setIdPersona(String idPersona) {this.idPersona = idPersona;}
     public String getNombres() {return nombres;}
-    public void setNombres(String nombres) {this.nombres = nombres;}
     public String getApellidos() {return apellidos;}
-    public void setApellidos(String apellidos) {this.apellidos = apellidos;}
     public String getTelefono() {return telefono;}
-    public void setTelefono(String telefono) {this.telefono = telefono;}
     public String getCarnet() {return carnet;}
-    public void setCarnet(String carnet) {this.carnet = carnet;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

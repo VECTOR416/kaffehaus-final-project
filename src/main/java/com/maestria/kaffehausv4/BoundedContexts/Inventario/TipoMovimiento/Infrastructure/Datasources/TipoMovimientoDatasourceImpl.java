@@ -82,8 +82,10 @@ public class TipoMovimientoDatasourceImpl implements ITipoMovimientoDatasource {
         TipoMovimientoJpaModel model = tipoMovimientoJpaRepository.findByIdAndBorradoFalse(aUuid(tipoMovimientoId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento con id '" + tipoMovimientoId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        TipoMovimiento tipoMovimiento = TipoMovimientoJpaMapper.toDomain(model);
+        tipoMovimiento.eliminar();
+
+        TipoMovimientoJpaMapper.copiarCambios(tipoMovimiento, model);
         tipoMovimientoJpaRepository.save(model);
     }
 

@@ -80,24 +80,12 @@ public class Produccion {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public ProduccionId getId() {return id;}
-    public void setId(ProduccionId id) {this.id = id;}
     public BigDecimal getCantidadEsperada() {return cantidadEsperada;}
-    public void setCantidadEsperada(BigDecimal cantidadEsperada) {this.cantidadEsperada = cantidadEsperada;}
     public BigDecimal getCantidadReal() {return cantidadReal;}
-    public void setCantidadReal(BigDecimal cantidadReal) {this.cantidadReal = cantidadReal;}
     public BigDecimal getDiferencia() {return diferencia;}
-    public void setDiferencia(BigDecimal diferencia) {this.diferencia = diferencia;}
     public String getMotivoDiferencia() {return motivoDiferencia;}
-    public void setMotivoDiferencia(String motivoDiferencia) {this.motivoDiferencia = motivoDiferencia;}
     public LocalDateTime getFechaProduccion() {return fechaProduccion;}
-    public void setFechaProduccion(LocalDateTime fechaProduccion) {this.fechaProduccion = fechaProduccion;}
     public RecetaId getRecetaId() {return recetaId;}
-    public void setRecetaId(RecetaId recetaId) {this.recetaId = recetaId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

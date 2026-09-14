@@ -50,9 +50,7 @@ public class ConversionJpaModel {
     public void setIdUnidadOrigen(UUID idUnidadOrigen) {this.idUnidadOrigen = idUnidadOrigen;}
     public UUID getIdUnidadDestino() {return idUnidadDestino;}
     public void setIdUnidadDestino(UUID idUnidadDestino) {this.idUnidadDestino = idUnidadDestino;}
-    public OffsetDateTime getFecC() {return fecC;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
-    public OffsetDateTime getFecU() {return fecU;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}
     public void setBorrado(Boolean borrado) {this.borrado = borrado;}

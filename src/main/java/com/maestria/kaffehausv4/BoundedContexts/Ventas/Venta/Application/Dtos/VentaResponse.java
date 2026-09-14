@@ -44,15 +44,9 @@ public class VentaResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public LocalDateTime getFechaVenta() {return fechaVenta;}
-    public void setFechaVenta(LocalDateTime fechaVenta) {this.fechaVenta = fechaVenta;}
     public BigDecimal getTotal() {return total;}
-    public void setTotal(BigDecimal total) {this.total = total;}
     public String getIdUsuario() {return idUsuario;}
-    public void setIdUsuario(String idUsuario) {this.idUsuario = idUsuario;}
     public String getIdCliente() {return idCliente;}
-    public void setIdCliente(String idCliente) {this.idCliente = idCliente;}
     public EstadoVentaResponse getEstadoVenta() {return estadoVenta;}
-    public void setEstadoVenta(EstadoVentaResponse estadoVenta) {this.estadoVenta = estadoVenta;}
 }

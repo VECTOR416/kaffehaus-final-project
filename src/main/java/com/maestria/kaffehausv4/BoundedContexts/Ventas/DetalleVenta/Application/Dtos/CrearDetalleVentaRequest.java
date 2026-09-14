@@ -46,17 +46,10 @@ public class CrearDetalleVentaRequest {
     }
 
     public BigDecimal getPrecioUnitario() {return precioUnitario;}
-    public void setPrecioUnitario(BigDecimal precioUnitario) {this.precioUnitario = precioUnitario;}
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public BigDecimal getSubtotal() {return subtotal;}
-    public void setSubtotal(BigDecimal subtotal) {this.subtotal = subtotal;}
     public BigDecimal getDescuentoAplicado() {return descuentoAplicado;}
-    public void setDescuentoAplicado(BigDecimal descuentoAplicado) {this.descuentoAplicado = descuentoAplicado;}
     public boolean isEstado() {return estado;}
-    public void setEstado(boolean estado) {this.estado = estado;}
     public String getIdVenta() {return idVenta;}
-    public void setIdVenta(String idVenta) {this.idVenta = idVenta;}
     public String getIdProducto() {return idProducto;}
-    public void setIdProducto(String idProducto) {this.idProducto = idProducto;}
 }

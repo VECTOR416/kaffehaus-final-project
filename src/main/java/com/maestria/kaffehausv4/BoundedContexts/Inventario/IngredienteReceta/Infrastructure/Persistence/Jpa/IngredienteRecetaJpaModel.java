@@ -45,9 +45,7 @@ public class IngredienteRecetaJpaModel {
     public void setIdReceta(UUID idReceta) {this.idReceta = idReceta;}
     public UUID getIdProducto() {return idProducto;}
     public void setIdProducto(UUID idProducto) {this.idProducto = idProducto;}
-    public OffsetDateTime getFecC() {return fecC;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
-    public OffsetDateTime getFecU() {return fecU;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}
     public void setBorrado(Boolean borrado) {this.borrado = borrado;}

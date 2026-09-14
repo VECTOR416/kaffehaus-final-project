@@ -74,17 +74,10 @@ public class Pedido {
     }
 
     public PedidoId getId() {return id;}
-    public void setId(PedidoId id) {this.id = id;}
     public LocalDateTime getFechaEntrega() {return fechaEntrega;}
-    public void setFechaEntrega(LocalDateTime fechaEntrega) {this.fechaEntrega = fechaEntrega;}
     public BigDecimal getLatitud() {return latitud;}
-    public void setLatitud(BigDecimal latitud) {this.latitud = latitud;}
     public BigDecimal getLongitud() {return longitud;}
-    public void setLongitud(BigDecimal longitud) {this.longitud = longitud;}
     public String getDescripcion() {return descripcion;}
-    public void setDescripcion(String descripcion) {this.descripcion = descripcion;}
     public VentaId getVentaId() {return ventaId;}
-    public void setVentaId(VentaId ventaId) {this.ventaId = ventaId;}
     public EstadoPedidoId getEstadoId() {return estadoId;}
-    public void setEstadoId(EstadoPedidoId estadoId) {this.estadoId = estadoId;}
 }

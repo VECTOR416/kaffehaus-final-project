@@ -67,20 +67,10 @@ public class Lote {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public LoteId getId() {return id;}
-    public void setId(LoteId id) {this.id = id;}
     public LocalDateTime getFechaCompra() {return fechaCompra;}
-    public void setFechaCompra(LocalDateTime fechaCompra) {this.fechaCompra = fechaCompra;}
     public BigDecimal getTotal() {return total;}
-    public void setTotal(BigDecimal total) {this.total = total;}
     public ProveedorId getProveedorId() {return proveedorId;}
-    public void setProveedorId(ProveedorId proveedorId) {this.proveedorId = proveedorId;}
     public UsuarioId getUsuarioId() {return usuarioId;}
-    public void setUsuarioId(UsuarioId usuarioId) {this.usuarioId = usuarioId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

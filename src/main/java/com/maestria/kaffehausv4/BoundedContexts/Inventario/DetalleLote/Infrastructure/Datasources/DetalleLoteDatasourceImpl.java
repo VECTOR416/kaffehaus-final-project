@@ -80,8 +80,10 @@ public class DetalleLoteDatasourceImpl implements IDetalleLoteDatasource {
         DetalleLoteJpaModel model = detalleLoteJpaRepository.findByIdAndBorradoFalse(aUuid(detalleLoteId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El detalle de lote con id '" + detalleLoteId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        DetalleLote detalleLote = DetalleLoteJpaMapper.toDomain(model);
+        detalleLote.eliminar();
+
+        DetalleLoteJpaMapper.copiarCambios(detalleLote, model);
         detalleLoteJpaRepository.save(model);
     }
 

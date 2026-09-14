@@ -25,9 +25,6 @@ public class ClienteResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public PersonaResponse getPersona() {return persona;}
-    public void setPersona(PersonaResponse persona) {this.persona = persona;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}  
 }

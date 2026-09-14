@@ -82,8 +82,10 @@ public class PasoRecetaDatasourceImpl implements IPasoRecetaDatasource {
         PasoRecetaJpaModel model = pasoRecetaJpaRepository.findByIdAndBorradoFalse(aUuid(pasoRecetaId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El paso de receta con id '" + pasoRecetaId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        PasoReceta pasoReceta = PasoRecetaJpaMapper.toDomain(model);
+        pasoReceta.eliminar();
+
+        PasoRecetaJpaMapper.copiarCambios(pasoReceta, model);
         pasoRecetaJpaRepository.save(model);
     }
 

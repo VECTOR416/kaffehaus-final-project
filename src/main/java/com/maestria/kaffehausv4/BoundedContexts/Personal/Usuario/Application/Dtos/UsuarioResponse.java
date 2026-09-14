@@ -40,13 +40,8 @@ public class UsuarioResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public String getCorreo() {return correo;}
-    public void setCorreo(String correo) {this.correo = correo;}
     public PersonaResponse getPersona() {return persona;}
-    public void setPersona(PersonaResponse persona) {this.persona = persona;}
     public RolResponse getRol() {return rol;}
-    public void setRol(RolResponse rol) {this.rol = rol;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

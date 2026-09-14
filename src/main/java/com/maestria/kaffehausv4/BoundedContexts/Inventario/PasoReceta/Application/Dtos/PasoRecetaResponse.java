@@ -34,13 +34,8 @@ public class PasoRecetaResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public Integer getPasos() {return pasos;}
-    public void setPasos(Integer pasos) {this.pasos = pasos;}
     public String getDescripcion() {return descripcion;}
-    public void setDescripcion(String descripcion) {this.descripcion = descripcion;}
     public String getIdReceta() {return idReceta;}
-    public void setIdReceta(String idReceta) {this.idReceta = idReceta;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

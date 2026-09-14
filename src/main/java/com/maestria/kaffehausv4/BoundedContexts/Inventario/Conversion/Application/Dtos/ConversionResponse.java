@@ -44,15 +44,9 @@ public class ConversionResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public BigDecimal getFactorConversion() {return factorConversion;}
-    public void setFactorConversion(BigDecimal factorConversion) {this.factorConversion = factorConversion;}
     public boolean isEsBorrable() {return esBorrable;}
-    public void setEsBorrable(boolean esBorrable) {this.esBorrable = esBorrable;}
     public UnidadResponse getUnidadOrigen() {return unidadOrigen;}
-    public void setUnidadOrigen(UnidadResponse unidadOrigen) {this.unidadOrigen = unidadOrigen;}
     public UnidadResponse getUnidadDestino() {return unidadDestino;}
-    public void setUnidadDestino(UnidadResponse unidadDestino) {this.unidadDestino = unidadDestino;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

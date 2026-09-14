@@ -82,8 +82,10 @@ public class ProduccionDatasourceImpl implements IProduccionDatasource {
         ProduccionJpaModel model = produccionJpaRepository.findByIdAndBorradoFalse(aUuid(produccionId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "La produccion con id '" + produccionId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Produccion produccion = ProduccionJpaMapper.toDomain(model);
+        produccion.eliminar();
+
+        ProduccionJpaMapper.copiarCambios(produccion, model);
         produccionJpaRepository.save(model);
     }
 

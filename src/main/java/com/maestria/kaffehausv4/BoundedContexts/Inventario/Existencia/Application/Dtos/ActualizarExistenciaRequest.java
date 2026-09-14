@@ -50,17 +50,10 @@ public class ActualizarExistenciaRequest {
     }
 
     public BigDecimal getContenidoInicial() {return contenidoInicial;}
-    public void setContenidoInicial(BigDecimal contenidoInicial) {this.contenidoInicial = contenidoInicial;}
     public BigDecimal getContenidoActual() {return contenidoActual;}
-    public void setContenidoActual(BigDecimal contenidoActual) {this.contenidoActual = contenidoActual;}
     public LocalDateTime getFechaAcabado() {return fechaAcabado;}
-    public void setFechaAcabado(LocalDateTime fechaAcabado) {this.fechaAcabado = fechaAcabado;}
     public LocalDate getFechaVencimiento() {return fechaVencimiento;}
-    public void setFechaVencimiento(LocalDate fechaVencimiento) {this.fechaVencimiento = fechaVencimiento;}
     public String getIdDetalleLote() {return idDetalleLote;}
-    public void setIdDetalleLote(String idDetalleLote) {this.idDetalleLote = idDetalleLote;}
     public String getIdEstadoExistencia() {return idEstadoExistencia;}
-    public void setIdEstadoExistencia(String idEstadoExistencia) {this.idEstadoExistencia = idEstadoExistencia;}
     public String getIdUnidad() {return idUnidad;}
-    public void setIdUnidad(String idUnidad) {this.idUnidad = idUnidad;}
 }

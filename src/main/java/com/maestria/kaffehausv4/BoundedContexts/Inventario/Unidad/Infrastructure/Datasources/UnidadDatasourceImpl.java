@@ -82,8 +82,10 @@ public class UnidadDatasourceImpl implements IUnidadDatasource {
         UnidadJpaModel model = unidadJpaRepository.findByIdAndBorradoFalse(aUuid(unidadId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "La unidad con id '" + unidadId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Unidad unidad = UnidadJpaMapper.toDomain(model);
+        unidad.eliminar();
+
+        UnidadJpaMapper.copiarCambios(unidad, model);
         unidadJpaRepository.save(model);
     }
 

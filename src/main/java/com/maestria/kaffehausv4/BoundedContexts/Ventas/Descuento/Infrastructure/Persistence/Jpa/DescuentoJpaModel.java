@@ -61,9 +61,7 @@ public class DescuentoJpaModel {
     public void setIdProducto(UUID idProducto) {this.idProducto = idProducto;}
     public UUID getIdTipoDescuento() {return idTipoDescuento;}
     public void setIdTipoDescuento(UUID idTipoDescuento) {this.idTipoDescuento = idTipoDescuento;}
-    public OffsetDateTime getFecC() {return fecC;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
-    public OffsetDateTime getFecU() {return fecU;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}
     public void setBorrado(Boolean borrado) {this.borrado = borrado;}

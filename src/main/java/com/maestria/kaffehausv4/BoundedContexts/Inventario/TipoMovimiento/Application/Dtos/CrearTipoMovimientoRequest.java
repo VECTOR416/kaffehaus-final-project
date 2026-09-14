@@ -6,24 +6,18 @@ import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
 
 public class CrearTipoMovimientoRequest {
     private String nombre;
-    private boolean borrado;
 
     private CrearTipoMovimientoRequest(
-        String nombre,
-        boolean borrado
+        String nombre
     ) {
         this.nombre = nombre;
-        this.borrado = borrado;
     }
 
     public static CrearTipoMovimientoRequest createFromRequest(Map<String, Object> request){
         String nombre = Validador.textoRequerido(request.get("nombre"), "nombre");
 
-        return new CrearTipoMovimientoRequest(nombre, false);
+        return new CrearTipoMovimientoRequest(nombre);
     }
 
     public String getNombre() {return nombre;}
-    public void setNombre(String nombre) {this.nombre = nombre;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

@@ -56,18 +56,9 @@ public class PasoReceta {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public PasoRecetaId getId() {return id;}
-    public void setId(PasoRecetaId id) {this.id = id;}
     public Integer getPasos() {return pasos;}
-    public void setPasos(Integer pasos) {this.pasos = pasos;}
     public String getDescripcion() {return descripcion;}
-    public void setDescripcion(String descripcion) {this.descripcion = descripcion;}
     public RecetaId getRecetaId() {return recetaId;}
-    public void setRecetaId(RecetaId recetaId) {this.recetaId = recetaId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

@@ -43,21 +43,12 @@ public class Proveedor {
         this.borrado = true;
     }
 
-    public void reactivar() {
-        this.borrado = false;
-    }
-
     public void actualizar(PersonaId personaId, EntidadId entidadId) {
         this.personaId = personaId != null ? personaId : this.personaId;
         this.entidadId = entidadId;
     }
 
-    public void desvincularEntidad() {
-        this.entidadId = null;
-    }
-
     public ProveedorId getId() { return id; }
-    public void setId(ProveedorId id) { this.id = id; }
 
     public PersonaId getPersonaId() { return personaId; }
     public void setPersonaId(PersonaId personaId) { this.personaId = personaId; }
@@ -66,5 +57,4 @@ public class Proveedor {
     public void setEntidadId(EntidadId entidadId) { this.entidadId = entidadId; }
 
     public boolean isBorrado() { return borrado; }
-    public void setBorrado(boolean borrado) { this.borrado = borrado; }
 }

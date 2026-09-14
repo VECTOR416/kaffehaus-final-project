@@ -59,18 +59,9 @@ public class IngredienteReceta {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public IngredienteRecetaId getId() {return id;}
-    public void setId(IngredienteRecetaId id) {this.id = id;}
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public RecetaId getRecetaId() {return recetaId;}
-    public void setRecetaId(RecetaId recetaId) {this.recetaId = recetaId;}
     public ProductoId getProductoId() {return productoId;}
-    public void setProductoId(ProductoId productoId) {this.productoId = productoId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

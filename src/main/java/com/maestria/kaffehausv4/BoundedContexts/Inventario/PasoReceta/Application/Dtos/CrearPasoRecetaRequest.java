@@ -8,18 +8,15 @@ public class CrearPasoRecetaRequest {
     private Integer pasos;
     private String descripcion;
     private String idReceta;
-    private boolean borrado;
 
     private CrearPasoRecetaRequest(
         Integer pasos,
         String descripcion,
-        String idReceta,
-        boolean borrado
+        String idReceta
     ) {
         this.pasos = pasos;
         this.descripcion = descripcion;
         this.idReceta = idReceta;
-        this.borrado = borrado;
     }
 
     public static CrearPasoRecetaRequest createFromRequest(Map<String, Object> request){
@@ -27,15 +24,10 @@ public class CrearPasoRecetaRequest {
         String descripcion = Validador.textoRequerido(request.get("descripcion"), "descripcion");
         String idReceta = Validador.textoRequerido(request.get("idReceta"), "idReceta");
 
-        return new CrearPasoRecetaRequest(pasos, descripcion, idReceta, false);
+        return new CrearPasoRecetaRequest(pasos, descripcion, idReceta);
     }
 
     public Integer getPasos() {return pasos;}
-    public void setPasos(Integer pasos) {this.pasos = pasos;}
     public String getDescripcion() {return descripcion;}
-    public void setDescripcion(String descripcion) {this.descripcion = descripcion;}
     public String getIdReceta() {return idReceta;}
-    public void setIdReceta(String idReceta) {this.idReceta = idReceta;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

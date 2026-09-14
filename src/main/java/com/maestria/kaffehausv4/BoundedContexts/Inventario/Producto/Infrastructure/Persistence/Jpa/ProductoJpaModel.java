@@ -70,9 +70,7 @@ public class ProductoJpaModel {
     public void setIdCategoria(UUID idCategoria) {this.idCategoria = idCategoria;}
     public UUID getIdProductoPadre() {return idProductoPadre;}
     public void setIdProductoPadre(UUID idProductoPadre) {this.idProductoPadre = idProductoPadre;}
-    public OffsetDateTime getFecC() {return fecC;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
-    public OffsetDateTime getFecU() {return fecU;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}
     public void setBorrado(Boolean borrado) {this.borrado = borrado;}

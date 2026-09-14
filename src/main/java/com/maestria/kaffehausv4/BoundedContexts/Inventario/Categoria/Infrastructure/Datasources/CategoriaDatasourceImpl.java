@@ -82,8 +82,10 @@ public class CategoriaDatasourceImpl implements ICategoriaDatasource {
         CategoriaJpaModel model = categoriaJpaRepository.findByIdAndBorradoFalse(aUuid(categoriaId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "La categoria con id '" + categoriaId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Categoria categoria = CategoriaJpaMapper.toDomain(model);
+        categoria.eliminar();
+
+        CategoriaJpaMapper.copiarCambios(categoria, model);
         categoriaJpaRepository.save(model);
     }
 

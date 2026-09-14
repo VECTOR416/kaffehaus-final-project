@@ -82,8 +82,10 @@ public class RecetaDatasourceImpl implements IRecetaDatasource {
         RecetaJpaModel model = recetaJpaRepository.findByIdAndBorradoFalse(aUuid(recetaId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "La receta con id '" + recetaId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Receta receta = RecetaJpaMapper.toDomain(model);
+        receta.eliminar();
+
+        RecetaJpaMapper.copiarCambios(receta, model);
         recetaJpaRepository.save(model);
     }
 

@@ -12,7 +12,6 @@ public class CrearDetalleLoteRequest {
     private boolean fraccionable;
     private String idLote;
     private String idProducto;
-    private boolean borrado;
 
     private CrearDetalleLoteRequest(
         BigDecimal cantidadInicial,
@@ -20,8 +19,7 @@ public class CrearDetalleLoteRequest {
         BigDecimal precioUnitario,
         boolean fraccionable,
         String idLote,
-        String idProducto,
-        boolean borrado
+        String idProducto
     ) {
         this.cantidadInicial = cantidadInicial;
         this.cantidadRestante = cantidadRestante;
@@ -29,7 +27,6 @@ public class CrearDetalleLoteRequest {
         this.fraccionable = fraccionable;
         this.idLote = idLote;
         this.idProducto = idProducto;
-        this.borrado = borrado;
     }
 
     public static CrearDetalleLoteRequest createFromRequest(Map<String, Object> request){
@@ -41,21 +38,13 @@ public class CrearDetalleLoteRequest {
         String idLote = Validador.textoRequerido(request.get("idLote"), "idLote");
         String idProducto = Validador.textoRequerido(request.get("idProducto"), "idProducto");
 
-        return new CrearDetalleLoteRequest(cantidadInicial, cantidadRestante, precioUnitario, fraccionable, idLote, idProducto, false);
+        return new CrearDetalleLoteRequest(cantidadInicial, cantidadRestante, precioUnitario, fraccionable, idLote, idProducto);
     }
 
     public BigDecimal getCantidadInicial() {return cantidadInicial;}
-    public void setCantidadInicial(BigDecimal cantidadInicial) {this.cantidadInicial = cantidadInicial;}
     public BigDecimal getCantidadRestante() {return cantidadRestante;}
-    public void setCantidadRestante(BigDecimal cantidadRestante) {this.cantidadRestante = cantidadRestante;}
     public BigDecimal getPrecioUnitario() {return precioUnitario;}
-    public void setPrecioUnitario(BigDecimal precioUnitario) {this.precioUnitario = precioUnitario;}
     public boolean isFraccionable() {return fraccionable;}
-    public void setFraccionable(boolean fraccionable) {this.fraccionable = fraccionable;}
     public String getIdLote() {return idLote;}
-    public void setIdLote(String idLote) {this.idLote = idLote;}
     public String getIdProducto() {return idProducto;}
-    public void setIdProducto(String idProducto) {this.idProducto = idProducto;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

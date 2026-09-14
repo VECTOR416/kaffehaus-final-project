@@ -44,9 +44,7 @@ public class PasoRecetaJpaModel {
     public void setDescripcion(String descripcion) {this.descripcion = descripcion;}
     public UUID getIdReceta() {return idReceta;}
     public void setIdReceta(UUID idReceta) {this.idReceta = idReceta;}
-    public OffsetDateTime getFecC() {return fecC;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
-    public OffsetDateTime getFecU() {return fecU;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}
     public void setBorrado(Boolean borrado) {this.borrado = borrado;}

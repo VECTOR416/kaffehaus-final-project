@@ -18,7 +18,5 @@ public class CrearRolRequest {
     }
 
     public String getNombre() {return nombre;}
-    public void setNombre(String nombre) {this.nombre = nombre;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

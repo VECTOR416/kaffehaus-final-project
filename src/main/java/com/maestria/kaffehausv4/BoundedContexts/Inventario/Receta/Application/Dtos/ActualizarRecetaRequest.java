@@ -30,9 +30,6 @@ public class ActualizarRecetaRequest {
     }
 
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public String getTitulo() {return titulo;}
-    public void setTitulo(String titulo) {this.titulo = titulo;}
     public String getIdProductoObtenido() {return idProductoObtenido;}
-    public void setIdProductoObtenido(String idProductoObtenido) {this.idProductoObtenido = idProductoObtenido;}
 }

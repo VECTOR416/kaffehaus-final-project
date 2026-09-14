@@ -25,9 +25,6 @@ public class CrearProveedorRequest {
     }
 
     public String getIdPersona() {return idPersona;}
-    public void setIdPersona(String idPersona) {this.idPersona = idPersona;}
     public String getIdEntidad() {return idEntidad;}
-    public void setIdEntidad(String idEntidad) {this.idEntidad = idEntidad;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

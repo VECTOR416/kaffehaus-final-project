@@ -65,20 +65,10 @@ public class Conversion {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public ConversionId getId() {return id;}
-    public void setId(ConversionId id) {this.id = id;}
     public BigDecimal getFactorConversion() {return factorConversion;}
-    public void setFactorConversion(BigDecimal factorConversion) {this.factorConversion = factorConversion;}
     public boolean isEsBorrable() {return esBorrable;}
-    public void setEsBorrable(boolean esBorrable) {this.esBorrable = esBorrable;}
     public UnidadId getUnidadOrigenId() {return unidadOrigenId;}
-    public void setUnidadOrigenId(UnidadId unidadOrigenId) {this.unidadOrigenId = unidadOrigenId;}
     public UnidadId getUnidadDestinoId() {return unidadDestinoId;}
-    public void setUnidadDestinoId(UnidadId unidadDestinoId) {this.unidadDestinoId = unidadDestinoId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

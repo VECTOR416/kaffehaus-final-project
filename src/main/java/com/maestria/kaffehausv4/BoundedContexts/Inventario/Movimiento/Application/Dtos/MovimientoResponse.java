@@ -48,17 +48,10 @@ public class MovimientoResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public LocalDateTime getFechaMovimiento() {return fechaMovimiento;}
-    public void setFechaMovimiento(LocalDateTime fechaMovimiento) {this.fechaMovimiento = fechaMovimiento;}
     public String getMotivo() {return motivo;}
-    public void setMotivo(String motivo) {this.motivo = motivo;}
     public String getIdExistencia() {return idExistencia;}
-    public void setIdExistencia(String idExistencia) {this.idExistencia = idExistencia;}
     public TipoMovimientoResponse getTipoMovimiento() {return tipoMovimiento;}
-    public void setTipoMovimiento(TipoMovimientoResponse tipoMovimiento) {this.tipoMovimiento = tipoMovimiento;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

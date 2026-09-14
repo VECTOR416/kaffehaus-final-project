@@ -35,11 +35,7 @@ public class ActualizarConversionRequest {
     }
 
     public BigDecimal getFactorConversion() {return factorConversion;}
-    public void setFactorConversion(BigDecimal factorConversion) {this.factorConversion = factorConversion;}
     public Boolean getEsBorrable() {return esBorrable;}
-    public void setEsBorrable(Boolean esBorrable) {this.esBorrable = esBorrable;}
     public String getIdUnidadOrigen() {return idUnidadOrigen;}
-    public void setIdUnidadOrigen(String idUnidadOrigen) {this.idUnidadOrigen = idUnidadOrigen;}
     public String getIdUnidadDestino() {return idUnidadDestino;}
-    public void setIdUnidadDestino(String idUnidadDestino) {this.idUnidadDestino = idUnidadDestino;}
 }

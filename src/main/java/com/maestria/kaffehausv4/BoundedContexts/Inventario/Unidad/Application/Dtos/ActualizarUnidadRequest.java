@@ -29,9 +29,6 @@ public class ActualizarUnidadRequest {
     }
 
     public String getUnidad() {return unidad;}
-    public void setUnidad(String unidad) {this.unidad = unidad;}
     public String getAbreviatura() {return abreviatura;}
-    public void setAbreviatura(String abreviatura) {this.abreviatura = abreviatura;}
     public Boolean getEsBorrable() {return esBorrable;}
-    public void setEsBorrable(Boolean esBorrable) {this.esBorrable = esBorrable;}
 }

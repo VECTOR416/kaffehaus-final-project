@@ -80,24 +80,12 @@ public class DetalleLote {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public DetalleLoteId getId() {return id;}
-    public void setId(DetalleLoteId id) {this.id = id;}
     public BigDecimal getCantidadInicial() {return cantidadInicial;}
-    public void setCantidadInicial(BigDecimal cantidadInicial) {this.cantidadInicial = cantidadInicial;}
     public BigDecimal getCantidadRestante() {return cantidadRestante;}
-    public void setCantidadRestante(BigDecimal cantidadRestante) {this.cantidadRestante = cantidadRestante;}
     public BigDecimal getPrecioUnitario() {return precioUnitario;}
-    public void setPrecioUnitario(BigDecimal precioUnitario) {this.precioUnitario = precioUnitario;}
     public boolean isFraccionable() {return fraccionable;}
-    public void setFraccionable(boolean fraccionable) {this.fraccionable = fraccionable;}
     public LoteId getLoteId() {return loteId;}
-    public void setLoteId(LoteId loteId) {this.loteId = loteId;}
     public ProductoId getProductoId() {return productoId;}
-    public void setProductoId(ProductoId productoId) {this.productoId = productoId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

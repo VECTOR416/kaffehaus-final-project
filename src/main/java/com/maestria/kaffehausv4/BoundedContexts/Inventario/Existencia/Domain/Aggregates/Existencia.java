@@ -90,26 +90,13 @@ public class Existencia {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public ExistenciaId getId() {return id;}
-    public void setId(ExistenciaId id) {this.id = id;}
     public BigDecimal getContenidoInicial() {return contenidoInicial;}
-    public void setContenidoInicial(BigDecimal contenidoInicial) {this.contenidoInicial = contenidoInicial;}
     public BigDecimal getContenidoActual() {return contenidoActual;}
-    public void setContenidoActual(BigDecimal contenidoActual) {this.contenidoActual = contenidoActual;}
     public LocalDateTime getFechaAcabado() {return fechaAcabado;}
-    public void setFechaAcabado(LocalDateTime fechaAcabado) {this.fechaAcabado = fechaAcabado;}
     public LocalDate getFechaVencimiento() {return fechaVencimiento;}
-    public void setFechaVencimiento(LocalDate fechaVencimiento) {this.fechaVencimiento = fechaVencimiento;}
     public DetalleLoteId getDetalleLoteId() {return detalleLoteId;}
-    public void setDetalleLoteId(DetalleLoteId detalleLoteId) {this.detalleLoteId = detalleLoteId;}
     public EstadoExistenciaId getEstadoExistenciaId() {return estadoExistenciaId;}
-    public void setEstadoExistenciaId(EstadoExistenciaId estadoExistenciaId) {this.estadoExistenciaId = estadoExistenciaId;}
     public UnidadId getUnidadId() {return unidadId;}
-    public void setUnidadId(UnidadId unidadId) {this.unidadId = unidadId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

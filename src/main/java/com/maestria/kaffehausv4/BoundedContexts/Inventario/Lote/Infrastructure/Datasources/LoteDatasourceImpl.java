@@ -80,8 +80,10 @@ public class LoteDatasourceImpl implements ILoteDatasource {
         LoteJpaModel model = loteJpaRepository.findByIdAndBorradoFalse(aUuid(loteId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El lote con id '" + loteId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Lote lote = LoteJpaMapper.toDomain(model);
+        lote.eliminar();
+
+        LoteJpaMapper.copiarCambios(lote, model);
         loteJpaRepository.save(model);
     }
 

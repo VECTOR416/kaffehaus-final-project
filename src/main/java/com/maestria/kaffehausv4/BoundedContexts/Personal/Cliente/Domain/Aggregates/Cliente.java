@@ -30,18 +30,11 @@ public class Cliente {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public void actualizar(String personaId){
         this.personaId = personaId != null ? new PersonaId(personaId) : this.personaId;
     }
 
     public ClienteId getId() {return id;}
-    public void setId(ClienteId id) {this.id = id;}
     public PersonaId getPersona() {return personaId;}
-    public void setPersona(PersonaId persona) {this.personaId = persona;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

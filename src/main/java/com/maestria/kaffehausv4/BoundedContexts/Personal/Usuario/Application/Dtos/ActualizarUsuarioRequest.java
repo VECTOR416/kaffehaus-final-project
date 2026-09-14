@@ -30,11 +30,7 @@ public class ActualizarUsuarioRequest {
     }
 
     public String getIdPersona() {return idPersona;}
-    public void setIdPersona(String idPersona) {this.idPersona = idPersona;}
     public String getCorreo() {return correo;}
-    public void setCorreo(String correo) {this.correo = correo;}
     public String getContrasena() {return contrasena;}
-    public void setContrasena(String contrasena) {this.contrasena = contrasena;}
     public String getIdRol() {return idRol;}
-    public void setIdRol(String idRol) {this.idRol = idRol;}
 }

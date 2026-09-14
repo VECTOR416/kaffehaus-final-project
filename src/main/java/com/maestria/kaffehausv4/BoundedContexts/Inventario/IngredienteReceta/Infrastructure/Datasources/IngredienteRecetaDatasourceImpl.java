@@ -80,8 +80,10 @@ public class IngredienteRecetaDatasourceImpl implements IIngredienteRecetaDataso
         IngredienteRecetaJpaModel model = ingredienteRecetaJpaRepository.findByIdAndBorradoFalse(aUuid(ingredienteRecetaId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El ingrediente de receta con id '" + ingredienteRecetaId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        IngredienteReceta ingredienteReceta = IngredienteRecetaJpaMapper.toDomain(model);
+        ingredienteReceta.eliminar();
+
+        IngredienteRecetaJpaMapper.copiarCambios(ingredienteReceta, model);
         ingredienteRecetaJpaRepository.save(model);
     }
 

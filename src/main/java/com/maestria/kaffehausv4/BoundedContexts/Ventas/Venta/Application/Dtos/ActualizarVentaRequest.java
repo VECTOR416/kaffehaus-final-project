@@ -39,13 +39,8 @@ public class ActualizarVentaRequest {
     }
 
     public LocalDateTime getFechaVenta() {return fechaVenta;}
-    public void setFechaVenta(LocalDateTime fechaVenta) {this.fechaVenta = fechaVenta;}
     public BigDecimal getTotal() {return total;}
-    public void setTotal(BigDecimal total) {this.total = total;}
     public String getIdUsuario() {return idUsuario;}
-    public void setIdUsuario(String idUsuario) {this.idUsuario = idUsuario;}
     public String getIdCliente() {return idCliente;}
-    public void setIdCliente(String idCliente) {this.idCliente = idCliente;}
     public String getIdEstadoVenta() {return idEstadoVenta;}
-    public void setIdEstadoVenta(String idEstadoVenta) {this.idEstadoVenta = idEstadoVenta;}
 }

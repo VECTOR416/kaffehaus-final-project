@@ -67,20 +67,10 @@ public class Venta {
         this.estadoVentaId = estadoVentaId != null ? estadoVentaId : this.estadoVentaId;
     }
 
-    public void desvincularCliente(){
-        this.clienteId = null;
-    }
-
     public VentaId getId() {return id;}
-    public void setId(VentaId id) {this.id = id;}
     public LocalDateTime getFechaVenta() {return fechaVenta;}
-    public void setFechaVenta(LocalDateTime fechaVenta) {this.fechaVenta = fechaVenta;}
     public BigDecimal getTotal() {return total;}
-    public void setTotal(BigDecimal total) {this.total = total;}
     public UsuarioId getUsuarioId() {return usuarioId;}
-    public void setUsuarioId(UsuarioId usuarioId) {this.usuarioId = usuarioId;}
     public ClienteId getClienteId() {return clienteId;}
-    public void setClienteId(ClienteId clienteId) {this.clienteId = clienteId;}
     public EstadoVentaId getEstadoVentaId() {return estadoVentaId;}
-    public void setEstadoVentaId(EstadoVentaId estadoVentaId) {this.estadoVentaId = estadoVentaId;}
 }

@@ -64,20 +64,10 @@ public class Usuario {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public UsuarioId getId() {return id;}
-    public void setId(UsuarioId id) {this.id = id;}
     public PersonaId getPersonaId() {return personaId;}
-    public void setPersonaId(PersonaId personaId) {this.personaId = personaId;}
     public String getCorreo() {return correo;}
-    public void setCorreo(String correo) {this.correo = correo;}
     public String getContrasena() {return contrasena;}
-    public void setContrasena(String contrasena) {this.contrasena = contrasena;}
     public RolId getRolId() {return rolId;}
-    public void setRolId(RolId rolId) {this.rolId = rolId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

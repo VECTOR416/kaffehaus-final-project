@@ -10,20 +10,17 @@ public class CrearConversionRequest {
     private boolean esBorrable;
     private String idUnidadOrigen;
     private String idUnidadDestino;
-    private boolean borrado;
 
     private CrearConversionRequest(
         BigDecimal factorConversion,
         boolean esBorrable,
         String idUnidadOrigen,
-        String idUnidadDestino,
-        boolean borrado
+        String idUnidadDestino
     ) {
         this.factorConversion = factorConversion;
         this.esBorrable = esBorrable;
         this.idUnidadOrigen = idUnidadOrigen;
         this.idUnidadDestino = idUnidadDestino;
-        this.borrado = borrado;
     }
 
     public static CrearConversionRequest createFromRequest(Map<String, Object> request){
@@ -33,17 +30,11 @@ public class CrearConversionRequest {
         String idUnidadOrigen = Validador.textoRequerido(request.get("idUnidadOrigen"), "idUnidadOrigen");
         String idUnidadDestino = Validador.textoRequerido(request.get("idUnidadDestino"), "idUnidadDestino");
 
-        return new CrearConversionRequest(factorConversion, esBorrable, idUnidadOrigen, idUnidadDestino, false);
+        return new CrearConversionRequest(factorConversion, esBorrable, idUnidadOrigen, idUnidadDestino);
     }
 
     public BigDecimal getFactorConversion() {return factorConversion;}
-    public void setFactorConversion(BigDecimal factorConversion) {this.factorConversion = factorConversion;}
     public boolean isEsBorrable() {return esBorrable;}
-    public void setEsBorrable(boolean esBorrable) {this.esBorrable = esBorrable;}
     public String getIdUnidadOrigen() {return idUnidadOrigen;}
-    public void setIdUnidadOrigen(String idUnidadOrigen) {this.idUnidadOrigen = idUnidadOrigen;}
     public String getIdUnidadDestino() {return idUnidadDestino;}
-    public void setIdUnidadDestino(String idUnidadDestino) {this.idUnidadDestino = idUnidadDestino;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

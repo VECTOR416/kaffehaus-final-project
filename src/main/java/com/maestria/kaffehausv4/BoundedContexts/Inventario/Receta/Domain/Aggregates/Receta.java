@@ -58,18 +58,9 @@ public class Receta {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public RecetaId getId() {return id;}
-    public void setId(RecetaId id) {this.id = id;}
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public String getTitulo() {return titulo;}
-    public void setTitulo(String titulo) {this.titulo = titulo;}
     public ProductoId getProductoObtenidoId() {return productoObtenidoId;}
-    public void setProductoObtenidoId(ProductoId productoObtenidoId) {this.productoObtenidoId = productoObtenidoId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

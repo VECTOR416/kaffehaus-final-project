@@ -94,32 +94,14 @@ public class Producto {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
-    public void desvincularProductoPadre(){
-        this.productoPadreId = null;
-    }
-
     public ProductoId getId() {return id;}
-    public void setId(ProductoId id) {this.id = id;}
     public String getNombre() {return nombre;}
-    public void setNombre(String nombre) {this.nombre = nombre;}
     public BigDecimal getStock() {return stock;}
-    public void setStock(BigDecimal stock) {this.stock = stock;}
     public BigDecimal getPrecio() {return precio;}
-    public void setPrecio(BigDecimal precio) {this.precio = precio;}
     public BigDecimal getStockMinimo() {return stockMinimo;}
-    public void setStockMinimo(BigDecimal stockMinimo) {this.stockMinimo = stockMinimo;}
     public boolean isVendible() {return vendible;}
-    public void setVendible(boolean vendible) {this.vendible = vendible;}
     public UnidadId getUnidadActualId() {return unidadActualId;}
-    public void setUnidadActualId(UnidadId unidadActualId) {this.unidadActualId = unidadActualId;}
     public CategoriaId getCategoriaId() {return categoriaId;}
-    public void setCategoriaId(CategoriaId categoriaId) {this.categoriaId = categoriaId;}
     public ProductoId getProductoPadreId() {return productoPadreId;}
-    public void setProductoPadreId(ProductoId productoPadreId) {this.productoPadreId = productoPadreId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

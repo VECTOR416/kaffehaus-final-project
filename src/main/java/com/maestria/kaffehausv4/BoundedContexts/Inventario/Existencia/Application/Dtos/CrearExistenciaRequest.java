@@ -15,7 +15,6 @@ public class CrearExistenciaRequest {
     private String idDetalleLote;
     private String idEstadoExistencia;
     private String idUnidad;
-    private boolean borrado;
 
     private CrearExistenciaRequest(
         BigDecimal contenidoInicial,
@@ -24,8 +23,7 @@ public class CrearExistenciaRequest {
         LocalDate fechaVencimiento,
         String idDetalleLote,
         String idEstadoExistencia,
-        String idUnidad,
-        boolean borrado
+        String idUnidad
     ) {
         this.contenidoInicial = contenidoInicial;
         this.contenidoActual = contenidoActual;
@@ -34,7 +32,6 @@ public class CrearExistenciaRequest {
         this.idDetalleLote = idDetalleLote;
         this.idEstadoExistencia = idEstadoExistencia;
         this.idUnidad = idUnidad;
-        this.borrado = borrado;
     }
 
     public static CrearExistenciaRequest createFromRequest(Map<String, Object> request){
@@ -47,23 +44,14 @@ public class CrearExistenciaRequest {
         String idEstadoExistencia = Validador.textoRequerido(request.get("idEstadoExistencia"), "idEstadoExistencia");
         String idUnidad = Validador.textoRequerido(request.get("idUnidad"), "idUnidad");
 
-        return new CrearExistenciaRequest(contenidoInicial, contenidoActual, fechaAcabado, fechaVencimiento, idDetalleLote, idEstadoExistencia, idUnidad, false);
+        return new CrearExistenciaRequest(contenidoInicial, contenidoActual, fechaAcabado, fechaVencimiento, idDetalleLote, idEstadoExistencia, idUnidad);
     }
 
     public BigDecimal getContenidoInicial() {return contenidoInicial;}
-    public void setContenidoInicial(BigDecimal contenidoInicial) {this.contenidoInicial = contenidoInicial;}
     public BigDecimal getContenidoActual() {return contenidoActual;}
-    public void setContenidoActual(BigDecimal contenidoActual) {this.contenidoActual = contenidoActual;}
     public LocalDateTime getFechaAcabado() {return fechaAcabado;}
-    public void setFechaAcabado(LocalDateTime fechaAcabado) {this.fechaAcabado = fechaAcabado;}
     public LocalDate getFechaVencimiento() {return fechaVencimiento;}
-    public void setFechaVencimiento(LocalDate fechaVencimiento) {this.fechaVencimiento = fechaVencimiento;}
     public String getIdDetalleLote() {return idDetalleLote;}
-    public void setIdDetalleLote(String idDetalleLote) {this.idDetalleLote = idDetalleLote;}
     public String getIdEstadoExistencia() {return idEstadoExistencia;}
-    public void setIdEstadoExistencia(String idEstadoExistencia) {this.idEstadoExistencia = idEstadoExistencia;}
     public String getIdUnidad() {return idUnidad;}
-    public void setIdUnidad(String idUnidad) {this.idUnidad = idUnidad;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

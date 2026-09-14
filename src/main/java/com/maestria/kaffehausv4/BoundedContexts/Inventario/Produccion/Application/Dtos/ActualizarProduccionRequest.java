@@ -45,15 +45,9 @@ public class ActualizarProduccionRequest {
     }
 
     public BigDecimal getCantidadEsperada() {return cantidadEsperada;}
-    public void setCantidadEsperada(BigDecimal cantidadEsperada) {this.cantidadEsperada = cantidadEsperada;}
     public BigDecimal getCantidadReal() {return cantidadReal;}
-    public void setCantidadReal(BigDecimal cantidadReal) {this.cantidadReal = cantidadReal;}
     public BigDecimal getDiferencia() {return diferencia;}
-    public void setDiferencia(BigDecimal diferencia) {this.diferencia = diferencia;}
     public String getMotivoDiferencia() {return motivoDiferencia;}
-    public void setMotivoDiferencia(String motivoDiferencia) {this.motivoDiferencia = motivoDiferencia;}
     public LocalDateTime getFechaProduccion() {return fechaProduccion;}
-    public void setFechaProduccion(LocalDateTime fechaProduccion) {this.fechaProduccion = fechaProduccion;}
     public String getIdReceta() {return idReceta;}
-    public void setIdReceta(String idReceta) {this.idReceta = idReceta;}
 }

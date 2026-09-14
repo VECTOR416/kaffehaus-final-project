@@ -9,18 +9,15 @@ public class CrearIngredienteRecetaRequest {
     private BigDecimal cantidad;
     private String idReceta;
     private String idProducto;
-    private boolean borrado;
 
     private CrearIngredienteRecetaRequest(
         BigDecimal cantidad,
         String idReceta,
-        String idProducto,
-        boolean borrado
+        String idProducto
     ) {
         this.cantidad = cantidad;
         this.idReceta = idReceta;
         this.idProducto = idProducto;
-        this.borrado = borrado;
     }
 
     public static CrearIngredienteRecetaRequest createFromRequest(Map<String, Object> request){
@@ -28,15 +25,10 @@ public class CrearIngredienteRecetaRequest {
         String idReceta = Validador.textoRequerido(request.get("idReceta"), "idReceta");
         String idProducto = Validador.textoRequerido(request.get("idProducto"), "idProducto");
 
-        return new CrearIngredienteRecetaRequest(cantidad, idReceta, idProducto, false);
+        return new CrearIngredienteRecetaRequest(cantidad, idReceta, idProducto);
     }
 
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public String getIdReceta() {return idReceta;}
-    public void setIdReceta(String idReceta) {this.idReceta = idReceta;}
     public String getIdProducto() {return idProducto;}
-    public void setIdProducto(String idProducto) {this.idProducto = idProducto;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

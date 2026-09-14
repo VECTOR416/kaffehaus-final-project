@@ -80,19 +80,11 @@ public class DetalleVenta {
     }
 
     public DetalleVentaId getId() {return id;}
-    public void setId(DetalleVentaId id) {this.id = id;}
     public BigDecimal getPrecioUnitario() {return precioUnitario;}
-    public void setPrecioUnitario(BigDecimal precioUnitario) {this.precioUnitario = precioUnitario;}
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public BigDecimal getSubtotal() {return subtotal;}
-    public void setSubtotal(BigDecimal subtotal) {this.subtotal = subtotal;}
     public BigDecimal getDescuentoAplicado() {return descuentoAplicado;}
-    public void setDescuentoAplicado(BigDecimal descuentoAplicado) {this.descuentoAplicado = descuentoAplicado;}
     public boolean isEstado() {return estado;}
-    public void setEstado(boolean estado) {this.estado = estado;}
     public VentaId getVentaId() {return ventaId;}
-    public void setVentaId(VentaId ventaId) {this.ventaId = ventaId;}
     public ProductoId getProductoId() {return productoId;}
-    public void setProductoId(ProductoId productoId) {this.productoId = productoId;}
 }

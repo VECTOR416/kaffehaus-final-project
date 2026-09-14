@@ -82,8 +82,10 @@ public class ProductoDatasourceImpl implements IProductoDatasource {
         ProductoJpaModel model = productoJpaRepository.findByIdAndBorradoFalse(aUuid(productoId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + productoId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Producto producto = ProductoJpaMapper.toDomain(model);
+        producto.eliminar();
+
+        ProductoJpaMapper.copiarCambios(producto, model);
         productoJpaRepository.save(model);
     }
 

@@ -82,8 +82,10 @@ public class MovimientoDatasourceImpl implements IMovimientoDatasource {
         MovimientoJpaModel model = movimientoJpaRepository.findByIdAndBorradoFalse(aUuid(movimientoId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El movimiento con id '" + movimientoId.getValue() + "' no existe"));
 
-        model.setBorrado(true);
-        model.setFecU(OffsetDateTime.now());
+        Movimiento movimiento = MovimientoJpaMapper.toDomain(model);
+        movimiento.eliminar();
+
+        MovimientoJpaMapper.copiarCambios(movimiento, model);
         movimientoJpaRepository.save(model);
     }
 

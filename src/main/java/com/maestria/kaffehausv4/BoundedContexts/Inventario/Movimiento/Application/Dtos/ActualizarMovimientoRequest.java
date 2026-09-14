@@ -39,13 +39,8 @@ public class ActualizarMovimientoRequest {
     }
 
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public LocalDateTime getFechaMovimiento() {return fechaMovimiento;}
-    public void setFechaMovimiento(LocalDateTime fechaMovimiento) {this.fechaMovimiento = fechaMovimiento;}
     public String getMotivo() {return motivo;}
-    public void setMotivo(String motivo) {this.motivo = motivo;}
     public String getIdExistencia() {return idExistencia;}
-    public void setIdExistencia(String idExistencia) {this.idExistencia = idExistencia;}
     public String getIdTipoMovimiento() {return idTipoMovimiento;}
-    public void setIdTipoMovimiento(String idTipoMovimiento) {this.idTipoMovimiento = idTipoMovimiento;}
 }

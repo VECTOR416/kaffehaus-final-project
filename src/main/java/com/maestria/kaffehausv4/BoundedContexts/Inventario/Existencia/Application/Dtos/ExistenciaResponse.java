@@ -60,21 +60,12 @@ public class ExistenciaResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public BigDecimal getContenidoInicial() {return contenidoInicial;}
-    public void setContenidoInicial(BigDecimal contenidoInicial) {this.contenidoInicial = contenidoInicial;}
     public BigDecimal getContenidoActual() {return contenidoActual;}
-    public void setContenidoActual(BigDecimal contenidoActual) {this.contenidoActual = contenidoActual;}
     public LocalDateTime getFechaAcabado() {return fechaAcabado;}
-    public void setFechaAcabado(LocalDateTime fechaAcabado) {this.fechaAcabado = fechaAcabado;}
     public LocalDate getFechaVencimiento() {return fechaVencimiento;}
-    public void setFechaVencimiento(LocalDate fechaVencimiento) {this.fechaVencimiento = fechaVencimiento;}
     public String getIdDetalleLote() {return idDetalleLote;}
-    public void setIdDetalleLote(String idDetalleLote) {this.idDetalleLote = idDetalleLote;}
     public EstadoExistenciaResponse getEstadoExistencia() {return estadoExistencia;}
-    public void setEstadoExistencia(EstadoExistenciaResponse estadoExistencia) {this.estadoExistencia = estadoExistencia;}
     public UnidadResponse getUnidad() {return unidad;}
-    public void setUnidad(UnidadResponse unidad) {this.unidad = unidad;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

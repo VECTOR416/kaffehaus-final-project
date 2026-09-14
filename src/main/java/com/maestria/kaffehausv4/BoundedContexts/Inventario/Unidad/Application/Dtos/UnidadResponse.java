@@ -34,13 +34,8 @@ public class UnidadResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public String getUnidad() {return unidad;}
-    public void setUnidad(String unidad) {this.unidad = unidad;}
     public String getAbreviatura() {return abreviatura;}
-    public void setAbreviatura(String abreviatura) {this.abreviatura = abreviatura;}
     public boolean isEsBorrable() {return esBorrable;}
-    public void setEsBorrable(boolean esBorrable) {this.esBorrable = esBorrable;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

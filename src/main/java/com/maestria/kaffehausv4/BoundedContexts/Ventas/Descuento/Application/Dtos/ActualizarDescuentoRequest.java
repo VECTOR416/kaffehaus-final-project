@@ -44,15 +44,9 @@ public class ActualizarDescuentoRequest {
     }
 
     public BigDecimal getDescuento() {return descuento;}
-    public void setDescuento(BigDecimal descuento) {this.descuento = descuento;}
     public LocalDateTime getFechaInicio() {return fechaInicio;}
-    public void setFechaInicio(LocalDateTime fechaInicio) {this.fechaInicio = fechaInicio;}
     public LocalDateTime getFechaFinal() {return fechaFinal;}
-    public void setFechaFinal(LocalDateTime fechaFinal) {this.fechaFinal = fechaFinal;}
     public Boolean getEstado() {return estado;}
-    public void setEstado(Boolean estado) {this.estado = estado;}
     public String getIdProducto() {return idProducto;}
-    public void setIdProducto(String idProducto) {this.idProducto = idProducto;}
     public String getIdTipoDescuento() {return idTipoDescuento;}
-    public void setIdTipoDescuento(String idTipoDescuento) {this.idTipoDescuento = idTipoDescuento;}
 }

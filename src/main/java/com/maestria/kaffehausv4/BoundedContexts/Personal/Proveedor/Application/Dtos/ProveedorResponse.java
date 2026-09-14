@@ -36,11 +36,7 @@ public class ProveedorResponse {
     }
 
     public String getId() {return id;}
-    public void setId(String id) {this.id = id;}
     public PersonaResponse getPersona() {return persona;}
-    public void setPersona(PersonaResponse persona) {this.persona = persona;}
     public EntidadResponse getEntidad() {return entidad;}
-    public void setEntidad(EntidadResponse entidad) {this.entidad = entidad;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

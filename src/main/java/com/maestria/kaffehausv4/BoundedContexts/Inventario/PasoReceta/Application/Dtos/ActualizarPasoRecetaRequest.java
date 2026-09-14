@@ -28,9 +28,6 @@ public class ActualizarPasoRecetaRequest {
     }
 
     public Integer getPasos() {return pasos;}
-    public void setPasos(Integer pasos) {this.pasos = pasos;}
     public String getDescripcion() {return descripcion;}
-    public void setDescripcion(String descripcion) {this.descripcion = descripcion;}
     public String getIdReceta() {return idReceta;}
-    public void setIdReceta(String idReceta) {this.idReceta = idReceta;}
 }

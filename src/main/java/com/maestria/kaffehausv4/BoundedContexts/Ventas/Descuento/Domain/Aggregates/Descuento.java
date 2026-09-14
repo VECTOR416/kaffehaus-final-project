@@ -81,24 +81,12 @@ public class Descuento {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public DescuentoId getId() {return id;}
-    public void setId(DescuentoId id) {this.id = id;}
     public BigDecimal getDescuento() {return descuento;}
-    public void setDescuento(BigDecimal descuento) {this.descuento = descuento;}
     public LocalDateTime getFechaInicio() {return fechaInicio;}
-    public void setFechaInicio(LocalDateTime fechaInicio) {this.fechaInicio = fechaInicio;}
     public LocalDateTime getFechaFinal() {return fechaFinal;}
-    public void setFechaFinal(LocalDateTime fechaFinal) {this.fechaFinal = fechaFinal;}
     public boolean isEstado() {return estado;}
-    public void setEstado(boolean estado) {this.estado = estado;}
     public ProductoId getProductoId() {return productoId;}
-    public void setProductoId(ProductoId productoId) {this.productoId = productoId;}
     public TipoDescuentoId getTipoDescuentoId() {return tipoDescuentoId;}
-    public void setTipoDescuentoId(TipoDescuentoId tipoDescuentoId) {this.tipoDescuentoId = tipoDescuentoId;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

@@ -12,22 +12,19 @@ public class CrearMovimientoRequest {
     private String motivo;
     private String idExistencia;
     private String idTipoMovimiento;
-    private boolean borrado;
 
     private CrearMovimientoRequest(
         BigDecimal cantidad,
         LocalDateTime fechaMovimiento,
         String motivo,
         String idExistencia,
-        String idTipoMovimiento,
-        boolean borrado
+        String idTipoMovimiento
     ) {
         this.cantidad = cantidad;
         this.fechaMovimiento = fechaMovimiento;
         this.motivo = motivo;
         this.idExistencia = idExistencia;
         this.idTipoMovimiento = idTipoMovimiento;
-        this.borrado = borrado;
     }
 
     public static CrearMovimientoRequest createFromRequest(Map<String, Object> request){
@@ -38,19 +35,12 @@ public class CrearMovimientoRequest {
         String idExistencia = Validador.textoRequerido(request.get("idExistencia"), "idExistencia");
         String idTipoMovimiento = Validador.textoRequerido(request.get("idTipoMovimiento"), "idTipoMovimiento");
 
-        return new CrearMovimientoRequest(cantidad, fechaMovimiento, motivo, idExistencia, idTipoMovimiento, false);
+        return new CrearMovimientoRequest(cantidad, fechaMovimiento, motivo, idExistencia, idTipoMovimiento);
     }
 
     public BigDecimal getCantidad() {return cantidad;}
-    public void setCantidad(BigDecimal cantidad) {this.cantidad = cantidad;}
     public LocalDateTime getFechaMovimiento() {return fechaMovimiento;}
-    public void setFechaMovimiento(LocalDateTime fechaMovimiento) {this.fechaMovimiento = fechaMovimiento;}
     public String getMotivo() {return motivo;}
-    public void setMotivo(String motivo) {this.motivo = motivo;}
     public String getIdExistencia() {return idExistencia;}
-    public void setIdExistencia(String idExistencia) {this.idExistencia = idExistencia;}
     public String getIdTipoMovimiento() {return idTipoMovimiento;}
-    public void setIdTipoMovimiento(String idTipoMovimiento) {this.idTipoMovimiento = idTipoMovimiento;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

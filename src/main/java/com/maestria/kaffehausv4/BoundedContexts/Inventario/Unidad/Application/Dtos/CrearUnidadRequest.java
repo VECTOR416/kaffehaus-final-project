@@ -8,18 +8,15 @@ public class CrearUnidadRequest {
     private String unidad;
     private String abreviatura;
     private boolean esBorrable;
-    private boolean borrado;
 
     private CrearUnidadRequest(
         String unidad,
         String abreviatura,
-        boolean esBorrable,
-        boolean borrado
+        boolean esBorrable
     ) {
         this.unidad = unidad;
         this.abreviatura = abreviatura;
         this.esBorrable = esBorrable;
-        this.borrado = borrado;
     }
 
     public static CrearUnidadRequest createFromRequest(Map<String, Object> request){
@@ -28,15 +25,10 @@ public class CrearUnidadRequest {
         Boolean esBorrableTmp = Validador.booleanoOpcional(request.get("esBorrable"), "esBorrable");
         boolean esBorrable = esBorrableTmp != null ? esBorrableTmp : true;
 
-        return new CrearUnidadRequest(unidad, abreviatura, esBorrable, false);
+        return new CrearUnidadRequest(unidad, abreviatura, esBorrable);
     }
 
     public String getUnidad() {return unidad;}
-    public void setUnidad(String unidad) {this.unidad = unidad;}
     public String getAbreviatura() {return abreviatura;}
-    public void setAbreviatura(String abreviatura) {this.abreviatura = abreviatura;}
     public boolean isEsBorrable() {return esBorrable;}
-    public void setEsBorrable(boolean esBorrable) {this.esBorrable = esBorrable;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

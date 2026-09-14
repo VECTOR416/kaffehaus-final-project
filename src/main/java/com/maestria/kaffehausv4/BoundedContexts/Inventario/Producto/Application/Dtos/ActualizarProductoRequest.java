@@ -53,19 +53,11 @@ public class ActualizarProductoRequest {
     }
 
     public String getNombre() {return nombre;}
-    public void setNombre(String nombre) {this.nombre = nombre;}
     public BigDecimal getStock() {return stock;}
-    public void setStock(BigDecimal stock) {this.stock = stock;}
     public BigDecimal getPrecio() {return precio;}
-    public void setPrecio(BigDecimal precio) {this.precio = precio;}
     public BigDecimal getStockMinimo() {return stockMinimo;}
-    public void setStockMinimo(BigDecimal stockMinimo) {this.stockMinimo = stockMinimo;}
     public Boolean getVendible() {return vendible;}
-    public void setVendible(Boolean vendible) {this.vendible = vendible;}
     public String getIdUnidadActual() {return idUnidadActual;}
-    public void setIdUnidadActual(String idUnidadActual) {this.idUnidadActual = idUnidadActual;}
     public String getIdCategoria() {return idCategoria;}
-    public void setIdCategoria(String idCategoria) {this.idCategoria = idCategoria;}
     public String getIdProductoPadre() {return idProductoPadre;}
-    public void setIdProductoPadre(String idProductoPadre) {this.idProductoPadre = idProductoPadre;}
 }

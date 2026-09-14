@@ -29,14 +29,7 @@ public class Rol {
         this.borrado = true;
     }
 
-    public void reactivar(){
-        this.borrado = false;
-    }
-
     public RolId getId() {return id;}
-    public void setId(RolId id) {this.id = id;}
     public String getNombre() {return nombre;}
-    public void setNombre(String nombre) {this.nombre = nombre;}
     public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

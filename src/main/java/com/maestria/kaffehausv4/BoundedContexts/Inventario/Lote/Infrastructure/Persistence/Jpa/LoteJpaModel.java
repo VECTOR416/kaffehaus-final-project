@@ -51,9 +51,7 @@ public class LoteJpaModel {
     public void setIdProveedor(UUID idProveedor) {this.idProveedor = idProveedor;}
     public UUID getIdUsuario() {return idUsuario;}
     public void setIdUsuario(UUID idUsuario) {this.idUsuario = idUsuario;}
-    public OffsetDateTime getFecC() {return fecC;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
-    public OffsetDateTime getFecU() {return fecU;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}
     public void setBorrado(Boolean borrado) {this.borrado = borrado;}

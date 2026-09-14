@@ -13,7 +13,6 @@ public class CrearDescuentoRequest {
     private boolean estado;
     private String idProducto;
     private String idTipoDescuento;
-    private boolean borrado;
 
     private CrearDescuentoRequest(
         BigDecimal descuento,
@@ -21,8 +20,7 @@ public class CrearDescuentoRequest {
         LocalDateTime fechaFinal,
         boolean estado,
         String idProducto,
-        String idTipoDescuento,
-        boolean borrado
+        String idTipoDescuento
     ) {
         this.descuento = descuento;
         this.fechaInicio = fechaInicio;
@@ -30,7 +28,6 @@ public class CrearDescuentoRequest {
         this.estado = estado;
         this.idProducto = idProducto;
         this.idTipoDescuento = idTipoDescuento;
-        this.borrado = borrado;
     }
 
     public static CrearDescuentoRequest createFromRequest(Map<String, Object> request){
@@ -42,21 +39,13 @@ public class CrearDescuentoRequest {
         String idProducto = Validador.textoRequerido(request.get("idProducto"), "idProducto");
         String idTipoDescuento = Validador.textoRequerido(request.get("idTipoDescuento"), "idTipoDescuento");
 
-        return new CrearDescuentoRequest(descuento, fechaInicio, fechaFinal, estado, idProducto, idTipoDescuento, false);
+        return new CrearDescuentoRequest(descuento, fechaInicio, fechaFinal, estado, idProducto, idTipoDescuento);
     }
 
     public BigDecimal getDescuento() {return descuento;}
-    public void setDescuento(BigDecimal descuento) {this.descuento = descuento;}
     public LocalDateTime getFechaInicio() {return fechaInicio;}
-    public void setFechaInicio(LocalDateTime fechaInicio) {this.fechaInicio = fechaInicio;}
     public LocalDateTime getFechaFinal() {return fechaFinal;}
-    public void setFechaFinal(LocalDateTime fechaFinal) {this.fechaFinal = fechaFinal;}
     public boolean isEstado() {return estado;}
-    public void setEstado(boolean estado) {this.estado = estado;}
     public String getIdProducto() {return idProducto;}
-    public void setIdProducto(String idProducto) {this.idProducto = idProducto;}
     public String getIdTipoDescuento() {return idTipoDescuento;}
-    public void setIdTipoDescuento(String idTipoDescuento) {this.idTipoDescuento = idTipoDescuento;}
-    public boolean isBorrado() {return borrado;}
-    public void setBorrado(boolean borrado) {this.borrado = borrado;}
 }

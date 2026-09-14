@@ -31,8 +31,6 @@ public class EstadoVentaJpaModel {
     public void setId(UUID id) {this.id = id;}
     public String getNombre() {return nombre;}
     public void setNombre(String nombre) {this.nombre = nombre;}
-    public OffsetDateTime getFecC() {return fecC;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
-    public OffsetDateTime getFecU() {return fecU;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
 }
