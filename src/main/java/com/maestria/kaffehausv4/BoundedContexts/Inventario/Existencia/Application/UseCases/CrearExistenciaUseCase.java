@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.DetalleLote.Application.Repositories.IDetalleLoteRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.DetalleLote.Domain.Aggregates.DetalleLote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.DetalleLote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Application.Repositories.IEstadoExistenciaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Domain.Aggregates.EstadoExistencia;
@@ -21,6 +22,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 @Transactional
 public class CrearExistenciaUseCase {
     private final IExistenciaRepository existenciaRepository;
+    private final IDetalleLoteRepository detalleLoteRepository;
     private final IEstadoExistenciaRepository estadoExistenciaRepository;
     private final IUnidadRepository unidadRepository;
 
@@ -30,12 +32,15 @@ public class CrearExistenciaUseCase {
             IEstadoExistenciaRepository estadoExistenciaRepository,
             IUnidadRepository unidadRepository) {
         this.existenciaRepository = existenciaRepository;
+        this.detalleLoteRepository = detalleLoteRepository;
         this.estadoExistenciaRepository = estadoExistenciaRepository;
         this.unidadRepository = unidadRepository;
     }
 
     public ExistenciaResponse execute(CrearExistenciaRequest crearExistenciaRequest) {
         DetalleLoteId detalleLoteId = new DetalleLoteId(crearExistenciaRequest.getIdDetalleLote());
+        detalleLoteRepository.obtenerPorId(detalleLoteId)
+                .orElseThrow(() -> DomainException.throwException(404, "El detalle de lote con id '" + crearExistenciaRequest.getIdDetalleLote() + "' no existe"));
         EstadoExistenciaId estadoExistenciaId = new EstadoExistenciaId(crearExistenciaRequest.getIdEstadoExistencia());
         EstadoExistencia estadoExistencia = estadoExistenciaRepository.obtenerPorId(estadoExistenciaId)
                 .orElseThrow(() -> DomainException.throwException(404, "El estado de existencia con id '" + crearExistenciaRequest.getIdEstadoExistencia() + "' no existe"));

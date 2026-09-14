@@ -56,7 +56,7 @@ public class ExistenciaDatasourceImpl implements IExistenciaDatasource {
     public PaginatedResponse<List<Existencia>> obtenerTodos(ObtenerExistenciasRequest obtenerExistenciasRequest) {
         int skip = obtenerExistenciasRequest.getSkip();
         int limit = obtenerExistenciasRequest.getLimit();
-        //String search = obtenerExistenciasRequest.getSearch();
+        String search = obtenerExistenciasRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 

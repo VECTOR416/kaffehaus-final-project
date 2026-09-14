@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Repositories.IExistenciaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.Aggregates.Existencia;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.CrearMovimientoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.MovimientoResponse;
@@ -18,6 +19,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 @Transactional
 public class CrearMovimientoUseCase {
     private final IMovimientoRepository movimientoRepository;
+    private final IExistenciaRepository existenciaRepository;
     private final ITipoMovimientoRepository tipoMovimientoRepository;
 
     public CrearMovimientoUseCase(
@@ -25,11 +27,14 @@ public class CrearMovimientoUseCase {
             IExistenciaRepository existenciaRepository,
             ITipoMovimientoRepository tipoMovimientoRepository) {
         this.movimientoRepository = movimientoRepository;
+        this.existenciaRepository = existenciaRepository;
         this.tipoMovimientoRepository = tipoMovimientoRepository;
     }
 
     public MovimientoResponse execute(CrearMovimientoRequest crearMovimientoRequest) {
         ExistenciaId existenciaId = new ExistenciaId(crearMovimientoRequest.getIdExistencia());
+        existenciaRepository.obtenerPorId(existenciaId)
+                .orElseThrow(() -> DomainException.throwException(404, "La existencia con id '" + crearMovimientoRequest.getIdExistencia() + "' no existe"));
         TipoMovimientoId tipoMovimientoId = new TipoMovimientoId(crearMovimientoRequest.getIdTipoMovimiento());
         TipoMovimiento tipoMovimiento = tipoMovimientoRepository.obtenerPorId(tipoMovimientoId)
                 .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento con id '" + crearMovimientoRequest.getIdTipoMovimiento() + "' no existe"));
