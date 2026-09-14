@@ -56,7 +56,7 @@ public class DetalleLoteDatasourceImpl implements IDetalleLoteDatasource {
     public PaginatedResponse<List<DetalleLote>> obtenerTodos(ObtenerDetallesLoteRequest obtenerDetallesLoteRequest) {
         int skip = obtenerDetallesLoteRequest.getSkip();
         int limit = obtenerDetallesLoteRequest.getLimit();
-        String search = obtenerDetallesLoteRequest.getSearch();
+        //String search = obtenerDetallesLoteRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 

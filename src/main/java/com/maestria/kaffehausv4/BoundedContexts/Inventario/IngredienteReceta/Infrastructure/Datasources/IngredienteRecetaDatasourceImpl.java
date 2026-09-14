@@ -56,7 +56,7 @@ public class IngredienteRecetaDatasourceImpl implements IIngredienteRecetaDataso
     public PaginatedResponse<List<IngredienteReceta>> obtenerTodos(ObtenerIngredientesRecetaRequest obtenerIngredientesRecetaRequest) {
         int skip = obtenerIngredientesRecetaRequest.getSkip();
         int limit = obtenerIngredientesRecetaRequest.getLimit();
-        String search = obtenerIngredientesRecetaRequest.getSearch();
+        //String search = obtenerIngredientesRecetaRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 

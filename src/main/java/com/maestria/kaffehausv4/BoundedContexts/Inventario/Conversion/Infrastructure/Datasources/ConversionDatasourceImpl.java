@@ -56,7 +56,7 @@ public class ConversionDatasourceImpl implements IConversionDatasource {
     public PaginatedResponse<List<Conversion>> obtenerTodos(ObtenerConversionesRequest obtenerConversionesRequest) {
         int skip = obtenerConversionesRequest.getSkip();
         int limit = obtenerConversionesRequest.getLimit();
-        String search = obtenerConversionesRequest.getSearch();
+        //String search = obtenerConversionesRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 
