@@ -1,5 +1,4 @@
 services:
-  # 1. Base de datos principal para KaffeHaus
   kaffehausdb:
     image: postgres:16-alpine
     container_name: kaffehausdb
@@ -15,54 +14,8 @@ services:
     networks:
       - kaffehaus_net
 
-  # 2. Base de datos dedicada y aislada para Keycloak
-  keycloakdb:
-    image: postgres:16-alpine
-    container_name: keycloakdb
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: keycloakdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
-    # No exponemos el puerto 5432 al host para evitar conflictos,
-    # Keycloak se conectará internamente a través de la red de Docker.
-    volumes:
-      - keycloak_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d keycloakdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - kaffehaus_net
-
-  # 3. Servicio de Keycloak
-  keycloak:
-    image: quay.io/keycloak/keycloak:latest
-    container_name: kaffehaus_keycloak
-    restart: unless-stopped
-    command: start-dev
-    environment:
-      KC_DB: postgres
-      KC_DB_URL_HOST: keycloakdb # Apunta al nuevo contenedor
-      KC_DB_URL_PORT: 5432
-      KC_DB_URL_DATABASE: keycloakdb
-      KC_DB_USERNAME: postgres
-      KC_DB_PASSWORD: postgrespassword
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: adminpassword
-    ports:
-      - "8080:8080"
-    depends_on:
-      keycloakdb:
-        condition: service_healthy
-    networks:
-      - kaffehaus_net
-
 volumes:
   kaffehaus_postgres_data:
-    driver: local
-  keycloak_postgres_data:
     driver: local
 
 networks:

@@ -3,12 +3,15 @@ package com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Infrastructu
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.stereotype.Repository;
+
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Datasources.IProveedorDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Dtos.ObtenerProveedoresRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.Aggregates.Proveedor;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
+@Repository 
 public class ProveedorDatasourceImpl implements IProveedorDatasource {
 
     @Override

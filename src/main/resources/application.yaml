@@ -1,6 +1,17 @@
 spring:
   application:
     name: kaffehausv4
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kaffehausdb
+    username: postgres
+    password: postgrespassword
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 server:
   port: ${SERVER_PORT:8081}
