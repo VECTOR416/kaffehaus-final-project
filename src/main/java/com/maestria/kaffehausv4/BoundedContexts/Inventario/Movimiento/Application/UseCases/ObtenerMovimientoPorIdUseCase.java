@@ -9,7 +9,6 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Agg
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.ValueObjects.MovimientoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.Repositories.ITipoMovimientoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.ValueObjects.TipoMovimientoId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 @Service

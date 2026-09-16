@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Conversion.Infrastructure.Datasources;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,7 +55,7 @@ public class ConversionDatasourceImpl implements IConversionDatasource {
     public PaginatedResponse<List<Conversion>> obtenerTodos(ObtenerConversionesRequest obtenerConversionesRequest) {
         int skip = obtenerConversionesRequest.getSkip();
         int limit = obtenerConversionesRequest.getLimit();
-        String search = obtenerConversionesRequest.getSearch();
+        //String search = obtenerConversionesRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 

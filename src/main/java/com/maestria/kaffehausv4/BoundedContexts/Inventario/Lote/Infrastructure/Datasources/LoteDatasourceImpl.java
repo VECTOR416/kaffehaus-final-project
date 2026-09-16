@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Datasources;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,7 +55,7 @@ public class LoteDatasourceImpl implements ILoteDatasource {
     public PaginatedResponse<List<Lote>> obtenerTodos(ObtenerLotesRequest obtenerLotesRequest) {
         int skip = obtenerLotesRequest.getSkip();
         int limit = obtenerLotesRequest.getLimit();
-        String search = obtenerLotesRequest.getSearch();
+        //String search = obtenerLotesRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 

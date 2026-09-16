@@ -2,8 +2,6 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas.DetalleVenta.Infrastruct
 
 import java.util.UUID;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DetalleVentaJpaRepository extends JpaRepository<DetalleVentaJpaModel, UUID>{

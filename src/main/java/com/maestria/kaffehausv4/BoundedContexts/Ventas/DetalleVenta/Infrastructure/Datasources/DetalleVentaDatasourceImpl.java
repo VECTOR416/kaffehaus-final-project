@@ -55,7 +55,7 @@ public class DetalleVentaDatasourceImpl implements IDetalleVentaDatasource {
     public PaginatedResponse<List<DetalleVenta>> obtenerTodos(ObtenerDetallesVentaRequest obtenerDetallesVentaRequest) {
         int skip = obtenerDetallesVentaRequest.getSkip();
         int limit = obtenerDetallesVentaRequest.getLimit();
-        String search = obtenerDetallesVentaRequest.getSearch();
+        //String search = obtenerDetallesVentaRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 

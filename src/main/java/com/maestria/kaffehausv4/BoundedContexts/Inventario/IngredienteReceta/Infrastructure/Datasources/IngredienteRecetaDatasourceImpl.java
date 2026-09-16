@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.IngredienteReceta.Infrastructure.Datasources;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,7 +55,7 @@ public class IngredienteRecetaDatasourceImpl implements IIngredienteRecetaDataso
     public PaginatedResponse<List<IngredienteReceta>> obtenerTodos(ObtenerIngredientesRecetaRequest obtenerIngredientesRecetaRequest) {
         int skip = obtenerIngredientesRecetaRequest.getSkip();
         int limit = obtenerIngredientesRecetaRequest.getLimit();
-        String search = obtenerIngredientesRecetaRequest.getSearch();
+        //String search = obtenerIngredientesRecetaRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 

@@ -55,7 +55,7 @@ public class VentaDatasourceImpl implements IVentaDatasource {
     public PaginatedResponse<List<Venta>> obtenerTodos(ObtenerVentasRequest obtenerVentasRequest) {
         int skip = obtenerVentasRequest.getSkip();
         int limit = obtenerVentasRequest.getLimit();
-        String search = obtenerVentasRequest.getSearch();
+        //String search = obtenerVentasRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 

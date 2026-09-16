@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Infrastructure.Datasources;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,7 +55,7 @@ public class ExistenciaDatasourceImpl implements IExistenciaDatasource {
     public PaginatedResponse<List<Existencia>> obtenerTodos(ObtenerExistenciasRequest obtenerExistenciasRequest) {
         int skip = obtenerExistenciasRequest.getSkip();
         int limit = obtenerExistenciasRequest.getLimit();
-        String search = obtenerExistenciasRequest.getSearch();
+        //String search = obtenerExistenciasRequest.getSearch();
 
         Pageable pageable = new OffsetPageRequest(skip, limit);
 
