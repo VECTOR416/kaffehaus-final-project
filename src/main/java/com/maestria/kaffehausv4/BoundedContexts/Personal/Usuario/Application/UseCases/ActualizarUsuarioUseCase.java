@@ -5,7 +5,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Application.Repositories.IPersonaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Domain.Aggregates.Persona;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Domain.ValueObjects.PersonaId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Repositories.IRolRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.Aggregates.Rol;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.ValueObjects.RolId;
@@ -17,7 +16,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObj
 import com.maestria.kaffehausv4.Shared.Application.Crypto.IHasheadorDeContrasena;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
-
+/**
+ * La persona asociada se actualiza en sitio y en la misma transaccion, sin pasar por un
+ * endpoint de personas. El rol si se puede reapuntar, porque Rol es un catalogo con CRUD
+ * propio.
+ */
 @Service
 @Transactional
 public class ActualizarUsuarioUseCase {
@@ -43,12 +46,16 @@ public class ActualizarUsuarioUseCase {
         Usuario usuario = usuarioRepository.obtenerPorId(id)
                 .orElseThrow(() -> DomainException.throwException(404, "El usuario con id '" + usuarioId + "' no existe"));
 
-        PersonaId nuevaPersonaId = null;
-        if (actualizarUsuarioRequest.getIdPersona() != null) {
-            nuevaPersonaId = new PersonaId(actualizarUsuarioRequest.getIdPersona());
-            personaRepository.obtenerPorId(nuevaPersonaId)
-                    .orElseThrow(() -> DomainException.throwException(404, "La persona con id '" + actualizarUsuarioRequest.getIdPersona() + "' no existe"));
-        }
+        Persona persona = personaRepository.obtenerPorId(usuario.getPersonaId())
+                .orElseThrow(() -> DomainException.throwException(404, "La persona asociada al usuario no existe"));
+
+        persona.actualizar(
+                actualizarUsuarioRequest.getNombres(),
+                actualizarUsuarioRequest.getApellidos(),
+                actualizarUsuarioRequest.getTelefono(),
+                actualizarUsuarioRequest.getCarnet());
+
+        Persona personaActualizada = personaRepository.actualizar(usuario.getPersonaId(), persona);
 
         RolId nuevoRolId = null;
         if (actualizarUsuarioRequest.getIdRol() != null) {
@@ -61,15 +68,17 @@ public class ActualizarUsuarioUseCase {
                 ? hasheadorDeContrasena.hashear(actualizarUsuarioRequest.getContrasena())
                 : null;
 
-        usuario.actualizar(nuevaPersonaId.getValue(), actualizarUsuarioRequest.getCorreo(), nuevaContrasena, nuevoRolId.getValue());
+        usuario.actualizar(
+                null,
+                actualizarUsuarioRequest.getCorreo(),
+                nuevaContrasena,
+                nuevoRolId != null ? nuevoRolId.getValue() : null);
 
         Usuario usuarioActualizado = usuarioRepository.actualizar(id, usuario);
 
-        Persona persona = personaRepository.obtenerPorId(usuarioActualizado.getPersonaId())
-                .orElseThrow(() -> DomainException.throwException(404, "La persona asociada al usuario no existe"));
         Rol rol = rolRepository.obtenerPorId(usuarioActualizado.getRolId())
                 .orElseThrow(() -> DomainException.throwException(404, "El rol asociado al usuario no existe"));
 
-        return UsuarioResponse.createFromAggregate(usuarioActualizado, persona, rol);
+        return UsuarioResponse.createFromAggregate(usuarioActualizado, personaActualizada, rol);
     }
 }

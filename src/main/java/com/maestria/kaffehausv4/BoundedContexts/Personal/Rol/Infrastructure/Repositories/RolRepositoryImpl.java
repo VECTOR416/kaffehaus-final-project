@@ -3,6 +3,8 @@ package com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Infrastructure.Rep
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.stereotype.Repository;
+
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Datasources.IRolDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Dtos.ObtenerRolesRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Repositories.IRolRepository;
@@ -10,6 +12,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.Aggregates.R
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.ValueObjects.RolId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
+@Repository
 public class RolRepositoryImpl implements IRolRepository{
     private final IRolDatasource rolDatasource;
 

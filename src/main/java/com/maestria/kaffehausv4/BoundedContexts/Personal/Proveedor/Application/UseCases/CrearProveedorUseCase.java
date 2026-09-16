@@ -15,6 +15,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.R
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.Aggregates.Proveedor;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * La persona de contacto se crea aqui dentro, en la misma transaccion que el proveedor,
+ * porque Persona no tiene alta propia. La entidad, en cambio, debe existir de antes: se
+ * referencia por id y se valida.
+ */
 @Service
 @Transactional
 public class CrearProveedorUseCase {
@@ -32,31 +37,51 @@ public class CrearProveedorUseCase {
     }
 
     public ProveedorResponse execute(CrearProveedorRequest crearProveedorRequest) {
-        String idPersona = crearProveedorRequest.getIdPersona();
         String idEntidad = crearProveedorRequest.getIdEntidad();
 
-        if ((idPersona == null) == (idEntidad == null)) {
-            throw DomainException.throwException(400, "Debe proporcionar exactamente uno de 'idPersona' o 'idEntidad'");
-        }
-
-        PersonaId personaId = null;
-        Persona persona = null;
         EntidadId entidadId = null;
         Entidad entidad = null;
 
-        if (idPersona != null) {
-            personaId = new PersonaId(idPersona);
-            persona = personaRepository.obtenerPorId(personaId)
-                    .orElseThrow(() -> DomainException.throwException(404, "La persona con id '" + idPersona + "' no existe"));
-        } else {
+        if (idEntidad != null) {
             entidadId = new EntidadId(idEntidad);
             entidad = entidadRepository.obtenerPorId(entidadId)
                     .orElseThrow(() -> DomainException.throwException(404, "La entidad con id '" + idEntidad + "' no existe"));
         }
 
-        Proveedor proveedor = Proveedor.crear(personaId, entidadId);
+        Persona persona = resolverPersona(crearProveedorRequest);
+
+        Proveedor proveedor = Proveedor.crear(persona.getId(), entidadId);
         Proveedor proveedorCreado = proveedorRepository.crear(proveedor);
 
         return ProveedorResponse.createFromAggregate(proveedorCreado, persona, entidad);
+    }
+
+    private Persona resolverPersona(CrearProveedorRequest crearProveedorRequest) {
+        String idPersona = crearProveedorRequest.getIdPersona();
+
+        if (idPersona == null) {
+            return personaRepository.crear(nuevaPersona(crearProveedorRequest));
+        }
+
+        PersonaId personaId = new PersonaId(idPersona);
+
+        return personaRepository.obtenerPorId(personaId)
+                .map(personaDB -> {
+                    personaDB.actualizar(
+                            crearProveedorRequest.getNombres(),
+                            crearProveedorRequest.getApellidos(),
+                            crearProveedorRequest.getTelefono(),
+                            crearProveedorRequest.getCarnet());
+                    return personaRepository.actualizar(personaId, personaDB);
+                })
+                .orElseGet(() -> personaRepository.crear(nuevaPersona(crearProveedorRequest)));
+    }
+
+    private static Persona nuevaPersona(CrearProveedorRequest crearProveedorRequest) {
+        return Persona.crear(
+                crearProveedorRequest.getNombres(),
+                crearProveedorRequest.getApellidos(),
+                crearProveedorRequest.getTelefono(),
+                crearProveedorRequest.getCarnet());
     }
 }

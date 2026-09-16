@@ -8,7 +8,6 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Entidad.Domain.Aggregat
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Entidad.Domain.ValueObjects.EntidadId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Application.Repositories.IPersonaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Domain.Aggregates.Persona;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Domain.ValueObjects.PersonaId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Dtos.ActualizarProveedorRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Dtos.ProveedorResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Repositories.IProveedorRepository;
@@ -16,6 +15,10 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.Aggreg
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * Los datos de la persona de contacto se actualizan en sitio, en la misma transaccion.
+ * La entidad si se puede reapuntar por id, y enviar idEntidad nulo la deja como estaba.
+ */
 @Service
 @Transactional
 public class ActualizarProveedorUseCase {
@@ -38,38 +41,32 @@ public class ActualizarProveedorUseCase {
         Proveedor proveedor = proveedorRepository.obtenerPorId(id)
                 .orElseThrow(() -> DomainException.throwException(404, "El proveedor con id '" + proveedorId + "' no existe"));
 
-        String idPersona = actualizarProveedorRequest.getIdPersona();
+        Persona persona = personaRepository.obtenerPorId(proveedor.getPersonaId())
+                .orElseThrow(() -> DomainException.throwException(404, "La persona asociada al proveedor no existe"));
+
+        persona.actualizar(
+                actualizarProveedorRequest.getNombres(),
+                actualizarProveedorRequest.getApellidos(),
+                actualizarProveedorRequest.getTelefono(),
+                actualizarProveedorRequest.getCarnet());
+
+        Persona personaActualizada = personaRepository.actualizar(proveedor.getPersonaId(), persona);
+
         String idEntidad = actualizarProveedorRequest.getIdEntidad();
+        Entidad entidad = null;
 
-        if (idPersona != null && idEntidad != null) {
-            throw DomainException.throwException(400, "Un proveedor no puede estar vinculado a una persona y a una entidad simultaneamente");
-        }
-
-        if (idPersona != null) {
-            PersonaId personaId = new PersonaId(idPersona);
-            personaRepository.obtenerPorId(personaId)
-                    .orElseThrow(() -> DomainException.throwException(404, "La persona con id '" + idPersona + "' no existe"));
-            proveedor.setPersonaId(personaId);
-            proveedor.setEntidadId(null);
-        } else if (idEntidad != null) {
+        if (idEntidad != null) {
             EntidadId entidadId = new EntidadId(idEntidad);
-            entidadRepository.obtenerPorId(entidadId)
+            entidad = entidadRepository.obtenerPorId(entidadId)
                     .orElseThrow(() -> DomainException.throwException(404, "La entidad con id '" + idEntidad + "' no existe"));
             proveedor.setEntidadId(entidadId);
-            proveedor.setPersonaId(null);
+        } else if (proveedor.getEntidadId() != null) {
+            entidad = entidadRepository.obtenerPorId(proveedor.getEntidadId())
+                    .orElseThrow(() -> DomainException.throwException(404, "La entidad asociada al proveedor no existe"));
         }
 
         Proveedor proveedorActualizado = proveedorRepository.actualizar(id, proveedor);
 
-        Persona persona = proveedorActualizado.getPersonaId() != null
-                ? personaRepository.obtenerPorId(proveedorActualizado.getPersonaId())
-                        .orElseThrow(() -> DomainException.throwException(404, "La persona asociada al proveedor no existe"))
-                : null;
-        Entidad entidad = proveedorActualizado.getEntidadId() != null
-                ? entidadRepository.obtenerPorId(proveedorActualizado.getEntidadId())
-                        .orElseThrow(() -> DomainException.throwException(404, "La entidad asociada al proveedor no existe"))
-                : null;
-
-        return ProveedorResponse.createFromAggregate(proveedorActualizado, persona, entidad);
+        return ProveedorResponse.createFromAggregate(proveedorActualizado, personaActualizada, entidad);
     }
 }
