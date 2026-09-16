@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.UseCases;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +14,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dto
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.Aggregates.Usuario;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
+import com.maestria.kaffehausv4.Shared.Application.Crypto.IHasheadorDeContrasena;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 
@@ -24,17 +24,17 @@ public class ActualizarUsuarioUseCase {
     private final IUsuarioRepository usuarioRepository;
     private final IPersonaRepository personaRepository;
     private final IRolRepository rolRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final IHasheadorDeContrasena hasheadorDeContrasena;
 
     public ActualizarUsuarioUseCase(
             IUsuarioRepository usuarioRepository,
             IPersonaRepository personaRepository,
             IRolRepository rolRepository,
-            PasswordEncoder passwordEncoder) {
+            IHasheadorDeContrasena hasheadorDeContrasena) {
         this.usuarioRepository = usuarioRepository;
         this.personaRepository = personaRepository;
         this.rolRepository = rolRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.hasheadorDeContrasena = hasheadorDeContrasena;
     }
 
     public UsuarioResponse execute(String usuarioId, ActualizarUsuarioRequest actualizarUsuarioRequest) {
@@ -58,7 +58,7 @@ public class ActualizarUsuarioUseCase {
         }
 
         String nuevaContrasena = actualizarUsuarioRequest.getContrasena() != null
-                ? passwordEncoder.encode(actualizarUsuarioRequest.getContrasena())
+                ? hasheadorDeContrasena.hashear(actualizarUsuarioRequest.getContrasena())
                 : null;
 
         usuario.actualizar(nuevaPersonaId.getValue(), actualizarUsuarioRequest.getCorreo(), nuevaContrasena, nuevoRolId.getValue());

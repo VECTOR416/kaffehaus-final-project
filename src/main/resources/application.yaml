@@ -2,25 +2,5 @@ spring:
   application:
     name: kaffehausv4
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          # Spring descubre el JWKS a partir de esta URL y valida firma, exp, iss y nbf.
-          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/kaffehaus}
-
 server:
-  # Keycloak ocupa el 8080 en docker-compose.yaml, asi que la aplicacion se mueve al 8081.
   port: ${SERVER_PORT:8081}
-
-kaffehaus:
-  keycloak:
-    admin:
-      base-url: ${KEYCLOAK_BASE_URL:http://localhost:8080}
-      realm: ${KEYCLOAK_REALM:kaffehaus}
-      # Client confidencial con service account y los roles manage-users / manage-realm.
-      client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:kaffehaus-admin-cli}
-      # El secret NUNCA se versiona: se inyecta por variable de entorno.
-      client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
-      connect-timeout: 5s
-      read-timeout: 10s

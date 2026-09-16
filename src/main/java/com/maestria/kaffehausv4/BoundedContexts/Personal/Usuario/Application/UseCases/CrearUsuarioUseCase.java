@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.UseCases;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +13,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dto
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dtos.UsuarioResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.Aggregates.Usuario;
+import com.maestria.kaffehausv4.Shared.Application.Crypto.IHasheadorDeContrasena;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 @Service
@@ -22,17 +22,17 @@ public class CrearUsuarioUseCase {
     private final IUsuarioRepository usuarioRepository;
     private final IPersonaRepository personaRepository;
     private final IRolRepository rolRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final IHasheadorDeContrasena hasheadorDeContrasena;
 
     public CrearUsuarioUseCase(
             IUsuarioRepository usuarioRepository,
             IPersonaRepository personaRepository,
             IRolRepository rolRepository,
-            PasswordEncoder passwordEncoder) {
+            IHasheadorDeContrasena hasheadorDeContrasena) {
         this.usuarioRepository = usuarioRepository;
         this.personaRepository = personaRepository;
         this.rolRepository = rolRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.hasheadorDeContrasena = hasheadorDeContrasena;
     }
 
     public UsuarioResponse execute(CrearUsuarioRequest crearUsuarioRequest) {
@@ -44,7 +44,7 @@ public class CrearUsuarioUseCase {
         Rol rol = rolRepository.obtenerPorId(rolId)
                 .orElseThrow(() -> DomainException.throwException(404, "El rol con id '" + crearUsuarioRequest.getIdRol() + "' no existe"));
 
-        String hashContrasena = passwordEncoder.encode(crearUsuarioRequest.getContrasena());
+        String hashContrasena = hasheadorDeContrasena.hashear(crearUsuarioRequest.getContrasena());
 
         Usuario usuario = Usuario.crear(personaId, crearUsuarioRequest.getCorreo(), hashContrasena, rolId);
         Usuario usuarioCreado = usuarioRepository.crear(usuario);
