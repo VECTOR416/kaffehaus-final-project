@@ -3,12 +3,15 @@ package com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.stereotype.Repository;
+
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Datasources.IUsuarioDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dtos.ObtenerUsuariosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.Aggregates.Usuario;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
+@Repository 
 public class UsuarioDatasourceImpl implements IUsuarioDatasource{
 
     @Override
