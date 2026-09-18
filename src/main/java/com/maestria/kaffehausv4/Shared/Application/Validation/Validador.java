@@ -165,6 +165,35 @@ public final class Validador {
         return listaDeTextosRequerida(valor, campo);
     }
 
+    /**
+     * Valida una coleccion de objetos anidados, como los detalles que viajan dentro del
+     * payload de una venta. Exige al menos un elemento: una lista vacia siempre es un error
+     * del cliente, no una coleccion valida.
+     */
+    public static List<Map<String, Object>> listaDeObjetosRequerida(Object valor, String campo) {
+        if (!(valor instanceof Collection<?>)) {
+            throw DomainException.throwException(400, "El campo '" + campo + "' es obligatorio y debe ser una lista de objetos");
+        }
+
+        List<?> lista = new ArrayList<>((Collection<?>) valor);
+        if (lista.isEmpty()) {
+            throw DomainException.throwException(400, "El campo '" + campo + "' debe tener al menos un elemento");
+        }
+
+        List<Map<String, Object>> resultado = new ArrayList<>();
+
+        for (int i = 0; i < lista.size(); i++) {
+            resultado.add(objetoRequerido(lista.get(i), campo + "[" + i + "]"));
+        }
+
+        return resultado;
+    }
+
+    public static List<Map<String, Object>> listaDeObjetosOpcional(Object valor, String campo) {
+        if (valor == null) return null;
+        return listaDeObjetosRequerida(valor, campo);
+    }
+
     @SuppressWarnings("unchecked")
     public static Map<String, Object> objetoRequerido(Object valor, String campo) {
         if (!(valor instanceof Map)) {

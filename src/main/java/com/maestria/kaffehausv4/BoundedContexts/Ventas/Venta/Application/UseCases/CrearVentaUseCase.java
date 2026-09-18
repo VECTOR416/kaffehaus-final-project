@@ -1,8 +1,12 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Application.Repositories.IClienteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
@@ -11,11 +15,21 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Application.R
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.Aggregates.EstadoVenta;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.ValueObjects.EstadoVentaId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.CrearVentaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.DetalleVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Repositories.IVentaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.Venta;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * Alta de una venta con sus detalles en una sola operacion.
+ *
+ * El caso de uso resuelve las referencias a otros agregados (usuario, cliente, estado y
+ * productos), arma el agregado Venta completo incorporando cada linea con agregarDetalle y
+ * lo entrega una sola vez a IVentaRepository. La @Transactional de la clase cubre encabezado
+ * y lineas: si una linea es invalida, la excepcion se propaga antes o durante el guardado y
+ * la transaccion revierte entera, de modo que nunca queda una venta sin detalle.
+ */
 @Service
 @Transactional
 public class CrearVentaUseCase {
@@ -23,16 +37,19 @@ public class CrearVentaUseCase {
     private final IUsuarioRepository usuarioRepository;
     private final IClienteRepository clienteRepository;
     private final IEstadoVentaRepository estadoVentaRepository;
+    private final IProductoRepository productoRepository;
 
     public CrearVentaUseCase(
             IVentaRepository ventaRepository,
             IUsuarioRepository usuarioRepository,
             IClienteRepository clienteRepository,
-            IEstadoVentaRepository estadoVentaRepository) {
+            IEstadoVentaRepository estadoVentaRepository,
+            IProductoRepository productoRepository) {
         this.ventaRepository = ventaRepository;
         this.usuarioRepository = usuarioRepository;
         this.clienteRepository = clienteRepository;
         this.estadoVentaRepository = estadoVentaRepository;
+        this.productoRepository = productoRepository;
     }
 
     public VentaResponse execute(CrearVentaRequest crearVentaRequest) {
@@ -51,13 +68,33 @@ public class CrearVentaUseCase {
 
         Venta venta = Venta.crear(
                 crearVentaRequest.getFechaVenta(),
-                crearVentaRequest.getTotal(),
                 usuarioId,
                 clienteId,
                 estadoVentaId);
 
+        agregarDetalles(venta, crearVentaRequest.getDetalles());
+        venta.validarRegistrable();
+
         Venta ventaCreada = ventaRepository.crear(venta);
 
         return VentaResponse.createFromAggregate(ventaCreada, estadoVenta);
+    }
+
+    /**
+     * Incorpora las lineas a la raiz. Cada producto se valida contra su propio agregado antes
+     * de entregarselo a Venta, que a su vez comprueba las invariantes de importe.
+     */
+    private void agregarDetalles(Venta venta, List<DetalleVentaRequest> detalles) {
+        for (DetalleVentaRequest detalle : detalles) {
+            ProductoId productoId = new ProductoId(detalle.getIdProducto());
+            productoRepository.obtenerPorId(productoId)
+                    .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + detalle.getIdProducto() + "' no existe"));
+
+            venta.agregarDetalle(
+                    productoId,
+                    detalle.getPrecioUnitario(),
+                    detalle.getCantidad(),
+                    detalle.getDescuentoAplicado());
+        }
     }
 }

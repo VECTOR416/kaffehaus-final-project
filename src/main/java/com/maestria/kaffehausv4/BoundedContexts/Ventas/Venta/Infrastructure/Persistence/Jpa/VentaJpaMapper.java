@@ -1,13 +1,21 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa;
 
 import java.time.OffsetDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.ValueObjects.EstadoVentaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.DetalleVenta;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.Venta;
 
+/**
+ * Mapea el agregado Venta. toDomain reconstruye la raiz junto con sus lineas: no existe una
+ * Venta de dominio a medias, sin detalles.
+ */
 public class VentaJpaMapper {
     private VentaJpaMapper() {
     }
@@ -34,13 +42,18 @@ public class VentaJpaMapper {
         model.setFecU(OffsetDateTime.now());
     }
 
-    public static Venta toDomain(VentaJpaModel model) {
+    public static Venta toDomain(VentaJpaModel model, List<DetalleVentaJpaModel> detallesModel) {
+        List<DetalleVenta> detalles = detallesModel != null
+                ? detallesModel.stream().map(DetalleVentaJpaMapper::toDomain).collect(Collectors.toList())
+                : Collections.emptyList();
+
         return Venta.restaurar(
                 model.getId().toString(),
                 model.getFechaVenta(),
                 model.getTotal(),
                 new UsuarioId(model.getIdUsuario().toString()),
                 model.getIdCliente() != null ? new ClienteId(model.getIdCliente().toString()) : null,
-                new EstadoVentaId(model.getIdEstadoVenta().toString()));
+                new EstadoVentaId(model.getIdEstadoVenta().toString()),
+                detalles);
     }
 }
