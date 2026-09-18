@@ -5,7 +5,6 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Tokens.IGeneradorDeTokens;
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects.RolDelSistema;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects.UsuarioAutenticado;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Presentation.RequiereAutenticacion;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Presentation.RequiereRol;
@@ -14,22 +13,6 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-/**
- * Guard de autenticacion y de roles.
- *
- * Es el equivalente al middleware de otros entornos: lee 'Authorization: Bearer <token>',
- * valida el access token y deja al usuario disponible en ContextoDeSeguridad para el resto de
- * la peticion.
- *
- * La proteccion es **opt-in**: solo actua sobre handlers anotados con @RequiereAutenticacion o
- * @RequiereRol. El resto de la API sigue abierta, como estaba, para no cambiar en silencio el
- * comportamiento de los 22 controllers existentes. Para cerrar todo por defecto basta con
- * invertir la condicion de 'anotacionDeRol == null && sinAutenticacion'.
- *
- * No escribe la respuesta de error a mano: lanza AutorizacionException y deja que
- * GlobalExceptionHandler la traduzca, para que un 401 de aqui tenga la misma forma que
- * cualquier otro error del sistema.
- */
 @Component
 public class AutenticacionInterceptor implements HandlerInterceptor {
 

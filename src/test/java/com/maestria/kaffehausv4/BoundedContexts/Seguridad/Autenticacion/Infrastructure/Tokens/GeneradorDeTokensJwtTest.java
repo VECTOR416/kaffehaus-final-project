@@ -39,6 +39,7 @@ class GeneradorDeTokensJwtTest {
     }
 
     /** Lee el payload sin verificar firma: sirve para inspeccionar que claims viajan. */
+    @SuppressWarnings("unchecked")
     private Map<String, Object> payloadDe(String token) throws Exception {
         String cuerpo = token.split("\\.")[1];
         byte[] json = Base64.getUrlDecoder().decode(cuerpo);
