@@ -168,7 +168,8 @@ CREATE TABLE estado_existencia (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre VARCHAR(50) NOT NULL,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fec_u TIMESTAMP
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE tipo_movimiento (
@@ -237,14 +238,16 @@ CREATE TABLE estado_venta (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre VARCHAR(50) NOT NULL,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fec_u TIMESTAMP
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE tipo_descuento (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre VARCHAR(50) NOT NULL,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fec_u TIMESTAMP
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE descuentos (
@@ -268,7 +271,8 @@ CREATE TABLE venta (
     total NUMERIC(12, 2) NOT NULL DEFAULT 0,
     id_estado_venta UUID NOT NULL REFERENCES estado_venta(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fec_u TIMESTAMP
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE detalle_venta (
@@ -281,14 +285,16 @@ CREATE TABLE detalle_venta (
     descuento_aplicado NUMERIC(12, 2) NOT NULL DEFAULT 0,
     estado BOOLEAN NOT NULL DEFAULT TRUE,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fec_u TIMESTAMP
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE estado_pedido (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre VARCHAR(50) NOT NULL,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fec_u TIMESTAMP
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE pedidos (
@@ -300,7 +306,8 @@ CREATE TABLE pedidos (
     descripcion TEXT,
     id_estado UUID NOT NULL REFERENCES estado_pedido(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fec_u TIMESTAMP
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- ============================================================================

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -52,6 +53,7 @@ class CrearVentaUseCaseIntegracionTest {
     @Autowired private CrearVentaUseCase crearVentaUseCase;
     @Autowired private ActualizarVentaUseCase actualizarVentaUseCase;
     @Autowired private ObtenerVentaPorIdUseCase obtenerVentaPorIdUseCase;
+    @Autowired private EliminarVentaUseCase eliminarVentaUseCase;
 
     @Autowired private VentaJpaRepository ventaJpaRepository;
     @Autowired private DetalleVentaJpaRepository detalleVentaJpaRepository;
@@ -113,6 +115,7 @@ class CrearVentaUseCaseIntegracionTest {
         estadoVenta.setId(idEstadoVenta);
         estadoVenta.setNombre("ESTADO_TEST_" + idEstadoVenta);
         estadoVenta.setFecC(OffsetDateTime.now());
+        estadoVenta.setBorrado(false);
         estadoVentaJpaRepository.save(estadoVenta);
 
         idUnidad = UUID.randomUUID();
@@ -156,10 +159,11 @@ class CrearVentaUseCaseIntegracionTest {
 
     @AfterEach
     void limpiarDatos() {
-        // deleteAll y no deleteByIdVenta: el borrado derivado exige una transaccion abierta y
-        // aqui, fuera de un caso de uso, no hay ninguna.
+        // La limpieza de la prueba si borra fisicamente: es basura de test, no datos de negocio.
         for (UUID idVenta : ventasCreadas) {
-            detalleVentaJpaRepository.deleteAll(detalleVentaJpaRepository.findByIdVenta(idVenta));
+            detalleVentaJpaRepository.deleteAll(detalleVentaJpaRepository.findAll().stream()
+                    .filter(detalle -> idVenta.equals(detalle.getIdVenta()))
+                    .toList());
             ventaJpaRepository.deleteById(idVenta);
         }
         ventasCreadas.clear();
@@ -204,7 +208,7 @@ class CrearVentaUseCaseIntegracionTest {
         VentaResponse releida = obtenerVentaPorIdUseCase.execute(respuesta.getId());
         assertEquals(2, releida.getDetalles().size());
         assertEquals(new BigDecimal("45.00"), releida.getTotal());
-        assertEquals(2, detalleVentaJpaRepository.findByIdVenta(UUID.fromString(respuesta.getId())).size());
+        assertEquals(2, detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(UUID.fromString(respuesta.getId())).size());
     }
 
     @Test
@@ -254,21 +258,43 @@ class CrearVentaUseCaseIntegracionTest {
     }
 
     @Test
-    void actualizarReemplazaLasLineasYRecalculaElTotal() {
+    void actualizarConservaLosIdentificadoresDeLasLineasQueSiguenVivas() {
         VentaResponse creada = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(List.of(
                 detalle(idProductoCafe, "12.50", "2", "0"),
                 detalle(idProductoTe, "8.00", "3", "4.00")))));
 
         UUID idVenta = UUID.fromString(creada.getId());
         ventasCreadas.add(idVenta);
+        String idDetalleCafe = creada.getDetalles().get(0).getId();
+
+        Map<String, Object> correccion = new HashMap<>();
+        correccion.put("id", idDetalleCafe);
+        correccion.put("cantidad", "3");
 
         VentaResponse actualizada = actualizarVentaUseCase.execute(
                 creada.getId(),
-                ActualizarVentaRequest.createFromRequest(Map.of(
-                        "detalles", List.of(detalle(idProductoCafe, "10.00", "1", "0")))));
+                ActualizarVentaRequest.createFromRequest(Map.of("detalles", List.of(correccion))));
 
+        // La linea de te no vino en el payload: baja logica. La de cafe conserva su id.
         assertEquals(1, actualizada.getDetalles().size());
-        assertEquals(new BigDecimal("10.00"), actualizada.getTotal());
-        assertEquals(1, detalleVentaJpaRepository.findByIdVenta(idVenta).size());
+        assertEquals(idDetalleCafe, actualizada.getDetalles().get(0).getId());
+        assertEquals(new BigDecimal("37.50"), actualizada.getTotal());
+        assertEquals(1, detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(idVenta).size());
+    }
+
+    @Test
+    void eliminarLaVentaEsBajaLogicaYArrastraSusLineas() {
+        VentaResponse creada = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(List.of(
+                detalle(idProductoCafe, "12.50", "2", "0")))));
+
+        UUID idVenta = UUID.fromString(creada.getId());
+        ventasCreadas.add(idVenta);
+
+        eliminarVentaUseCase.execute(creada.getId());
+
+        assertTrue(ventaJpaRepository.findByIdAndBorradoFalse(idVenta).isEmpty());
+        assertTrue(detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(idVenta).isEmpty());
+        // Baja logica: las filas siguen existiendo.
+        assertTrue(ventaJpaRepository.findById(idVenta).isPresent());
     }
 }

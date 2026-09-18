@@ -16,6 +16,7 @@ public class DetalleVentaResponse {
     private BigDecimal subtotal;
     private BigDecimal descuentoAplicado;
     private boolean estado;
+    private boolean borrado;
 
     private DetalleVentaResponse(
         String id,
@@ -24,7 +25,8 @@ public class DetalleVentaResponse {
         BigDecimal cantidad,
         BigDecimal subtotal,
         BigDecimal descuentoAplicado,
-        boolean estado
+        boolean estado,
+        boolean borrado
     ) {
         this.id = id;
         this.idProducto = idProducto;
@@ -33,6 +35,7 @@ public class DetalleVentaResponse {
         this.subtotal = subtotal;
         this.descuentoAplicado = descuentoAplicado;
         this.estado = estado;
+        this.borrado = borrado;
     }
 
     public static DetalleVentaResponse createFromAggregate(DetalleVenta detalleVenta){
@@ -43,7 +46,8 @@ public class DetalleVentaResponse {
             detalleVenta.getCantidad(),
             detalleVenta.getSubtotal(),
             detalleVenta.getDescuentoAplicado(),
-            detalleVenta.isEstado()
+            detalleVenta.isEstado(),
+            detalleVenta.isBorrado()
         );
     }
 
@@ -54,4 +58,5 @@ public class DetalleVentaResponse {
     public BigDecimal getSubtotal() {return subtotal;}
     public BigDecimal getDescuentoAplicado() {return descuentoAplicado;}
     public boolean isEstado() {return estado;}
+    public boolean isBorrado() {return borrado;}
 }

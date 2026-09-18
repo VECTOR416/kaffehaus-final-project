@@ -13,6 +13,7 @@ public class TipoDescuentoJpaMapper {
         TipoDescuentoJpaModel model = new TipoDescuentoJpaModel();
         model.setId(tipoDescuento.getId() != null ? UUID.fromString(tipoDescuento.getId().getValue()) : UUID.randomUUID());
         model.setNombre(tipoDescuento.getNombre());
+        model.setBorrado(tipoDescuento.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
         return model;
@@ -20,12 +21,14 @@ public class TipoDescuentoJpaMapper {
 
     public static void copiarCambios(TipoDescuento tipoDescuento, TipoDescuentoJpaModel model) {
         model.setNombre(tipoDescuento.getNombre());
+        model.setBorrado(tipoDescuento.isBorrado());
         model.setFecU(OffsetDateTime.now());
     }
 
     public static TipoDescuento toDomain(TipoDescuentoJpaModel model) {
         return TipoDescuento.restaurar(
                 model.getId().toString(),
-                model.getNombre());
+                model.getNombre(),
+                model.getBorrado() != null && model.getBorrado());
     }
 }

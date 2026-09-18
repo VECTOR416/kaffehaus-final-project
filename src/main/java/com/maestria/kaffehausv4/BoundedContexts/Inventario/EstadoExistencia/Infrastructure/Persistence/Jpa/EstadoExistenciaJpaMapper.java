@@ -13,6 +13,7 @@ public class EstadoExistenciaJpaMapper {
         EstadoExistenciaJpaModel model = new EstadoExistenciaJpaModel();
         model.setId(estadoExistencia.getId() != null ? UUID.fromString(estadoExistencia.getId().getValue()) : UUID.randomUUID());
         model.setNombre(estadoExistencia.getNombre());
+        model.setBorrado(estadoExistencia.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
         return model;
@@ -20,12 +21,14 @@ public class EstadoExistenciaJpaMapper {
 
     public static void copiarCambios(EstadoExistencia estadoExistencia, EstadoExistenciaJpaModel model) {
         model.setNombre(estadoExistencia.getNombre());
+        model.setBorrado(estadoExistencia.isBorrado());
         model.setFecU(OffsetDateTime.now());
     }
 
     public static EstadoExistencia toDomain(EstadoExistenciaJpaModel model) {
         return EstadoExistencia.restaurar(
                 model.getId().toString(),
-                model.getNombre());
+                model.getNombre(),
+                model.getBorrado() != null && model.getBorrado());
     }
 }

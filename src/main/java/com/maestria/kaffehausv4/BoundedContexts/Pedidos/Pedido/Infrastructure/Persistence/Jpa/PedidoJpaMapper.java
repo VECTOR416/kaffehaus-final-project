@@ -20,6 +20,7 @@ public class PedidoJpaMapper {
         model.setDescripcion(pedido.getDescripcion());
         model.setIdVenta(UUID.fromString(pedido.getVentaId().getValue()));
         model.setIdEstado(UUID.fromString(pedido.getEstadoId().getValue()));
+        model.setBorrado(pedido.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
         return model;
@@ -32,6 +33,7 @@ public class PedidoJpaMapper {
         model.setDescripcion(pedido.getDescripcion());
         model.setIdVenta(UUID.fromString(pedido.getVentaId().getValue()));
         model.setIdEstado(UUID.fromString(pedido.getEstadoId().getValue()));
+        model.setBorrado(pedido.isBorrado());
         model.setFecU(OffsetDateTime.now());
     }
 
@@ -43,6 +45,7 @@ public class PedidoJpaMapper {
                 model.getLongitud(),
                 model.getDescripcion(),
                 new VentaId(model.getIdVenta().toString()),
-                new EstadoPedidoId(model.getIdEstado().toString()));
+                new EstadoPedidoId(model.getIdEstado().toString()),
+                model.getBorrado() != null && model.getBorrado());
     }
 }

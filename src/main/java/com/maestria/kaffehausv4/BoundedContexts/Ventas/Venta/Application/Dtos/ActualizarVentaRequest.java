@@ -11,23 +11,24 @@ import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
  * Modificacion de una venta existente. Mantiene la semantica PATCH del proyecto: lo que no
  * llega, no se toca.
  *
- * 'detalles' es opcional; cuando viene, reemplaza por completo las lineas de la venta y el
- * agregado recalcula el total. No existe forma de modificar una linea suelta: es la unica
- * puerta de entrada a los detalles ahora que DetalleVenta dejo de tener endpoints propios.
+ * 'detalles' es opcional. Cuando viene, el caso de uso hace una conciliacion por id: las
+ * lineas con 'id' se corrigen, las que no lo traen se agregan y las que faltan se dan de baja
+ * logica. No se reemplaza la coleccion entera porque el sistema no usa borrado fisico: cada
+ * reemplazo dejaria una fila muerta por linea modificada.
  */
 public class ActualizarVentaRequest {
     private LocalDateTime fechaVenta;
     private String idUsuario;
     private String idCliente;
     private String idEstadoVenta;
-    private List<DetalleVentaRequest> detalles;
+    private List<ActualizarDetalleVentaRequest> detalles;
 
     private ActualizarVentaRequest(
         LocalDateTime fechaVenta,
         String idUsuario,
         String idCliente,
         String idEstadoVenta,
-        List<DetalleVentaRequest> detalles
+        List<ActualizarDetalleVentaRequest> detalles
     ) {
         this.fechaVenta = fechaVenta;
         this.idUsuario = idUsuario;
@@ -43,8 +44,8 @@ public class ActualizarVentaRequest {
         String idEstadoVenta = Validador.textoOpcional(request.get("idEstadoVenta"), "idEstadoVenta");
 
         List<Map<String, Object>> detallesTmp = Validador.listaDeObjetosOpcional(request.get("detalles"), "detalles");
-        List<DetalleVentaRequest> detalles = detallesTmp != null
-                ? detallesTmp.stream().map(DetalleVentaRequest::createFromRequest).collect(Collectors.toList())
+        List<ActualizarDetalleVentaRequest> detalles = detallesTmp != null
+                ? detallesTmp.stream().map(ActualizarDetalleVentaRequest::createFromRequest).collect(Collectors.toList())
                 : null;
 
         return new ActualizarVentaRequest(fechaVenta, idUsuario, idCliente, idEstadoVenta, detalles);
@@ -54,5 +55,5 @@ public class ActualizarVentaRequest {
     public String getIdUsuario() {return idUsuario;}
     public String getIdCliente() {return idCliente;}
     public String getIdEstadoVenta() {return idEstadoVenta;}
-    public List<DetalleVentaRequest> getDetalles() {return detalles;}
+    public List<ActualizarDetalleVentaRequest> getDetalles() {return detalles;}
 }

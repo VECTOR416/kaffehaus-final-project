@@ -39,6 +39,9 @@ public class VentaJpaModel {
     @Column(name = "fec_u")
     private OffsetDateTime fecU;
 
+    @Column(name = "borrado", nullable = false)
+    private Boolean borrado;
+
     public VentaJpaModel() {}
 
     public UUID getId() {return id;}
@@ -55,4 +58,6 @@ public class VentaJpaModel {
     public void setIdEstadoVenta(UUID idEstadoVenta) {this.idEstadoVenta = idEstadoVenta;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
+    public Boolean getBorrado() {return borrado;}
+    public void setBorrado(Boolean borrado) {this.borrado = borrado;}
 }

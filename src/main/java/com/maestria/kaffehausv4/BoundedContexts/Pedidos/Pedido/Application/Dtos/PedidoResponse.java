@@ -15,6 +15,7 @@ public class PedidoResponse {
     private String descripcion;
     private String idVenta;
     private EstadoPedidoResponse estado;
+    private boolean borrado;
 
     private PedidoResponse(
         String id,
@@ -23,7 +24,8 @@ public class PedidoResponse {
         BigDecimal longitud,
         String descripcion,
         String idVenta,
-        EstadoPedidoResponse estado
+        EstadoPedidoResponse estado,
+        boolean borrado
     ) {
         this.id = id;
         this.fechaEntrega = fechaEntrega;
@@ -32,6 +34,7 @@ public class PedidoResponse {
         this.descripcion = descripcion;
         this.idVenta = idVenta;
         this.estado = estado;
+        this.borrado = borrado;
     }
 
     public static PedidoResponse createFromAggregate(Pedido pedido, EstadoPedido estado){
@@ -43,7 +46,8 @@ public class PedidoResponse {
             pedido.getLongitud(),
             pedido.getDescripcion(),
             pedido.getVentaId() != null ? pedido.getVentaId().getValue() : null,
-            estadoResponse
+            estadoResponse,
+            pedido.isBorrado()
         );
     }
 
@@ -54,4 +58,5 @@ public class PedidoResponse {
     public String getDescripcion() {return descripcion;}
     public String getIdVenta() {return idVenta;}
     public EstadoPedidoResponse getEstado() {return estado;}
+    public boolean isBorrado() {return borrado;}
 }

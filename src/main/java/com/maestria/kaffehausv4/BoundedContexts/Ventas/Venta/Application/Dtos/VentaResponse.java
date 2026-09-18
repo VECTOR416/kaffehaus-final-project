@@ -10,8 +10,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.Aggreg
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.Venta;
 
 /**
- * Respuesta del agregado completo: encabezado mas sus lineas. La venta siempre se devuelve
- * entera porque entera es como se lee y se escribe.
+ * Respuesta del agregado completo: encabezado mas sus lineas vivas. Las lineas dadas de baja
+ * no se devuelven, igual que el resto del proyecto oculta lo borrado logicamente.
  */
 public class VentaResponse {
     private String id;
@@ -20,6 +20,7 @@ public class VentaResponse {
     private String idUsuario;
     private String idCliente;
     private EstadoVentaResponse estadoVenta;
+    private boolean borrado;
     private List<DetalleVentaResponse> detalles;
 
     private VentaResponse(
@@ -29,6 +30,7 @@ public class VentaResponse {
         String idUsuario,
         String idCliente,
         EstadoVentaResponse estadoVenta,
+        boolean borrado,
         List<DetalleVentaResponse> detalles
     ) {
         this.id = id;
@@ -37,13 +39,14 @@ public class VentaResponse {
         this.idUsuario = idUsuario;
         this.idCliente = idCliente;
         this.estadoVenta = estadoVenta;
+        this.borrado = borrado;
         this.detalles = detalles;
     }
 
     public static VentaResponse createFromAggregate(Venta venta, EstadoVenta estadoVenta){
         EstadoVentaResponse estadoVentaResponse = estadoVenta != null ? EstadoVentaResponse.createFromAggregate(estadoVenta) : null;
 
-        List<DetalleVentaResponse> detalles = venta.getDetalles().stream()
+        List<DetalleVentaResponse> detalles = venta.getDetallesActivos().stream()
                 .map(DetalleVentaResponse::createFromAggregate)
                 .collect(Collectors.toList());
 
@@ -54,6 +57,7 @@ public class VentaResponse {
             venta.getUsuarioId() != null ? venta.getUsuarioId().getValue() : null,
             venta.getClienteId() != null ? venta.getClienteId().getValue() : null,
             estadoVentaResponse,
+            venta.isBorrado(),
             detalles
         );
     }
@@ -64,5 +68,6 @@ public class VentaResponse {
     public String getIdUsuario() {return idUsuario;}
     public String getIdCliente() {return idCliente;}
     public EstadoVentaResponse getEstadoVenta() {return estadoVenta;}
+    public boolean isBorrado() {return borrado;}
     public List<DetalleVentaResponse> getDetalles() {return detalles;}
 }

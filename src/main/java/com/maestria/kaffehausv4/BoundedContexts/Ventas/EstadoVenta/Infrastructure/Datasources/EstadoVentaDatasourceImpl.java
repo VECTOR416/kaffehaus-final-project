@@ -37,7 +37,7 @@ public class EstadoVentaDatasourceImpl implements IEstadoVentaDatasource {
 
     @Override
     public EstadoVenta actualizar(EstadoVentaId estadoVentaId, EstadoVenta estadoVenta) {
-        EstadoVentaJpaModel model = estadoVentaJpaRepository.findById(aUuid(estadoVentaId.getValue()))
+        EstadoVentaJpaModel model = estadoVentaJpaRepository.findByIdAndBorradoFalse(aUuid(estadoVentaId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El estado de venta con id '" + estadoVentaId.getValue() + "' no existe"));
 
         EstadoVentaJpaMapper.copiarCambios(estadoVenta, model);
@@ -47,7 +47,7 @@ public class EstadoVentaDatasourceImpl implements IEstadoVentaDatasource {
 
     @Override
     public Optional<EstadoVenta> obtenerPorId(EstadoVentaId estadoVentaId) {
-        return estadoVentaJpaRepository.findById(aUuid(estadoVentaId.getValue()))
+        return estadoVentaJpaRepository.findByIdAndBorradoFalse(aUuid(estadoVentaId.getValue()))
                 .map(EstadoVentaJpaMapper::toDomain);
     }
 
@@ -60,8 +60,8 @@ public class EstadoVentaDatasourceImpl implements IEstadoVentaDatasource {
         Pageable pageable = new OffsetPageRequest(skip, limit);
 
         Page<EstadoVentaJpaModel> pagina = (search == null || search.trim().isEmpty())
-                ? estadoVentaJpaRepository.findAll(pageable)
-                : estadoVentaJpaRepository.findByNombreContainingIgnoreCase(search.trim(), pageable);
+                ? estadoVentaJpaRepository.findByBorradoFalse(pageable)
+                : estadoVentaJpaRepository.findByBorradoFalseAndNombreContainingIgnoreCase(search.trim(), pageable);
 
         List<EstadoVenta> datos = pagina.getContent().stream()
                 .map(EstadoVentaJpaMapper::toDomain)
@@ -78,13 +78,14 @@ public class EstadoVentaDatasourceImpl implements IEstadoVentaDatasource {
 
     @Override
     public void eliminar(EstadoVentaId estadoVentaId) {
-        UUID id = aUuid(estadoVentaId.getValue());
+        EstadoVentaJpaModel model = estadoVentaJpaRepository.findByIdAndBorradoFalse(aUuid(estadoVentaId.getValue()))
+                .orElseThrow(() -> DomainException.throwException(404, "El estado de venta con id '" + estadoVentaId.getValue() + "' no existe"));
 
-        if (!estadoVentaJpaRepository.existsById(id)) {
-            throw DomainException.throwException(404, "El estado de venta con id '" + estadoVentaId.getValue() + "' no existe");
-        }
+        EstadoVenta estadoVenta = EstadoVentaJpaMapper.toDomain(model);
+        estadoVenta.eliminar();
 
-        estadoVentaJpaRepository.deleteById(id);
+        EstadoVentaJpaMapper.copiarCambios(estadoVenta, model);
+        estadoVentaJpaRepository.save(model);
     }
 
     private static UUID aUuid(String valor) {

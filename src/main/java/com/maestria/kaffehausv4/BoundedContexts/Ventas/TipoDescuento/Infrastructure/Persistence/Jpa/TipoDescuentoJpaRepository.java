@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Infrastructure.Persistence.Jpa;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -8,5 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TipoDescuentoJpaRepository extends JpaRepository<TipoDescuentoJpaModel, UUID>{
 
-    Page<TipoDescuentoJpaModel> findByNombreContainingIgnoreCase(String nombre, Pageable pageable);
+    Optional<TipoDescuentoJpaModel> findByIdAndBorradoFalse(UUID id);
+    Page<TipoDescuentoJpaModel> findByBorradoFalse(Pageable pageable);
+    Page<TipoDescuentoJpaModel> findByBorradoFalseAndNombreContainingIgnoreCase(String nombre, Pageable pageable);
 }

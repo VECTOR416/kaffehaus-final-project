@@ -5,22 +5,27 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.Aggreg
 public class EstadoVentaResponse {
     private String id;
     private String nombre;
+    private boolean borrado;
 
     private EstadoVentaResponse(
         String id,
-        String nombre
+        String nombre,
+        boolean borrado
     ) {
         this.id = id;
         this.nombre = nombre;
+        this.borrado = borrado;
     }
 
     public static EstadoVentaResponse createFromAggregate(EstadoVenta estadoVenta){
         return new EstadoVentaResponse(
             estadoVenta.getId().getValue(),
-            estadoVenta.getNombre()
+            estadoVenta.getNombre(),
+            estadoVenta.isBorrado()
         );
     }
 
     public String getId() {return id;}
     public String getNombre() {return nombre;}
+    public boolean isBorrado() {return borrado;}
 }

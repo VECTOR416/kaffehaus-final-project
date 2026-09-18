@@ -1,6 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -15,10 +16,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObj
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Application.Repositories.IEstadoVentaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.Aggregates.EstadoVenta;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.ValueObjects.EstadoVentaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ActualizarDetalleVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ActualizarVentaRequest;
-import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.DetalleVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Repositories.IVentaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.DetalleVenta;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.Venta;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
@@ -26,9 +28,12 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 /**
  * Modificacion de una venta existente, encabezado y lineas, en una sola transaccion.
  *
- * Cuando el payload trae 'detalles', las lineas actuales se retiran una a una con
- * removerDetalle y se incorporan las nuevas con agregarDetalle: la mutacion pasa siempre por
- * la raiz, que es quien recalcula el total.
+ * Cuando el payload trae 'detalles' se concilia por id en lugar de reemplazar la coleccion:
+ * las lineas con id se corrigen, las que no lo traen se agregan y las ausentes se dan de baja
+ * logica. Se concilia y no se reemplaza porque el sistema no usa borrado fisico: rehacer la
+ * coleccion entera dejaria una fila muerta por cada linea modificada.
+ *
+ * Toda mutacion pasa por la raiz, que es quien recalcula el total.
  */
 @Service
 @Transactional
@@ -84,7 +89,7 @@ public class ActualizarVentaUseCase {
                 estadoVentaId);
 
         if (actualizarVentaRequest.getDetalles() != null) {
-            reemplazarDetalles(venta, actualizarVentaRequest.getDetalles());
+            conciliarDetalles(venta, actualizarVentaRequest.getDetalles());
         }
 
         venta.validarRegistrable();
@@ -94,26 +99,70 @@ public class ActualizarVentaUseCase {
         return toResponse(ventaActualizada);
     }
 
-    private void reemplazarDetalles(Venta venta, List<DetalleVentaRequest> detalles) {
-        List<String> idsActuales = venta.getDetalles().stream()
+    private void conciliarDetalles(Venta venta, List<ActualizarDetalleVentaRequest> detalles) {
+        Set<String> idsRecibidos = detalles.stream()
+                .map(ActualizarDetalleVentaRequest::getId)
+                .filter(idDetalle -> idDetalle != null)
+                .collect(Collectors.toSet());
+
+        List<String> idsVivos = venta.getDetallesActivos().stream()
                 .map(detalle -> detalle.getId().getValue())
                 .collect(Collectors.toList());
 
-        for (String idDetalle : idsActuales) {
-            venta.removerDetalle(idDetalle);
+        for (String idVivo : idsVivos) {
+            if (!idsRecibidos.contains(idVivo)) {
+                venta.removerDetalle(idVivo);
+            }
         }
 
-        for (DetalleVentaRequest detalle : detalles) {
-            ProductoId productoId = new ProductoId(detalle.getIdProducto());
-            productoRepository.obtenerPorId(productoId)
-                    .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + detalle.getIdProducto() + "' no existe"));
-
-            venta.agregarDetalle(
-                    productoId,
-                    detalle.getPrecioUnitario(),
-                    detalle.getCantidad(),
-                    detalle.getDescuentoAplicado());
+        for (ActualizarDetalleVentaRequest detalle : detalles) {
+            if (detalle.getId() == null) {
+                agregarDetalleNuevo(venta, detalle);
+            } else {
+                corregirDetalleExistente(venta, detalle);
+            }
         }
+    }
+
+    private void agregarDetalleNuevo(Venta venta, ActualizarDetalleVentaRequest detalle) {
+        if (detalle.getIdProducto() == null || detalle.getPrecioUnitario() == null || detalle.getCantidad() == null) {
+            throw DomainException.throwException(400,
+                    "Un detalle de venta nuevo requiere 'idProducto', 'precioUnitario' y 'cantidad'");
+        }
+
+        ProductoId productoId = new ProductoId(detalle.getIdProducto());
+        productoRepository.obtenerPorId(productoId)
+                .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + detalle.getIdProducto() + "' no existe"));
+
+        venta.agregarDetalle(
+                productoId,
+                detalle.getPrecioUnitario(),
+                detalle.getCantidad(),
+                detalle.getDescuentoAplicado());
+    }
+
+    private void corregirDetalleExistente(Venta venta, ActualizarDetalleVentaRequest detalle) {
+        // Cambiar el producto de una linea ya vendida equivaldria a rehacer la venta.
+        if (detalle.getIdProducto() != null && !detalle.getIdProducto().equals(productoActualDe(venta, detalle.getId()))) {
+            throw DomainException.throwException(400,
+                    "No se puede cambiar el producto de un detalle de venta existente; da de baja la linea y agrega una nueva");
+        }
+
+        venta.actualizarDetalle(
+                detalle.getId(),
+                detalle.getPrecioUnitario(),
+                detalle.getCantidad(),
+                detalle.getDescuentoAplicado());
+    }
+
+    private String productoActualDe(Venta venta, String detalleVentaId) {
+        return venta.getDetallesActivos().stream()
+                .filter(detalle -> detalle.getId().getValue().equals(detalleVentaId))
+                .map(DetalleVenta::getProductoId)
+                .map(ProductoId::getValue)
+                .findFirst()
+                .orElseThrow(() -> DomainException.throwException(404,
+                        "El detalle con id '" + detalleVentaId + "' no pertenece a esta venta"));
     }
 
     private VentaResponse toResponse(Venta venta) {

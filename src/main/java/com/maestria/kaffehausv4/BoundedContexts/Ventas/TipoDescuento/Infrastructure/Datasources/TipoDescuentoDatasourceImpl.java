@@ -37,7 +37,7 @@ public class TipoDescuentoDatasourceImpl implements ITipoDescuentoDatasource {
 
     @Override
     public TipoDescuento actualizar(TipoDescuentoId tipoDescuentoId, TipoDescuento tipoDescuento) {
-        TipoDescuentoJpaModel model = tipoDescuentoJpaRepository.findById(aUuid(tipoDescuentoId.getValue()))
+        TipoDescuentoJpaModel model = tipoDescuentoJpaRepository.findByIdAndBorradoFalse(aUuid(tipoDescuentoId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El tipo de descuento con id '" + tipoDescuentoId.getValue() + "' no existe"));
 
         TipoDescuentoJpaMapper.copiarCambios(tipoDescuento, model);
@@ -47,7 +47,7 @@ public class TipoDescuentoDatasourceImpl implements ITipoDescuentoDatasource {
 
     @Override
     public Optional<TipoDescuento> obtenerPorId(TipoDescuentoId tipoDescuentoId) {
-        return tipoDescuentoJpaRepository.findById(aUuid(tipoDescuentoId.getValue()))
+        return tipoDescuentoJpaRepository.findByIdAndBorradoFalse(aUuid(tipoDescuentoId.getValue()))
                 .map(TipoDescuentoJpaMapper::toDomain);
     }
 
@@ -60,8 +60,8 @@ public class TipoDescuentoDatasourceImpl implements ITipoDescuentoDatasource {
         Pageable pageable = new OffsetPageRequest(skip, limit);
 
         Page<TipoDescuentoJpaModel> pagina = (search == null || search.trim().isEmpty())
-                ? tipoDescuentoJpaRepository.findAll(pageable)
-                : tipoDescuentoJpaRepository.findByNombreContainingIgnoreCase(search.trim(), pageable);
+                ? tipoDescuentoJpaRepository.findByBorradoFalse(pageable)
+                : tipoDescuentoJpaRepository.findByBorradoFalseAndNombreContainingIgnoreCase(search.trim(), pageable);
 
         List<TipoDescuento> datos = pagina.getContent().stream()
                 .map(TipoDescuentoJpaMapper::toDomain)
@@ -78,13 +78,14 @@ public class TipoDescuentoDatasourceImpl implements ITipoDescuentoDatasource {
 
     @Override
     public void eliminar(TipoDescuentoId tipoDescuentoId) {
-        UUID id = aUuid(tipoDescuentoId.getValue());
+        TipoDescuentoJpaModel model = tipoDescuentoJpaRepository.findByIdAndBorradoFalse(aUuid(tipoDescuentoId.getValue()))
+                .orElseThrow(() -> DomainException.throwException(404, "El tipo de descuento con id '" + tipoDescuentoId.getValue() + "' no existe"));
 
-        if (!tipoDescuentoJpaRepository.existsById(id)) {
-            throw DomainException.throwException(404, "El tipo de descuento con id '" + tipoDescuentoId.getValue() + "' no existe");
-        }
+        TipoDescuento tipoDescuento = TipoDescuentoJpaMapper.toDomain(model);
+        tipoDescuento.eliminar();
 
-        tipoDescuentoJpaRepository.deleteById(id);
+        TipoDescuentoJpaMapper.copiarCambios(tipoDescuento, model);
+        tipoDescuentoJpaRepository.save(model);
     }
 
     private static UUID aUuid(String valor) {

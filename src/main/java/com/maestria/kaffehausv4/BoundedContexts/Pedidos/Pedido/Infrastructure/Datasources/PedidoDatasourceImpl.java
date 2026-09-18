@@ -37,7 +37,7 @@ public class PedidoDatasourceImpl implements IPedidoDatasource {
 
     @Override
     public Pedido actualizar(PedidoId pedidoId, Pedido pedido) {
-        PedidoJpaModel model = pedidoJpaRepository.findById(aUuid(pedidoId.getValue()))
+        PedidoJpaModel model = pedidoJpaRepository.findByIdAndBorradoFalse(aUuid(pedidoId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El pedido con id '" + pedidoId.getValue() + "' no existe"));
 
         PedidoJpaMapper.copiarCambios(pedido, model);
@@ -47,7 +47,7 @@ public class PedidoDatasourceImpl implements IPedidoDatasource {
 
     @Override
     public Optional<Pedido> obtenerPorId(PedidoId pedidoId) {
-        return pedidoJpaRepository.findById(aUuid(pedidoId.getValue()))
+        return pedidoJpaRepository.findByIdAndBorradoFalse(aUuid(pedidoId.getValue()))
                 .map(PedidoJpaMapper::toDomain);
     }
 
@@ -60,8 +60,8 @@ public class PedidoDatasourceImpl implements IPedidoDatasource {
         Pageable pageable = new OffsetPageRequest(skip, limit);
 
         Page<PedidoJpaModel> pagina = (search == null || search.trim().isEmpty())
-                ? pedidoJpaRepository.findAll(pageable)
-                : pedidoJpaRepository.findByDescripcionContainingIgnoreCase(search.trim(), pageable);
+                ? pedidoJpaRepository.findByBorradoFalse(pageable)
+                : pedidoJpaRepository.findByBorradoFalseAndDescripcionContainingIgnoreCase(search.trim(), pageable);
 
         List<Pedido> datos = pagina.getContent().stream()
                 .map(PedidoJpaMapper::toDomain)
@@ -78,13 +78,14 @@ public class PedidoDatasourceImpl implements IPedidoDatasource {
 
     @Override
     public void eliminar(PedidoId pedidoId) {
-        UUID id = aUuid(pedidoId.getValue());
+        PedidoJpaModel model = pedidoJpaRepository.findByIdAndBorradoFalse(aUuid(pedidoId.getValue()))
+                .orElseThrow(() -> DomainException.throwException(404, "El pedido con id '" + pedidoId.getValue() + "' no existe"));
 
-        if (!pedidoJpaRepository.existsById(id)) {
-            throw DomainException.throwException(404, "El pedido con id '" + pedidoId.getValue() + "' no existe");
-        }
+        Pedido pedido = PedidoJpaMapper.toDomain(model);
+        pedido.eliminar();
 
-        pedidoJpaRepository.deleteById(id);
+        PedidoJpaMapper.copiarCambios(pedido, model);
+        pedidoJpaRepository.save(model);
     }
 
     private static UUID aUuid(String valor) {

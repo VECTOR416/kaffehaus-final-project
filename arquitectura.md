@@ -319,15 +319,26 @@ en ningun modelo del proyecto.**
 - Siempre `org.springframework.transaction.annotation.Transactional`.
 - La transaccion se abre y cierra en el caso de uso. Ni el controller ni el datasource la gestionan.
 
-### 4.5 Borrado: dos politicas coexistentes
+### 4.5 Borrado: siempre logico
 
-| Politica | Agregados | Mecanismo |
-|---|---|---|
-| **Soft delete** (19 agregados) | Categoria, Cliente, Conversion, Descuento, Entidad, Existencia, IngredienteReceta, Lote, Movimiento, PasoReceta, Persona, Produccion, Producto, Proveedor, Receta, Rol, TipoMovimiento, Unidad, Usuario | Campo `borrado` en agregado y `JpaModel`. `eliminar()` lo pone en `true` y se persiste con `save`. Todas las lecturas usan `...BorradoFalse...`. En Lote la baja arrastra tambien sus lineas |
-| **Hard delete** (6 agregados) | EstadoExistencia, EstadoPedido, EstadoVenta, Pedido, TipoDescuento, Venta | Sin columna `borrado`. El datasource comprueba `existsById` y llama `deleteById`. En Venta el borrado arrastra tambien sus lineas |
+**El sistema no usa borrado fisico. Ninguna fila se elimina jamas de la base.**
 
-La politica de un agregado la dicta el DDL de `databasev4.sql` (presencia o ausencia de la
-columna `borrado`). **No cambiar la politica de un agregado existente.**
+Todas las tablas de `databasev4.sql` tienen `borrado BOOLEAN NOT NULL DEFAULT FALSE`, todos
+los `JpaModel` mapean ese campo y todos los agregados exponen `eliminar()`, que lo pone en
+`true`. `DELETE /api/v1/<recurso>/{id}` es una baja logica: responde 204 y persiste un UPDATE.
+
+Reglas que se derivan y que el codigo cumple sin excepcion:
+
+- Las lecturas filtran siempre: `findByIdAndBorradoFalse`, `findByBorradoFalse(pageable)` y
+  `findByBorradoFalseAnd<Campo>ContainingIgnoreCase` para el `search`.
+- El datasource recarga el agregado, le pide `eliminar()` y guarda con `save`. La decision de
+  la baja es del dominio, no del SQL.
+- En un agregado con entidad hija, `eliminar()` de la raiz marca tambien todas sus lineas.
+- **No existe ni una sola llamada a `deleteById`, `deleteAll` ni a un `deleteBy...` derivado en
+  `src/main`.** Si aparece una, es un error.
+
+Las pruebas si borran fisicamente en su `@AfterEach`, porque limpian basura de test y no datos
+de negocio; es el unico lugar del repositorio donde eso es aceptable.
 
 ### 4.6 Contrato del agregado Venta (endpoints)
 
@@ -337,14 +348,15 @@ se retiro al subordinar las lineas a su raiz.
 | Operacion | Payload | Efecto |
 |---|---|---|
 | `POST api/v1/venta` | encabezado + `detalles[]` (obligatorio, no vacio) | Crea encabezado y lineas en una transaccion. Devuelve 201 con el agregado completo |
-| `PUT api/v1/venta/{id}` | encabezado opcional + `detalles[]` opcional | Si llega `detalles`, reemplaza todas las lineas y recalcula el total |
+| `PUT api/v1/venta/{id}` | encabezado opcional + `detalles[]` opcional | **Concilia por id**, no reemplaza: linea con `id` se corrige, linea sin `id` se agrega, linea ausente se da de baja logica |
 | `GET api/v1/venta/{id}` | — | Devuelve la venta con sus lineas |
 | `GET api/v1/venta` | `skip`/`limit`/`search` | Pagina de ventas con sus lineas, resueltas en una sola consulta por pagina |
-| `DELETE api/v1/venta/{id}` | — | Borra lineas y encabezado |
+| `DELETE api/v1/venta/{id}` | — | Baja logica del encabezado y de todas sus lineas |
 
-Cada elemento de `detalles` admite `idProducto`, `precioUnitario`, `cantidad` y
+En el alta cada elemento de `detalles` admite `idProducto`, `precioUnitario`, `cantidad` y
 `descuentoAplicado` (opcional, por defecto 0). **No admite `subtotal`, y la venta no admite
-`total`**: ambos son derivados.
+`total`**: ambos son derivados. En el `PUT` cada elemento admite ademas `id`, y cambiar el
+`idProducto` de una linea existente se rechaza con 400.
 
 ### 4.7 Contrato del agregado Lote (endpoints)
 
@@ -479,8 +491,9 @@ ocurre exclusivamente en Infrastructure.
 - `<Agregado>JpaModel`: `@Entity`, `@Table(name = "<tabla_snake_case>")`, `@Id` sin
   `@GeneratedValue` (el UUID lo genera el mapper), `@Column(name = "...")` explicito en cada
   campo, constructor publico vacio obligatorio, getters/setters.
-- Campos de auditoria en todos los modelos: `fec_c` (`OffsetDateTime`, `nullable = false`),
-  `fec_u` (`OffsetDateTime`, nullable), y `borrado` (`Boolean`) si el agregado es soft-delete.
+- Campos de auditoria en **todos** los modelos, sin excepcion: `fec_c` (`OffsetDateTime`,
+  `nullable = false`), `fec_u` (`OffsetDateTime`, nullable) y `borrado` (`Boolean`,
+  `nullable = false`).
 - Tipos: `UUID` para claves e identidades foraneas, `BigDecimal` para dinero y cantidades,
   `OffsetDateTime` para auditoria, `LocalDateTime`/`LocalDate` para fechas de negocio.
 - `<Agregado>JpaMapper`: clase con constructor privado y solo metodos `static`:
@@ -580,20 +593,21 @@ siguen la misma forma, que es la plantilla obligatoria si aparece un tercero:
   de la raiz y no acepta valores derivados. La respuesta anida la linea dentro de la del
   agregado (`DetalleVentaResponse` en `VentaResponse`, `DetalleLoteResponse` en `LoteResponse`).
 
-**Politica de bajas y de actualizacion: la dicta el esquema, no el gusto.**
+**Politica de bajas y de actualizacion: una sola, para las dos.**
 
-| | `Venta` / `DetalleVenta` | `Lote` / `DetalleLote` |
-|---|---|---|
-| Borrado | Fisico (hard delete) | Logico (`borrado = true`) |
-| FK que apunta a la hija | ninguna | `existencias.id_detalle_lote`, `ON DELETE RESTRICT` |
-| `PUT` con `detalles` | Reemplaza todas las lineas | **Concilia por id**: corrige, agrega y da de baja |
-| `removerDetalle(id)` | Saca la linea de la coleccion | Marca la linea y la conserva en la coleccion |
-
-Antes de escribir una hija nueva hay que mirar `databasev4.sql`: si alguna tabla la referencia,
-sus identificadores son sagrados y la unica baja posible es la logica. En ese caso la raiz
-expone **dos** vistas de la coleccion: `getDetalles()` con todas (es lo que la persistencia
-debe escribir, incluidas las marcadas) y `getDetallesActivos()` con las vivas (es lo que suma
-el total, valida `validarRegistrable()` y sale en la respuesta).
+- `removerDetalle(id)` marca la linea (`borrado = true`) y **la conserva en la coleccion**, para
+  que la baja llegue a la base como un UPDATE.
+- `eliminar()` en la raiz marca el encabezado y arrastra todas sus lineas.
+- El `PUT` con `detalles` **concilia por id**: la linea con `id` se corrige, la que no lo trae
+  se agrega y la ausente se da de baja. Nunca se reemplaza la coleccion entera, porque sin
+  borrado fisico cada reemplazo dejaria una fila muerta por linea modificada. En `Lote` hay
+  ademas una razon de integridad: `existencias.id_detalle_lote` es `ON DELETE RESTRICT`.
+- Por eso la raiz expone **dos** vistas de la coleccion: `getDetalles()` con todas, incluidas
+  las marcadas (es lo que la persistencia debe escribir), y `getDetallesActivos()` con las
+  vivas (es lo que suma el total, valida `validarRegistrable()` y sale en la respuesta).
+- El datasource traduce cada linea con un metodo `conciliar(...)`: si ya tenia identidad,
+  recupera su fila y le copia los cambios; si no, crea una nueva. Los identificadores de una
+  hija nunca se regeneran.
 
 **Acceso a una hija desde otro agregado.** Si un agregado externo referencia una entidad hija
 (`Existencia` guarda un `DetalleLoteId`), no se le devuelve un repositorio de la hija: el
@@ -652,7 +666,8 @@ publico justo para esto.
     Se lanza una `BaseException` y responde `GlobalExceptionHandler`.
 21. **NO** propagar excepciones crudas de JPA/JDBC hacia arriba: se traducen a
     `DomainException` o `SystemException`.
-22. **NO** cambiar la politica de borrado (soft/hard) de un agregado existente (ver 4.5).
+22. **NO** introducir tablas, modelos ni agregados sin `borrado`: el campo, el `eliminar()` del
+    agregado y el filtrado `...BorradoFalse...` en las lecturas son obligatorios (ver 4.5).
 23. **NO** introducir cache, eventos de dominio, mensajeria, `@Scheduled`, `@Async`, WebFlux ni
     estado en memoria compartido.
 24. **NO** anadir endpoints fuera del prefijo `api/v1/`, ni rutas que no sigan el kebab-case del
@@ -666,9 +681,9 @@ publico justo para esto.
     payload lo trae, se ignora o se rechaza: la raiz es la unica fuente de ese numero.
 29. **NO** mutar la coleccion de hijas desde la capa de aplicacion. Se pasa siempre por los
     metodos de la raiz, aunque implique leer el agregado entero antes de modificarlo.
-30. **NO** borrar fisicamente ni regenerar los identificadores de una entidad hija a la que
-    otra tabla apunta. Antes de tocar una hija se consulta `databasev4.sql`: si tiene
-    referencias, la baja es logica y el `PUT` concilia por id (ver 5.13).
+30. **NO** borrar fisicamente nada, nunca: ni `deleteById`, ni `deleteAll`, ni un `deleteBy...`
+    derivado en `src/main`. Toda baja es logica (ver 4.5). Tampoco se regeneran los
+    identificadores de una entidad hija: el `PUT` concilia por id (ver 5.13).
 31. **NO** exponer un repositorio de la hija a un agregado externo que la referencie. La
     consulta se declara en el puerto de la raiz (`obtenerPorDetalleId`).
 
@@ -712,9 +727,9 @@ publico justo para esto.
   de lote a traves de la raiz.
 - `Inventario/Lote` deja la linea `//String search = ...` comentada en su datasource porque la
   entidad no tiene campo de texto buscable.
-- Tests existentes (38): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio puro, sin
-  Spring, `VentaTest` (9) y `LoteTest` (15); de integracion contra la BD real,
-  `CrearVentaUseCaseIntegracionTest` (5) y `CrearLoteUseCaseIntegracionTest` (8), ambos
+- Tests existentes (40): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio puro, sin
+  Spring, `VentaTest` (10) y `LoteTest` (15); de integracion contra la BD real,
+  `CrearVentaUseCaseIntegracionTest` (6) y `CrearLoteUseCaseIntegracionTest` (8), ambos
   `@SpringBootTest` sin `@Transactional` de clase para poder observar el rollback del caso de
   uso. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
   paquete de produccion.

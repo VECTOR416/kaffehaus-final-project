@@ -17,6 +17,9 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * No guarda el VentaId del padre: dentro del agregado la relacion es la contencion en la
  * coleccion de Venta, y la columna 'detalle_venta.id_venta' la resuelve el mapper a partir
  * de la raiz al persistir.
+ *
+ * El borrado es logico, como en todo el sistema: una linea dada de baja conserva su fila y su
+ * identificador, y solo cambia su campo 'borrado'.
  */
 public class DetalleVenta {
 
@@ -30,6 +33,7 @@ public class DetalleVenta {
     private BigDecimal subtotal;
     private BigDecimal descuentoAplicado;
     private boolean estado;
+    private boolean borrado;
 
     private DetalleVenta(
         DetalleVentaId id,
@@ -38,7 +42,8 @@ public class DetalleVenta {
         BigDecimal cantidad,
         BigDecimal subtotal,
         BigDecimal descuentoAplicado,
-        boolean estado
+        boolean estado,
+        boolean borrado
     ){
         this.id = id;
         this.productoId = productoId;
@@ -47,6 +52,7 @@ public class DetalleVenta {
         this.subtotal = subtotal;
         this.descuentoAplicado = descuentoAplicado;
         this.estado = estado;
+        this.borrado = borrado;
     }
 
     /**
@@ -60,7 +66,8 @@ public class DetalleVenta {
         BigDecimal cantidad,
         BigDecimal subtotal,
         BigDecimal descuentoAplicado,
-        boolean estado
+        boolean estado,
+        boolean borrado
     ){
         return new DetalleVenta(
                 new DetalleVentaId(id),
@@ -69,7 +76,8 @@ public class DetalleVenta {
                 cantidad,
                 subtotal,
                 descuentoAplicado,
-                estado);
+                estado,
+                borrado);
     }
 
     /**
@@ -85,22 +93,10 @@ public class DetalleVenta {
         if (productoId == null || productoId.getValue() == null) {
             throw DomainException.throwException(400, "El detalle de venta requiere un producto");
         }
-        if (precioUnitario == null || precioUnitario.signum() < 0) {
-            throw DomainException.throwException(400, "El precio unitario del detalle de venta no puede ser negativo");
-        }
-        if (cantidad == null || cantidad.signum() <= 0) {
-            throw DomainException.throwException(400, "La cantidad del detalle de venta debe ser mayor a cero");
-        }
-
         BigDecimal descuento = descuentoAplicado != null ? descuentoAplicado : BigDecimal.ZERO;
-        if (descuento.signum() < 0) {
-            throw DomainException.throwException(400, "El descuento aplicado del detalle de venta no puede ser negativo");
-        }
+        exigirImportesValidos(precioUnitario, cantidad, descuento);
 
         BigDecimal importeBruto = precioUnitario.multiply(cantidad);
-        if (descuento.compareTo(importeBruto) > 0) {
-            throw DomainException.throwException(400, "El descuento aplicado no puede superar el importe del detalle de venta");
-        }
 
         return new DetalleVenta(
                 null,
@@ -109,7 +105,45 @@ public class DetalleVenta {
                 cantidad,
                 aEscalaMonetaria(importeBruto.subtract(descuento)),
                 aEscalaMonetaria(descuento),
-                true);
+                true,
+                false);
+    }
+
+    /**
+     * Corrige los importes de una linea viva y recalcula su subtotal. Package-private: la
+     * conciliacion del PUT pasa por la raiz.
+     */
+    void actualizarImportes(BigDecimal precioUnitario, BigDecimal cantidad, BigDecimal descuentoAplicado) {
+        BigDecimal nuevoPrecio = precioUnitario != null ? precioUnitario : this.precioUnitario;
+        BigDecimal nuevaCantidad = cantidad != null ? cantidad : this.cantidad;
+        BigDecimal nuevoDescuento = descuentoAplicado != null ? descuentoAplicado : this.descuentoAplicado;
+
+        exigirImportesValidos(nuevoPrecio, nuevaCantidad, nuevoDescuento);
+
+        this.precioUnitario = aEscalaMonetaria(nuevoPrecio);
+        this.cantidad = nuevaCantidad;
+        this.descuentoAplicado = aEscalaMonetaria(nuevoDescuento);
+        this.subtotal = aEscalaMonetaria(nuevoPrecio.multiply(nuevaCantidad).subtract(nuevoDescuento));
+    }
+
+    /** Baja logica de la linea. Solo la raiz puede invocarla. */
+    void eliminar() {
+        this.borrado = true;
+    }
+
+    private static void exigirImportesValidos(BigDecimal precioUnitario, BigDecimal cantidad, BigDecimal descuento) {
+        if (precioUnitario == null || precioUnitario.signum() < 0) {
+            throw DomainException.throwException(400, "El precio unitario del detalle de venta no puede ser negativo");
+        }
+        if (cantidad == null || cantidad.signum() <= 0) {
+            throw DomainException.throwException(400, "La cantidad del detalle de venta debe ser mayor a cero");
+        }
+        if (descuento == null || descuento.signum() < 0) {
+            throw DomainException.throwException(400, "El descuento aplicado del detalle de venta no puede ser negativo");
+        }
+        if (descuento.compareTo(precioUnitario.multiply(cantidad)) > 0) {
+            throw DomainException.throwException(400, "El descuento aplicado no puede superar el importe del detalle de venta");
+        }
     }
 
     private static BigDecimal aEscalaMonetaria(BigDecimal valor) {
@@ -123,4 +157,5 @@ public class DetalleVenta {
     public BigDecimal getSubtotal() {return subtotal;}
     public BigDecimal getDescuentoAplicado() {return descuentoAplicado;}
     public boolean isEstado() {return estado;}
+    public boolean isBorrado() {return borrado;}
 }

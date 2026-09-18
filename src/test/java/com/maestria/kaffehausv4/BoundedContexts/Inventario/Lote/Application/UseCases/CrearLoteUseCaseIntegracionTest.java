@@ -149,6 +149,7 @@ class CrearLoteUseCaseIntegracionTest {
         estadoExistencia.setId(idEstadoExistencia);
         estadoExistencia.setNombre("ESTADO_TEST_" + idEstadoExistencia);
         estadoExistencia.setFecC(OffsetDateTime.now());
+        estadoExistencia.setBorrado(false);
         estadoExistenciaJpaRepository.save(estadoExistencia);
 
         idProductoCafe = guardarProducto("cafe-test");

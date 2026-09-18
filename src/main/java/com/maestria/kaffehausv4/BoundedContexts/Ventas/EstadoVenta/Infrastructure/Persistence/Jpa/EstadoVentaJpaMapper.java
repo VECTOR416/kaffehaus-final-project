@@ -13,6 +13,7 @@ public class EstadoVentaJpaMapper {
         EstadoVentaJpaModel model = new EstadoVentaJpaModel();
         model.setId(estadoVenta.getId() != null ? UUID.fromString(estadoVenta.getId().getValue()) : UUID.randomUUID());
         model.setNombre(estadoVenta.getNombre());
+        model.setBorrado(estadoVenta.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
         return model;
@@ -20,12 +21,14 @@ public class EstadoVentaJpaMapper {
 
     public static void copiarCambios(EstadoVenta estadoVenta, EstadoVentaJpaModel model) {
         model.setNombre(estadoVenta.getNombre());
+        model.setBorrado(estadoVenta.isBorrado());
         model.setFecU(OffsetDateTime.now());
     }
 
     public static EstadoVenta toDomain(EstadoVentaJpaModel model) {
         return EstadoVenta.restaurar(
                 model.getId().toString(),
-                model.getNombre());
+                model.getNombre(),
+                model.getBorrado() != null && model.getBorrado());
     }
 }

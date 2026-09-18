@@ -37,7 +37,7 @@ public class EstadoExistenciaDatasourceImpl implements IEstadoExistenciaDatasour
 
     @Override
     public EstadoExistencia actualizar(EstadoExistenciaId estadoExistenciaId, EstadoExistencia estadoExistencia) {
-        EstadoExistenciaJpaModel model = estadoExistenciaJpaRepository.findById(aUuid(estadoExistenciaId.getValue()))
+        EstadoExistenciaJpaModel model = estadoExistenciaJpaRepository.findByIdAndBorradoFalse(aUuid(estadoExistenciaId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El estado de existencia con id '" + estadoExistenciaId.getValue() + "' no existe"));
 
         EstadoExistenciaJpaMapper.copiarCambios(estadoExistencia, model);
@@ -47,7 +47,7 @@ public class EstadoExistenciaDatasourceImpl implements IEstadoExistenciaDatasour
 
     @Override
     public Optional<EstadoExistencia> obtenerPorId(EstadoExistenciaId estadoExistenciaId) {
-        return estadoExistenciaJpaRepository.findById(aUuid(estadoExistenciaId.getValue()))
+        return estadoExistenciaJpaRepository.findByIdAndBorradoFalse(aUuid(estadoExistenciaId.getValue()))
                 .map(EstadoExistenciaJpaMapper::toDomain);
     }
 
@@ -60,8 +60,8 @@ public class EstadoExistenciaDatasourceImpl implements IEstadoExistenciaDatasour
         Pageable pageable = new OffsetPageRequest(skip, limit);
 
         Page<EstadoExistenciaJpaModel> pagina = (search == null || search.trim().isEmpty())
-                ? estadoExistenciaJpaRepository.findAll(pageable)
-                : estadoExistenciaJpaRepository.findByNombreContainingIgnoreCase(search.trim(), pageable);
+                ? estadoExistenciaJpaRepository.findByBorradoFalse(pageable)
+                : estadoExistenciaJpaRepository.findByBorradoFalseAndNombreContainingIgnoreCase(search.trim(), pageable);
 
         List<EstadoExistencia> datos = pagina.getContent().stream()
                 .map(EstadoExistenciaJpaMapper::toDomain)
@@ -78,13 +78,14 @@ public class EstadoExistenciaDatasourceImpl implements IEstadoExistenciaDatasour
 
     @Override
     public void eliminar(EstadoExistenciaId estadoExistenciaId) {
-        UUID id = aUuid(estadoExistenciaId.getValue());
+        EstadoExistenciaJpaModel model = estadoExistenciaJpaRepository.findByIdAndBorradoFalse(aUuid(estadoExistenciaId.getValue()))
+                .orElseThrow(() -> DomainException.throwException(404, "El estado de existencia con id '" + estadoExistenciaId.getValue() + "' no existe"));
 
-        if (!estadoExistenciaJpaRepository.existsById(id)) {
-            throw DomainException.throwException(404, "El estado de existencia con id '" + estadoExistenciaId.getValue() + "' no existe");
-        }
+        EstadoExistencia estadoExistencia = EstadoExistenciaJpaMapper.toDomain(model);
+        estadoExistencia.eliminar();
 
-        estadoExistenciaJpaRepository.deleteById(id);
+        EstadoExistenciaJpaMapper.copiarCambios(estadoExistencia, model);
+        estadoExistenciaJpaRepository.save(model);
     }
 
     private static UUID aUuid(String valor) {

@@ -15,6 +15,7 @@ public class Pedido {
     private String descripcion;
     private VentaId ventaId;
     private EstadoPedidoId estadoId;
+    private boolean borrado;
 
     private Pedido(
         PedidoId id,
@@ -23,7 +24,8 @@ public class Pedido {
         BigDecimal longitud,
         String descripcion,
         VentaId ventaId,
-        EstadoPedidoId estadoId
+        EstadoPedidoId estadoId,
+        boolean borrado
     ){
         this.id = id;
         this.fechaEntrega = fechaEntrega;
@@ -32,6 +34,7 @@ public class Pedido {
         this.descripcion = descripcion;
         this.ventaId = ventaId;
         this.estadoId = estadoId;
+        this.borrado = borrado;
     }
 
     public static Pedido restaurar(
@@ -41,9 +44,10 @@ public class Pedido {
         BigDecimal longitud,
         String descripcion,
         VentaId ventaId,
-        EstadoPedidoId estadoId
+        EstadoPedidoId estadoId,
+        boolean borrado
     ){
-        return new Pedido(new PedidoId(id), fechaEntrega, latitud, longitud, descripcion, ventaId, estadoId);
+        return new Pedido(new PedidoId(id), fechaEntrega, latitud, longitud, descripcion, ventaId, estadoId, borrado);
     }
 
     public static Pedido crear(
@@ -54,7 +58,7 @@ public class Pedido {
         VentaId ventaId,
         EstadoPedidoId estadoId
     ){
-        return new Pedido(null, fechaEntrega, latitud, longitud, descripcion, ventaId, estadoId);
+        return new Pedido(null, fechaEntrega, latitud, longitud, descripcion, ventaId, estadoId, false);
     }
 
     public void actualizar(
@@ -73,6 +77,10 @@ public class Pedido {
         this.estadoId = estadoId != null ? estadoId : this.estadoId;
     }
 
+    public void eliminar(){
+        this.borrado = true;
+    }
+
     public PedidoId getId() {return id;}
     public LocalDateTime getFechaEntrega() {return fechaEntrega;}
     public BigDecimal getLatitud() {return latitud;}
@@ -80,4 +88,5 @@ public class Pedido {
     public String getDescripcion() {return descripcion;}
     public VentaId getVentaId() {return ventaId;}
     public EstadoPedidoId getEstadoId() {return estadoId;}
+    public boolean isBorrado() {return borrado;}
 }

@@ -28,6 +28,7 @@ public class VentaJpaMapper {
         model.setIdUsuario(UUID.fromString(venta.getUsuarioId().getValue()));
         model.setIdCliente(venta.getClienteId() != null ? UUID.fromString(venta.getClienteId().getValue()) : null);
         model.setIdEstadoVenta(UUID.fromString(venta.getEstadoVentaId().getValue()));
+        model.setBorrado(venta.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
         return model;
@@ -39,6 +40,7 @@ public class VentaJpaMapper {
         model.setIdUsuario(UUID.fromString(venta.getUsuarioId().getValue()));
         model.setIdCliente(venta.getClienteId() != null ? UUID.fromString(venta.getClienteId().getValue()) : null);
         model.setIdEstadoVenta(UUID.fromString(venta.getEstadoVentaId().getValue()));
+        model.setBorrado(venta.isBorrado());
         model.setFecU(OffsetDateTime.now());
     }
 
@@ -54,6 +56,7 @@ public class VentaJpaMapper {
                 new UsuarioId(model.getIdUsuario().toString()),
                 model.getIdCliente() != null ? new ClienteId(model.getIdCliente().toString()) : null,
                 new EstadoVentaId(model.getIdEstadoVenta().toString()),
+                model.getBorrado() != null && model.getBorrado(),
                 detalles);
     }
 }

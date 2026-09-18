@@ -37,7 +37,7 @@ public class EstadoPedidoDatasourceImpl implements IEstadoPedidoDatasource {
 
     @Override
     public EstadoPedido actualizar(EstadoPedidoId estadoPedidoId, EstadoPedido estadoPedido) {
-        EstadoPedidoJpaModel model = estadoPedidoJpaRepository.findById(aUuid(estadoPedidoId.getValue()))
+        EstadoPedidoJpaModel model = estadoPedidoJpaRepository.findByIdAndBorradoFalse(aUuid(estadoPedidoId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El estado de pedido con id '" + estadoPedidoId.getValue() + "' no existe"));
 
         EstadoPedidoJpaMapper.copiarCambios(estadoPedido, model);
@@ -47,7 +47,7 @@ public class EstadoPedidoDatasourceImpl implements IEstadoPedidoDatasource {
 
     @Override
     public Optional<EstadoPedido> obtenerPorId(EstadoPedidoId estadoPedidoId) {
-        return estadoPedidoJpaRepository.findById(aUuid(estadoPedidoId.getValue()))
+        return estadoPedidoJpaRepository.findByIdAndBorradoFalse(aUuid(estadoPedidoId.getValue()))
                 .map(EstadoPedidoJpaMapper::toDomain);
     }
 
@@ -60,8 +60,8 @@ public class EstadoPedidoDatasourceImpl implements IEstadoPedidoDatasource {
         Pageable pageable = new OffsetPageRequest(skip, limit);
 
         Page<EstadoPedidoJpaModel> pagina = (search == null || search.trim().isEmpty())
-                ? estadoPedidoJpaRepository.findAll(pageable)
-                : estadoPedidoJpaRepository.findByNombreContainingIgnoreCase(search.trim(), pageable);
+                ? estadoPedidoJpaRepository.findByBorradoFalse(pageable)
+                : estadoPedidoJpaRepository.findByBorradoFalseAndNombreContainingIgnoreCase(search.trim(), pageable);
 
         List<EstadoPedido> datos = pagina.getContent().stream()
                 .map(EstadoPedidoJpaMapper::toDomain)
@@ -78,13 +78,14 @@ public class EstadoPedidoDatasourceImpl implements IEstadoPedidoDatasource {
 
     @Override
     public void eliminar(EstadoPedidoId estadoPedidoId) {
-        UUID id = aUuid(estadoPedidoId.getValue());
+        EstadoPedidoJpaModel model = estadoPedidoJpaRepository.findByIdAndBorradoFalse(aUuid(estadoPedidoId.getValue()))
+                .orElseThrow(() -> DomainException.throwException(404, "El estado de pedido con id '" + estadoPedidoId.getValue() + "' no existe"));
 
-        if (!estadoPedidoJpaRepository.existsById(id)) {
-            throw DomainException.throwException(404, "El estado de pedido con id '" + estadoPedidoId.getValue() + "' no existe");
-        }
+        EstadoPedido estadoPedido = EstadoPedidoJpaMapper.toDomain(model);
+        estadoPedido.eliminar();
 
-        estadoPedidoJpaRepository.deleteById(id);
+        EstadoPedidoJpaMapper.copiarCambios(estadoPedido, model);
+        estadoPedidoJpaRepository.save(model);
     }
 
     private static UUID aUuid(String valor) {

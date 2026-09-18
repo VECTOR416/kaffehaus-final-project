@@ -27,9 +27,20 @@ public class DetalleVentaJpaMapper {
         model.setEstado(detalleVenta.isEstado());
         model.setIdVenta(idVenta);
         model.setIdProducto(UUID.fromString(detalleVenta.getProductoId().getValue()));
+        model.setBorrado(detalleVenta.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
         return model;
+    }
+
+    public static void copiarCambios(DetalleVenta detalleVenta, DetalleVentaJpaModel model) {
+        model.setPrecioUnitario(detalleVenta.getPrecioUnitario());
+        model.setCantidad(detalleVenta.getCantidad());
+        model.setSubtotal(detalleVenta.getSubtotal());
+        model.setDescuentoAplicado(detalleVenta.getDescuentoAplicado());
+        model.setEstado(detalleVenta.isEstado());
+        model.setBorrado(detalleVenta.isBorrado());
+        model.setFecU(OffsetDateTime.now());
     }
 
     public static DetalleVenta toDomain(DetalleVentaJpaModel model) {
@@ -40,6 +51,7 @@ public class DetalleVentaJpaMapper {
                 model.getCantidad(),
                 model.getSubtotal(),
                 model.getDescuentoAplicado(),
-                model.getEstado() != null && model.getEstado());
+                model.getEstado() != null && model.getEstado(),
+                model.getBorrado() != null && model.getBorrado());
     }
 }

@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId;
@@ -18,12 +19,16 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * Raiz del agregado Venta.
  *
  * Venta contiene sus lineas (DetalleVenta) y es la unica puerta de entrada para crearlas,
- * eliminarlas y calcular importes. La coleccion se expone como vista de solo lectura, de
- * modo que ninguna capa externa puede mutarla sin pasar por agregarDetalle/removerDetalle.
+ * corregirlas y darlas de baja. La coleccion se expone como vista de solo lectura, de modo que
+ * ninguna capa externa puede mutarla sin pasar por agregarDetalle/actualizarDetalle/
+ * removerDetalle.
  *
  * El total NO se recibe desde fuera: es un valor derivado que la raiz recalcula en cada
- * mutacion como la suma de los subtotales de sus lineas. Asi no puede existir una venta
+ * mutacion como la suma de los subtotales de sus lineas vivas. Asi no puede existir una venta
  * cuyo encabezado contradiga a su detalle.
+ *
+ * El borrado es logico en todo el sistema, tambien aqui: las lineas dadas de baja siguen en la
+ * coleccion marcadas como borradas, porque esa baja debe llegar a la base como un UPDATE.
  */
 public class Venta {
 
@@ -33,6 +38,7 @@ public class Venta {
     private UsuarioId usuarioId;
     private ClienteId clienteId;
     private EstadoVentaId estadoVentaId;
+    private boolean borrado;
     private final List<DetalleVenta> detalles;
 
     private Venta(
@@ -42,6 +48,7 @@ public class Venta {
         UsuarioId usuarioId,
         ClienteId clienteId,
         EstadoVentaId estadoVentaId,
+        boolean borrado,
         List<DetalleVenta> detalles
     ){
         this.id = id;
@@ -50,6 +57,7 @@ public class Venta {
         this.usuarioId = usuarioId;
         this.clienteId = clienteId;
         this.estadoVentaId = estadoVentaId;
+        this.borrado = borrado;
         this.detalles = detalles != null ? new ArrayList<>(detalles) : new ArrayList<>();
     }
 
@@ -64,9 +72,10 @@ public class Venta {
         UsuarioId usuarioId,
         ClienteId clienteId,
         EstadoVentaId estadoVentaId,
+        boolean borrado,
         List<DetalleVenta> detalles
     ){
-        return new Venta(new VentaId(id), fechaVenta, total, usuarioId, clienteId, estadoVentaId, detalles);
+        return new Venta(new VentaId(id), fechaVenta, total, usuarioId, clienteId, estadoVentaId, borrado, detalles);
     }
 
     /**
@@ -79,7 +88,7 @@ public class Venta {
         ClienteId clienteId,
         EstadoVentaId estadoVentaId
     ){
-        return new Venta(null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, estadoVentaId, null);
+        return new Venta(null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, estadoVentaId, false, null);
     }
 
     /**
@@ -109,31 +118,51 @@ public class Venta {
         recalcularTotal();
     }
 
-    /** Unica via para retirar una linea. Recalcula el total y falla si la linea no pertenece a la venta. */
+    /** Corrige los importes de una linea viva y reajusta el total. */
+    public void actualizarDetalle(
+        String detalleVentaId,
+        BigDecimal precioUnitario,
+        BigDecimal cantidad,
+        BigDecimal descuentoAplicado
+    ){
+        detalleVivo(detalleVentaId).actualizarImportes(precioUnitario, cantidad, descuentoAplicado);
+        recalcularTotal();
+    }
+
+    /** Da de baja logica una linea y descuenta su subtotal del total. */
     public void removerDetalle(String detalleVentaId) {
-        boolean removido = this.detalles.removeIf(
-                detalle -> detalle.getId() != null && detalle.getId().getValue().equals(detalleVentaId));
+        detalleVivo(detalleVentaId).eliminar();
+        recalcularTotal();
+    }
 
-        if (!removido) {
-            throw DomainException.throwException(404,
-                    "El detalle con id '" + detalleVentaId + "' no pertenece a esta venta");
-        }
-
+    /** Baja logica del agregado entero: el encabezado y todas sus lineas. */
+    public void eliminar(){
+        this.borrado = true;
+        this.detalles.forEach(DetalleVenta::eliminar);
         recalcularTotal();
     }
 
     /**
-     * Invariante de agregado: una venta registrada tiene al menos una linea. La comprueba el
-     * caso de uso antes de persistir, tanto en el alta como tras modificar los detalles.
+     * Invariante de agregado: una venta registrada tiene al menos una linea viva. La comprueba
+     * el caso de uso antes de persistir, en el alta y tras modificar los detalles.
      */
     public void validarRegistrable() {
-        if (this.detalles.isEmpty()) {
+        if (getDetallesActivos().isEmpty()) {
             throw DomainException.throwException(400, "La venta debe tener al menos un detalle");
         }
     }
 
+    private DetalleVenta detalleVivo(String detalleVentaId) {
+        return this.detalles.stream()
+                .filter(detalle -> !detalle.isBorrado())
+                .filter(detalle -> detalle.getId() != null && detalle.getId().getValue().equals(detalleVentaId))
+                .findFirst()
+                .orElseThrow(() -> DomainException.throwException(404,
+                        "El detalle con id '" + detalleVentaId + "' no pertenece a esta venta"));
+    }
+
     private void recalcularTotal() {
-        BigDecimal suma = this.detalles.stream()
+        BigDecimal suma = getDetallesActivos().stream()
                 .map(DetalleVenta::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -150,5 +179,15 @@ public class Venta {
     public UsuarioId getUsuarioId() {return usuarioId;}
     public ClienteId getClienteId() {return clienteId;}
     public EstadoVentaId getEstadoVentaId() {return estadoVentaId;}
+    public boolean isBorrado() {return borrado;}
+
+    /** Todas las lineas, incluidas las dadas de baja: es lo que la persistencia debe escribir. */
     public List<DetalleVenta> getDetalles() {return Collections.unmodifiableList(detalles);}
+
+    /** Solo las lineas vivas: es lo que ve el exterior y lo que suma el total. */
+    public List<DetalleVenta> getDetallesActivos() {
+        return detalles.stream()
+                .filter(detalle -> !detalle.isBorrado())
+                .collect(Collectors.toList());
+    }
 }

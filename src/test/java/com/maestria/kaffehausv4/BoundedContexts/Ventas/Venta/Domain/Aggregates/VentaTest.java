@@ -63,16 +63,33 @@ class VentaTest {
                 new UsuarioId("11111111-1111-1111-1111-111111111111"),
                 null,
                 new EstadoVentaId("22222222-2222-2222-2222-222222222222"),
+                false,
                 List.of(
                         DetalleVenta.restaurar("44444444-4444-4444-4444-444444444444", PRODUCTO_CAFE,
-                                new BigDecimal("12.50"), new BigDecimal("2"), new BigDecimal("25.00"), BigDecimal.ZERO, true),
+                                new BigDecimal("12.50"), new BigDecimal("2"), new BigDecimal("25.00"), BigDecimal.ZERO, true, false),
                         DetalleVenta.restaurar("55555555-5555-5555-5555-555555555555", PRODUCTO_TE,
-                                new BigDecimal("8.00"), new BigDecimal("3"), new BigDecimal("20.00"), new BigDecimal("4.00"), true)));
+                                new BigDecimal("8.00"), new BigDecimal("3"), new BigDecimal("20.00"), new BigDecimal("4.00"), true, false)));
 
         venta.removerDetalle("44444444-4444-4444-4444-444444444444");
 
-        assertEquals(1, venta.getDetalles().size());
+        assertEquals(1, venta.getDetallesActivos().size());
+        // La linea sigue en la coleccion marcada como borrada: la baja debe llegar como UPDATE.
+        assertEquals(2, venta.getDetalles().size());
+        assertTrue(venta.getDetalles().get(0).isBorrado());
         assertEquals(new BigDecimal("20.00"), venta.getTotal());
+    }
+
+    @Test
+    void eliminarLaVentaArrastraSusLineas() {
+        Venta venta = ventaVacia();
+        venta.agregarDetalle(PRODUCTO_CAFE, new BigDecimal("12.50"), new BigDecimal("2"), BigDecimal.ZERO);
+
+        venta.eliminar();
+
+        assertTrue(venta.isBorrado());
+        assertTrue(venta.getDetallesActivos().isEmpty());
+        assertTrue(venta.getDetalles().stream().allMatch(DetalleVenta::isBorrado));
+        assertEquals(new BigDecimal("0.00"), venta.getTotal());
     }
 
     @Test
