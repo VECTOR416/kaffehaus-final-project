@@ -143,9 +143,12 @@ CREATE TABLE pasos_receta (
     descripcion TEXT NOT NULL,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
-    borrado BOOLEAN NOT NULL DEFAULT FALSE,
-    CONSTRAINT uq_receta_paso UNIQUE (id_receta, pasos)
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+-- La unicidad del numero de paso aplica solo a los pasos vivos: con borrado logico, una fila
+-- dada de baja conserva su numero y bloquearia el alta de un paso nuevo con esa posicion.
+CREATE UNIQUE INDEX uq_receta_paso ON pasos_receta (id_receta, pasos) WHERE borrado = FALSE;
 
 CREATE TABLE produccion (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

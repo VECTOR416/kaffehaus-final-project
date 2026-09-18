@@ -1,11 +1,20 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Infrastructure.Persistence.Jpa;
 
 import java.time.OffsetDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.Aggregates.IngredienteReceta;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.Aggregates.PasoReceta;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.Aggregates.Receta;
 
+/**
+ * Mapea el agregado Receta. toDomain reconstruye la raiz junto con sus dos colecciones: no
+ * existe una Receta de dominio a medias, sin ingredientes o sin pasos.
+ */
 public class RecetaJpaMapper {
     private RecetaJpaMapper() {
     }
@@ -30,12 +39,26 @@ public class RecetaJpaMapper {
         model.setFecU(OffsetDateTime.now());
     }
 
-    public static Receta toDomain(RecetaJpaModel model) {
+    public static Receta toDomain(
+            RecetaJpaModel model,
+            List<IngredienteRecetaJpaModel> ingredientesModel,
+            List<PasoRecetaJpaModel> pasosModel) {
+
+        List<IngredienteReceta> ingredientes = ingredientesModel != null
+                ? ingredientesModel.stream().map(IngredienteRecetaJpaMapper::toDomain).collect(Collectors.toList())
+                : Collections.emptyList();
+
+        List<PasoReceta> pasos = pasosModel != null
+                ? pasosModel.stream().map(PasoRecetaJpaMapper::toDomain).collect(Collectors.toList())
+                : Collections.emptyList();
+
         return Receta.restaurar(
                 model.getId().toString(),
                 model.getCantidad(),
                 model.getTitulo(),
                 new ProductoId(model.getIdProductoObtenido().toString()),
-                model.getBorrado() != null && model.getBorrado());
+                model.getBorrado() != null && model.getBorrado(),
+                ingredientes,
+                pasos);
     }
 }

@@ -66,17 +66,18 @@ es un modulo autocontenido con sus cuatro capas dentro.
 BoundedContexts / <Contexto> / <Agregado> / {Domain, Application, Infrastructure, Presentation}
 ```
 
-Contextos existentes (4) y agregados (25):
+Contextos existentes (4) y agregados (23):
 
 | Bounded Context | Agregados |
 |---|---|
-| `Inventario` (13) | Categoria, Conversion, EstadoExistencia, Existencia, IngredienteReceta, Lote (contiene DetalleLote), Movimiento, PasoReceta, Produccion, Producto, Receta, TipoMovimiento, Unidad |
+| `Inventario` (11) | Categoria, Conversion, EstadoExistencia, Existencia, Lote (contiene DetalleLote), Movimiento, Produccion, Producto, Receta (contiene IngredienteReceta y PasoReceta), TipoMovimiento, Unidad |
 | `Ventas` (4) | Descuento, EstadoVenta, TipoDescuento, Venta (contiene DetalleVenta) |
 | `Personal` (6) | Cliente, Entidad, Persona, Proveedor, Rol, Usuario |
 | `Pedidos` (2) | EstadoPedido, Pedido |
 
-Dos agregados tienen **entidad hija**: `Venta` (con `DetalleVenta`) y `Lote` (con
-`DetalleLote`). Ninguna hija es raiz: viven dentro de su agregado y no tienen slice,
+Tres agregados tienen **entidades hijas**: `Venta` (con `DetalleVenta`), `Lote` (con
+`DetalleLote`) y `Receta`, el unico con **dos** colecciones (`IngredienteReceta` y
+`PasoReceta`). Ninguna hija es raiz: viven dentro de su agregado y no tienen slice,
 repositorio ni endpoints propios (ver 5.13).
 
 Mas un **Shared Kernel** transversal: `com.maestria.kaffehausv4.Shared`.
@@ -381,7 +382,26 @@ La conciliacion por id y la baja logica no son una preferencia de estilo: `exist
 referencia `detalle_lote` con `ON DELETE RESTRICT`, asi que perder o borrar fisicamente esos
 identificadores dejaria el stock huerfano o haria fallar el DELETE.
 
-### 4.8 Estado global, caching, mensajeria
+### 4.8 Contrato del agregado Receta (endpoints)
+
+`Receta` se escribe y se lee siempre entera por `api/v1/receta`. **No existen
+`api/v1/ingrediente-receta` ni `api/v1/paso-receta`**: se retiraron al subordinar ambas
+colecciones a su raiz.
+
+| Operacion | Payload | Efecto |
+|---|---|---|
+| `POST api/v1/receta` | encabezado + `ingredientes[]` + `pasos[]` (ambos obligatorios, no vacios) | Crea las tres tablas en una transaccion. Devuelve 201 con el agregado completo |
+| `PUT api/v1/receta/{id}` | encabezado opcional + `ingredientes[]` y/o `pasos[]` opcionales | Concilia por id **cada coleccion por separado**: se puede tocar una sin mencionar la otra |
+| `GET api/v1/receta/{id}` | — | Devuelve la receta con sus ingredientes y sus pasos vivos, ya ordenados |
+| `GET api/v1/receta` | `skip`/`limit`/`search` | Pagina de recetas; ingredientes y pasos de toda la pagina se resuelven en dos consultas, no en dos por receta |
+| `DELETE api/v1/receta/{id}` | — | Baja logica del encabezado y de ambas colecciones |
+
+Cada ingrediente admite `idProducto` y `cantidad` (mas `id` en el `PUT`). Cada paso admite
+solo `descripcion` (mas `id` en el `PUT`): **el numero de paso no se envia nunca**, porque el
+orden del array ES la secuencia y la raiz es quien asigna 1..N. Cambiar el `idProducto` de un
+ingrediente existente se rechaza con 400.
+
+### 4.9 Estado global, caching, mensajeria
 
 **No existen.** El unico estado es la base de datos PostgreSQL. No hay cache (`@Cacheable`),
 ni broker de mensajes, ni eventos de dominio, ni scheduler, ni WebSocket, ni sesion HTTP.
@@ -410,7 +430,7 @@ No introducir ninguno sin actualizar este documento.
 (el modificador no se pluraliza: "TiposDescuento", no "TipoDescuentos").
 
 **Los cinco casos de uso son siempre**: `Crear`, `Actualizar`, `Obtener<Agregado>PorId`,
-`Obtener<Agregados>`, `Eliminar` (24 agregados x 5 = 120 casos de uso; `Persona` no expone
+`Obtener<Agregados>`, `Eliminar` (22 agregados x 5 = 110 casos de uso; `Persona` no expone
 ninguno). Los cinco metodos del controller son siempre:
 `crear`, `obtenerPorId`, `obtenerTodos`, `actualizar`, `eliminar`.
 
@@ -564,10 +584,11 @@ Prosa tecnica en espanol. El Javadoc se reserva para decisiones no obvias, y cua
 explica **por que** (ver `OffsetPageRequest`, `HasheadorDeContrasenaPbkdf2`, `WebConfig`,
 `IHasheadorDeContrasena`, `CrearUsuarioUseCase`). El codigo CRUD repetitivo va sin comentarios.
 
-### 5.13 Agregados con entidades hijas (`Venta` y `Lote`)
+### 5.13 Agregados con entidades hijas (`Venta`, `Lote` y `Receta`)
 
-Dos agregados tienen entidad hija: `Venta` (`DetalleVenta`) y `Lote` (`DetalleLote`). Ambos
-siguen la misma forma, que es la plantilla obligatoria si aparece un tercero:
+Tres agregados tienen entidades hijas: `Venta` (`DetalleVenta`), `Lote` (`DetalleLote`) y
+`Receta`, que gobierna **dos** colecciones a la vez (`IngredienteReceta` y `PasoReceta`).
+Todos siguen la misma forma, que es la plantilla obligatoria si aparece un cuarto:
 
 - La entidad hija (`DetalleVenta`) se declara en `Domain/Aggregates/`, **en el mismo paquete
   que su raiz**. No abre carpeta propia: la co-locacion es la senal de que le pertenece.
@@ -608,6 +629,25 @@ siguen la misma forma, que es la plantilla obligatoria si aparece un tercero:
 - El datasource traduce cada linea con un metodo `conciliar(...)`: si ya tenia identidad,
   recupera su fila y le copia los cambios; si no, crea una nueva. Los identificadores de una
   hija nunca se regeneran.
+
+**Cuando la raiz gobierna mas de una coleccion** (`Receta`), cada una se concilia por separado
+y de forma independiente: el payload puede traer `ingredientes` sin mencionar `pasos`, y la
+coleccion no mencionada queda intacta. `validarRegistrable()` comprueba las dos.
+
+**Cuando una coleccion tiene orden** (los pasos de una receta), el numero de secuencia es un
+valor derivado mas: no se recibe del cliente, lo asigna la raiz y lo recalcula en cada
+mutacion, de modo que los elementos vivos formen siempre 1..N sin huecos. El orden del array
+del payload es la secuencia; `moverPasoAlFinal(id)` aplicado en ese orden la reconstruye
+aunque se mezclen elementos existentes y nuevos, y `reordenarPasos(ids)` permuta exigiendo
+exactamente el conjunto vivo.
+
+Una coleccion ordenada suele traer ademas una restriccion de unicidad en la base. La de
+`pasos_receta` es **un indice unico parcial** (`uq_receta_paso ... WHERE borrado = FALSE`), no
+una `UNIQUE CONSTRAINT`: con borrado logico una fila dada de baja conserva su numero y
+bloquearia reutilizar esa posicion. Y como una renumeracion colisiona consigo misma a medio
+camino (pasar de (1,2,3) a (3,1,2) escribe un numero que otra fila aun ocupa),
+`RecetaDatasourceImpl` guarda los pasos **en dos fases**: primero los aparca en numeros
+negativos, hace `flush()`, y despues escribe los definitivos.
 
 **Acceso a una hija desde otro agregado.** Si un agregado externo referencia una entidad hija
 (`Existencia` guarda un `DetalleLoteId`), no se le devuelve un repositorio de la hija: el
@@ -720,18 +760,22 @@ publico justo para esto.
   DTO es `PersonaResponse`. Es intencional.
 - `Ventas/Venta` deja la linea `//String search = ...` comentada en su datasource porque la
   entidad no tiene campo de texto buscable.
-- `Ventas/Venta` e `Inventario/Lote` son los unicos slices con dos `JpaModel`, dos `JpaMapper`
-  y dos `JpaRepository`, por la entidad hija descrita en 5.13.
+- `Ventas/Venta` e `Inventario/Lote` tienen dos `JpaModel`, dos `JpaMapper` y dos
+  `JpaRepository`; `Inventario/Receta` tiene **tres** de cada uno, por sus dos colecciones
+  hijas (ver 5.13).
+- `pasos_receta` es la unica tabla con un indice unico parcial, y `RecetaDatasourceImpl` el
+  unico datasource que escribe en dos fases. Ambas cosas son consecuencia de tener una
+  coleccion ordenada bajo borrado logico; no se replican sin esa combinacion.
 - `ILoteRepository`/`ILoteDatasource` son los unicos puertos con un metodo fuera del CRUD de
   cinco operaciones: `obtenerPorDetalleId`, que existe para que `Existencia` alcance su linea
   de lote a traves de la raiz.
 - `Inventario/Lote` deja la linea `//String search = ...` comentada en su datasource porque la
   entidad no tiene campo de texto buscable.
-- Tests existentes (40): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio puro, sin
-  Spring, `VentaTest` (10) y `LoteTest` (15); de integracion contra la BD real,
-  `CrearVentaUseCaseIntegracionTest` (6) y `CrearLoteUseCaseIntegracionTest` (8), ambos
-  `@SpringBootTest` sin `@Transactional` de clase para poder observar el rollback del caso de
-  uso. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
+- Tests existentes (67): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio puro, sin
+  Spring, `VentaTest` (10), `LoteTest` (15) y `RecetaTest` (18); de integracion contra la BD
+  real, `CrearVentaUseCaseIntegracionTest` (6), `CrearLoteUseCaseIntegracionTest` (8) y
+  `CrearRecetaUseCaseIntegracionTest` (9), los tres `@SpringBootTest` sin `@Transactional` de
+  clase para poder observar el rollback del caso de uso. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
   paquete de produccion.
 - El test de integracion necesita PostgreSQL levantado (`docker compose up -d`) y limpia en
   `@AfterEach` lo que siembra. Para borrar en el `@AfterEach` usa `deleteAll(...)` y no el
