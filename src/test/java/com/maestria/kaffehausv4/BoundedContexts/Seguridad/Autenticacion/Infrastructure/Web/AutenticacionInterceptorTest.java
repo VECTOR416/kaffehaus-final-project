@@ -29,6 +29,9 @@ class AutenticacionInterceptorTest {
     private static final String ADMINISTRADOR = "/api/v1/pruebas-seguridad/solo-administrador";
     private static final String AUTENTICADO = "/api/v1/pruebas-seguridad/autenticado";
     private static final String ABIERTO = "/api/v1/pruebas-seguridad/abierto";
+    private static final String ATRIBUTOS = "/api/v1/pruebas-seguridad/atributos";
+    private static final String INYECTADO = "/api/v1/pruebas-seguridad/inyectado";
+    private static final String OPCIONAL = "/api/v1/pruebas-seguridad/opcional";
 
     private static final String ID_USUARIO = "33333333-3333-3333-3333-333333333333";
 
@@ -99,6 +102,56 @@ class AutenticacionInterceptorTest {
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                         .content().string(ID_USUARIO));
+    }
+
+    // -------------------------------------------------- inyeccion en la peticion
+
+    @Test
+    void elGuardDejaElUsuarioYElRolEnLosAtributosDeLaPeticion() throws Exception {
+        mockMvc.perform(get(ATRIBUTOS).header("Authorization", "Bearer " + tokenDe(2, "Administrador")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usuarioId").value(ID_USUARIO))
+                .andExpect(jsonPath("$.rolId").value(2))
+                .andExpect(jsonPath("$.rolNombre").value("Administrador"))
+                .andExpect(jsonPath("$.esElMismoObjeto").value(true));
+    }
+
+    @Test
+    void elUsuarioSeInyectaComoParametroDelControlador() throws Exception {
+        mockMvc.perform(get(INYECTADO).header("Authorization", "Bearer " + tokenDe(1, "Operador")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usuarioId").value(ID_USUARIO))
+                .andExpect(jsonPath("$.rolId").value(1))
+                .andExpect(jsonPath("$.nombreCompleto").value("Ana Perez"));
+    }
+
+    @Test
+    void unParametroOpcionalQuedaVacioSiLaPeticionNoVieneAutenticada() throws Exception {
+        mockMvc.perform(get(OPCIONAL))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .content().string("anonimo"));
+    }
+
+    @Test
+    void unParametroOpcionalSeLlenaSiLaPeticionVieneAutenticada() throws Exception {
+        mockMvc.perform(get(OPCIONAL).header("Authorization", "Bearer " + tokenDe(1, "Operador")))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .content().string(ID_USUARIO));
+    }
+
+    @Test
+    void losAtributosNoSobrevivenAUnaPeticionSinToken() throws Exception {
+        // Dos peticiones seguidas en el mismo hilo: la segunda no debe heredar al usuario de la
+        // primera. Si el guard no limpiara, /opcional devolveria el id anterior.
+        mockMvc.perform(get(OPCIONAL).header("Authorization", "Bearer " + tokenDe(1, "Operador")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(OPCIONAL))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .content().string("anonimo"));
     }
 
     @Test

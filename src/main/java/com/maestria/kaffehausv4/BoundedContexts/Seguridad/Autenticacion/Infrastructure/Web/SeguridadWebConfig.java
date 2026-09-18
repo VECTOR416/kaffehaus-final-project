@@ -1,6 +1,9 @@
 package com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Infrastructure.Web;
 
 import org.springframework.context.annotation.Configuration;
+import java.util.List;
+
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -18,13 +21,22 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class SeguridadWebConfig implements WebMvcConfigurer {
 
     private final AutenticacionInterceptor autenticacionInterceptor;
+    private final UsuarioDeLaPeticionArgumentResolver usuarioDeLaPeticionArgumentResolver;
 
-    public SeguridadWebConfig(AutenticacionInterceptor autenticacionInterceptor) {
+    public SeguridadWebConfig(
+            AutenticacionInterceptor autenticacionInterceptor,
+            UsuarioDeLaPeticionArgumentResolver usuarioDeLaPeticionArgumentResolver) {
         this.autenticacionInterceptor = autenticacionInterceptor;
+        this.usuarioDeLaPeticionArgumentResolver = usuarioDeLaPeticionArgumentResolver;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(autenticacionInterceptor).addPathPatterns("/**");
+    }
+
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.add(usuarioDeLaPeticionArgumentResolver);
     }
 }
