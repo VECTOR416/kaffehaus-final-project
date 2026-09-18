@@ -1,30 +1,26 @@
-package com.maestria.kaffehausv4.Shared.Infrastructure.Security;
+package com.maestria.kaffehausv4.Shared.Presentation.Security;
 
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controller que existe solo para las pruebas de la cadena de seguridad.
+ * Controller que existe solo para las pruebas de la seguridad.
  *
- * Vive en src/test a proposito: permite verificar 401, 403 y la inyeccion del principal sin
+ * Vive en src/test a proposito: permite verificar 401, 403 y la inyeccion del usuario sin
  * depender de endpoints reales, que ademas tocarian la base de datos.
  *
- * Su ruta no figura en RutasDeSeguridad, asi que cae en 'anyRequest().authenticated()': sirve
- * ademas para comprobar que un controller nuevo nace protegido.
+ * Los nombres de rol son los mismos que siembra la prueba en la tabla 'rol'.
  */
 @RestController
 @RequestMapping("api/v1/pruebas-seguridad")
-public class RecursoProtegidoDePruebaControllerV1 {
+public class RecursoProtegidoDePruebaController {
 
-    /** Cualquier usuario autenticado, sin importar el rol. */
+    /** Sin @RequiereRol: basta con estar autenticado. */
     @GetMapping("/autenticado")
     public ResponseEntity<String> autenticado(@AuthenticationPrincipal SecurityUser usuario) {
         return ResponseEntity.ok(usuario.getUsuarioId());
@@ -35,30 +31,28 @@ public class RecursoProtegidoDePruebaControllerV1 {
     public ResponseEntity<Map<String, Object>> usuarioInyectado(@AuthenticationPrincipal SecurityUser usuario) {
         return ResponseEntity.ok(Map.of(
                 "usuarioId", usuario.getUsuarioId(),
+                "nombreCompleto", usuario.getNombreCompleto(),
                 "rolId", usuario.getRolId(),
                 "rolNombre", usuario.getRolNombre(),
-                "nombreCompleto", usuario.getNombreCompleto()));
+                "autoridad", usuario.getAuthorities().iterator().next().getAuthority()));
     }
 
-    /** Las autoridades concedidas, para comprobar como se traduce el rol de la tabla. */
-    @GetMapping("/autoridades")
-    public ResponseEntity<List<String>> autoridades(@AuthenticationPrincipal SecurityUser usuario) {
-        return ResponseEntity.ok(usuario.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .toList());
-    }
-
-    /** Restriccion por metodo, no por ruta: solo Administrador. */
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @RequiereRol("Administrador")
     @GetMapping("/solo-administrador")
     public ResponseEntity<String> soloAdministrador(@AuthenticationPrincipal SecurityUser usuario) {
         return ResponseEntity.ok(usuario.getRolNombre());
     }
 
-    /** Solo Operador, para comprobar que la restriccion funciona en ambos sentidos. */
-    @PreAuthorize("hasRole('OPERADOR')")
+    @RequiereRol("Operador")
     @GetMapping("/solo-operador")
     public ResponseEntity<String> soloOperador(@AuthenticationPrincipal SecurityUser usuario) {
+        return ResponseEntity.ok(usuario.getRolNombre());
+    }
+
+    /** Varios roles admitidos: basta con tener uno. */
+    @RequiereRol({"Administrador", "Operador"})
+    @GetMapping("/cualquiera-de-los-dos")
+    public ResponseEntity<String> cualquieraDeLosDos(@AuthenticationPrincipal SecurityUser usuario) {
         return ResponseEntity.ok(usuario.getRolNombre());
     }
 }

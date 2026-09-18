@@ -41,26 +41,38 @@ extension `pgcrypto`, UUID como PK, FKs con `ON UPDATE CASCADE`); `ddl-auto: upd
 solo complementa, **no** sustituye a ese archivo.
 
 **Estado de seguridad (importante)**: el API esta **cerrada por defecto** y se protege con
-Spring Security 7 + JWT propios. Keycloak sigue descartado. La regla que gobierna todo el
-modulo: **la seguridad es un detalle tecnico externo y vive entera en
-`Shared/Infrastructure/Security`**; ninguna capa de Domain o Application conoce Spring
-Security.
+Spring Security 7 + JWT propios. Keycloak sigue descartado. Dos reglas gobiernan el modulo:
 
-- La cadena de filtros, las reglas de acceso, el filtro de JWT y el adaptador `UserDetails`
-  estan en `Shared/Infrastructure/Security` (ver 3.2). Es el unico paquete del proyecto que
-  importa `org.springframework.security`.
-- El unico paquete que importa `io.jsonwebtoken` es ese mismo, a traves de `JwtService`. Los
-  casos de uso emiten tokens contra el puerto `Shared/Application/Security/IGeneradorDeTokens`
-  y no saben que debajo hay JWT.
+1. **La seguridad no es un bounded context.** No tiene dominio, ni agregado, ni tablas propias.
+   Vive entera en el paquete `Shared/Presentation/Security` y **solo** ahi.
+2. **Es la capa mas externa.** Los tokens se validan unicamente en presentacion, en un filtro.
+   Ninguna capa de Domain, Application o Infrastructure de un agregado conoce Spring Security.
+
+El esquema completo son dos piezas:
+
+- **`JwtAuthenticationFilter`** valida el Bearer token de cada peticion y deja al usuario en el
+  `SecurityContext`. `SecurityConfig` cierra el API: solo `/api/v1/auth/**` queda abierto, todo
+  lo demas exige token (`anyRequest().authenticated()`).
+- **`@RequiereRol("Administrador")`** protege endpoints concretos por rol. Lo aplica
+  `GuardiaDeRoles`, un `HandlerInterceptor` que lee la anotacion del controller. No hay tabla de
+  rutas que mantener en paralelo.
+
+Puntos que conviene no perder de vista:
+
+- **Los roles se leen de la tabla `rol`**, no de un enum. El nombre de la fila viaja firmado en
+  el token y es contra el que compara `@RequiereRol`. Crear un rol es insertar una fila.
+- La autenticacion **no sigue la plantilla de agregado** (5.x) y es deliberado:
+  `AutenticacionController` + `AutenticacionService`, sin casos de uso, sin puertos y **sin
+  datasource propio**. Reutiliza `IUsuarioRepository`, `IPersonaRepository` e `IRolRepository`.
 - Las entidades de dominio **no** implementan `UserDetails` ni conocen `GrantedAuthority`. El
-  adaptador es `SecurityUser`, que envuelve al VO puro `Shared/Domain/Security/UsuarioAutenticado`.
+  adaptador es `SecurityUser`, que envuelve al record `UsuarioAutenticado`.
 - El CORS se declara dentro de la cadena de seguridad (`SecurityConfig.corsConfigurationSource`)
-  y ya no como `WebMvcConfigurer`: los filtros corren antes que Spring MVC y el preflight debe
+  y no como `WebMvcConfigurer`: los filtros corren antes que Spring MVC y el preflight debe
   resolverse ahi.
 - El hasheo de contrasenas sigue siendo `IHasheadorDeContrasena` + `HasheadorDeContrasenaPbkdf2`
-  (PBKDF2 del JDK), **no** `PasswordEncoder`/BCrypt. El login es un caso de uso propio; no se
-  usa `AuthenticationManager` ni `DaoAuthenticationProvider`.
-- `AutorizacionException` (401/403) es la excepcion canonica, tambien dentro de los filtros.
+  (PBKDF2 del JDK), **no** `PasswordEncoder`/BCrypt. No se usa `AuthenticationManager` ni
+  `DaoAuthenticationProvider`.
+- `AutorizacionException` (401/403) es la excepcion canonica, tambien dentro del filtro.
 
 ---
 
@@ -232,20 +244,27 @@ Lo unico compartido entre contextos. Espeja las mismas cuatro capas.
 | `Shared/Application/Dtos/Pagination/PaginationDTO` | Base de los requests de listado. Defaults: `skip=0`, `limit=10`, `search=""` |
 | `Shared/Application/Dtos/Pagination/PaginatedResponse<T>` | Envoltorio de salida: `data`, `skip`, `limit`, `total`, `hasMore` |
 | `Shared/Application/Crypto/IHasheadorDeContrasena` | Puerto de hasheo de credenciales |
-| `Shared/Application/Security/IGeneradorDeTokens` | Puerto de emision y verificacion de tokens. Lo consumen los casos de uso de login y refresco |
-| `Shared/Domain/Security/UsuarioAutenticado` | VO puro: quien firma la peticion (`usuarioId`, `nombreCompleto`, `rolId`, `rolNombre`). Sin Spring, sin Spring Security |
-| `Shared/Domain/Security/RolDelSistema` | Enum de roles (Operador 1, Administrador 2). Resuelve `rol.nombre` de la base y normaliza el nombre de autoridad |
 | `Shared/Infrastructure/Crypto/HasheadorDeContrasenaPbkdf2` | `@Component`. PBKDF2WithHmacSHA256, 210 000 iteraciones, sal de 16 bytes, formato `pbkdf2$iter$sal$hash`, comparacion en tiempo constante |
 | `Shared/Infrastructure/Persistence/OffsetPageRequest` | `Pageable` por offset absoluto. Evita el error de traducir `skip/limit` a numero de pagina |
-| `Shared/Infrastructure/Security/SecurityConfig` | `@EnableWebSecurity` + `@EnableMethodSecurity`. Cadena stateless, sin CSRF, reglas por ruta y rol, CORS |
-| `Shared/Infrastructure/Security/JwtAuthenticationFilter` | `OncePerRequestFilter`. Lee el Bearer token, lo verifica y deja al usuario en el `SecurityContext` |
-| `Shared/Infrastructure/Security/JwtService` | `@Component`. Implementa `IGeneradorDeTokens`. Unico punto que conoce jjwt: firma, claims y vigencia |
-| `Shared/Infrastructure/Security/SecurityUser` | Adaptador `UserDetails` que envuelve a `UsuarioAutenticado`. Concede `ROLE_<NOMBRE_DEL_ROL>` |
-| `Shared/Infrastructure/Security/RutasDeSeguridad` | Catalogo de rutas por politica de acceso. Lo leen `SecurityConfig` y el filtro |
-| `Shared/Infrastructure/Security/JwtAuthenticationEntryPoint` | 401 en JSON cuando faltan credenciales |
-| `Shared/Infrastructure/Security/JwtAccessDeniedHandler` | 403 en JSON cuando el rol no alcanza |
-| `Shared/Infrastructure/Security/EscritorDeErrorHttp` | Escribe `ErrorResponse` desde la cadena de filtros, donde `GlobalExceptionHandler` no llega |
 | `Shared/Presentation/GlobalExceptionHandler` | `@RestControllerAdvice`. Traduce excepciones a `ErrorResponse` |
+
+Y el paquete de seguridad, que es plano a proposito (ver 1 y 6.2.10). Es el unico del proyecto
+que importa `org.springframework.security` o `io.jsonwebtoken`:
+
+| Ruta (`Shared/Presentation/Security/`) | Responsabilidad |
+|---|---|
+| `SecurityConfig` | `@EnableWebSecurity`. Cadena stateless, sin CSRF, `/api/v1/auth/**` abierto y el resto autenticado, CORS, y el registro del interceptor |
+| `JwtAuthenticationFilter` | `OncePerRequestFilter`. **Unico sitio donde se valida un token entrante**. Deja al usuario en el `SecurityContext` |
+| `RequiereRol` | El decorador. Nombres de rol tal como estan en la tabla `rol` |
+| `GuardiaDeRoles` | `HandlerInterceptor` que aplica `@RequiereRol`: 401 sin token, 403 si el rol no figura |
+| `JwtService` | `@Component`. Unico punto que conoce jjwt: firma, lectura de claims y vigencia |
+| `UsuarioAutenticado` | `record` con los cuatro datos que viajan en el token y que devuelve el login |
+| `SecurityUser` | Adaptador `UserDetails` que envuelve a `UsuarioAutenticado`. Concede `ROLE_<NOMBRE_DEL_ROL>` |
+| `AutenticacionController` | `/api/v1/auth`: `login`, `google`, `refresh`. No sigue la plantilla de agregado |
+| `AutenticacionService` | Los tres flujos. Reutiliza los repositorios de Usuario, Persona y Rol; no tiene datasource propio |
+| `VerificadorDeTokenGoogle` | Comprueba el `id_token` de Google y devuelve el correo verificado |
+| `EscritorDeErrorHttp` | Escribe `ErrorResponse` desde el filtro, donde `GlobalExceptionHandler` no llega |
+| `Dtos/` | `records` de entrada y salida de los tres endpoints |
 
 Metodos disponibles en `Validador` (cada uno en variante `Requerido`/`Opcional`):
 `textoRequerido`, `numeroRequerido`, `enteroRequerido`, `booleanoRequerido`, `fechaRequerida`,
@@ -265,8 +284,7 @@ y rechaza la lista vacia.
 | Consulta a base de datos | `Infrastructure/Persistence/Jpa/<Agregado>JpaRepository.java` |
 | Traduccion agregado ↔ fila | `Infrastructure/Persistence/Jpa/<Agregado>JpaMapper.java` |
 | Endpoint HTTP | `Presentation/<Agregado>ControllerV1.java` |
-| Regla de acceso por ruta o por rol | `Shared/Infrastructure/Security/RutasDeSeguridad` + `SecurityConfig` |
-| Regla de acceso de un solo endpoint | `@PreAuthorize` sobre el metodo del controller |
+| Restringir un endpoint a ciertos roles | `@RequiereRol("Administrador")` sobre el metodo (o la clase) del controller |
 | Saber quien firma la peticion | `@AuthenticationPrincipal SecurityUser` en el controller |
 | Utilidad usada por 2+ contextos | `Shared/` en la capa que le corresponda |
 | Tests | `src/test/java/...` espejando el paquete de produccion |
@@ -707,40 +725,43 @@ publico justo para esto.
    Guava, Apache Commons, springdoc/Swagger, un logger). Todo lo que hoy se necesita se
    resuelve con el JDK y lo ya presente. En particular, **sin Lombok**: la inyeccion por
    constructor se escribe a mano con campos `final`, no con `@RequiredArgsConstructor`.
-10. **NO** sacar la seguridad de `Shared/Infrastructure/Security`. Spring Security esta
-    admitido, pero confinado ahi: `org.springframework.security` e `io.jsonwebtoken` no pueden
-    aparecer en ningun `Domain/`, `Application/` ni `Presentation/` de un bounded context. Nada
-    de `UserDetails` en agregados, nada de anotaciones de seguridad propias en los controllers
-    (para grano fino, `@PreAuthorize`). Keycloak sigue descartado. Para hashear se usa
+10. **NO** sacar la seguridad de `Shared/Presentation/Security`. Spring Security esta admitido,
+    pero confinado a ese paquete: `org.springframework.security` e `io.jsonwebtoken` no pueden
+    aparecer en ningun agregado. En concreto: **NO** crear un bounded context de seguridad,
+    **NO** validar tokens fuera del filtro, **NO** implementar `UserDetails` en un agregado y
+    **NO** darle a la autenticacion datasource, repositorio ni tabla propios: reutiliza los de
+    Usuario, Persona y Rol. Keycloak sigue descartado. Para hashear se usa
     `IHasheadorDeContrasena`; para 401/403, `AutorizacionException`.
-11. **NO** usar `@Valid` ni anotaciones de Bean Validation (`@NotNull`, `@Size`...). La
+11. **NO** escribir un catalogo de roles en el codigo (enums, constantes, listas). Los roles son
+    filas de la tabla `rol`: viajan por nombre en el token y se nombran por nombre en
+    `@RequiereRol`.
+12. **NO** usar `@Valid` ni anotaciones de Bean Validation (`@NotNull`, `@Size`...). La
     validacion es imperativa en `createFromRequest` con `Validador`. Si falta un tipo de
     validacion, se **anade un metodo a `Validador`**, no se valida ad hoc en el DTO.
-12. **NO** escribir constructores publicos en agregados ni en DTOs de negocio (salvo
+13. **NO** escribir constructores publicos en agregados ni en DTOs de negocio (salvo
     `PaginatedResponse` y `PaginationDTO`, que si los tienen por diseno). Se entra por factoria
     estatica.
-13. **NO** anadir setters a los agregados. La mutacion pasa por `actualizar()` / `eliminar()`.
-14. **NO** usar asociaciones JPA (`@ManyToOne`, `@OneToMany`, `@JoinColumn`, `fetch`, cascadas).
+14. **NO** anadir setters a los agregados. La mutacion pasa por `actualizar()` / `eliminar()`.
+15. **NO** usar asociaciones JPA (`@ManyToOne`, `@OneToMany`, `@JoinColumn`, `fetch`, cascadas).
     Las relaciones son columnas `UUID` planas: entre agregados se resuelven en el caso de uso y
     dentro de un agregado las resuelve su datasource con los `JpaRepository` de sus tablas.
-15. **NO** usar `@GeneratedValue`: el UUID lo genera `<Agregado>JpaMapper.toPersistence`.
-16. **NO** usar `PageRequest.of(...)`. Siempre `OffsetPageRequest`.
-17. **NO** escribir `@Query`, JPQL, SQL nativo ni Criteria API. Solo query methods derivados.
-18. **NO** usar `double`/`float` para dinero o cantidades: `BigDecimal`.
-19. **NO** usar inyeccion por campo (`@Autowired` sobre atributos) ni por setter. Solo constructor.
-20. **NO** capturar excepciones en controllers ni devolver `ResponseEntity` de error a mano.
+16. **NO** usar `@GeneratedValue`: el UUID lo genera `<Agregado>JpaMapper.toPersistence`.
+17. **NO** usar `PageRequest.of(...)`. Siempre `OffsetPageRequest`.
+18. **NO** escribir `@Query`, JPQL, SQL nativo ni Criteria API. Solo query methods derivados.
+19. **NO** usar `double`/`float` para dinero o cantidades: `BigDecimal`.
+20. **NO** usar inyeccion por campo (`@Autowired` sobre atributos) ni por setter. Solo constructor.
+21. **NO** capturar excepciones en controllers ni devolver `ResponseEntity` de error a mano.
     Se lanza una `BaseException` y responde `GlobalExceptionHandler`.
-21. **NO** propagar excepciones crudas de JPA/JDBC hacia arriba: se traducen a
+22. **NO** propagar excepciones crudas de JPA/JDBC hacia arriba: se traducen a
     `DomainException` o `SystemException`.
-22. **NO** introducir tablas, modelos ni agregados sin `borrado`: el campo, el `eliminar()` del
+23. **NO** introducir tablas, modelos ni agregados sin `borrado`: el campo, el `eliminar()` del
     agregado y el filtrado `...BorradoFalse...` en las lecturas son obligatorios (ver 4.5).
-23. **NO** introducir cache, eventos de dominio, mensajeria, `@Scheduled`, `@Async`, WebFlux ni
+24. **NO** introducir cache, eventos de dominio, mensajeria, `@Scheduled`, `@Async`, WebFlux ni
     estado en memoria compartido.
-24. **NO** anadir endpoints fuera del prefijo `api/v1/`, ni rutas que no sigan el kebab-case del
+25. **NO** anadir endpoints fuera del prefijo `api/v1/`, ni rutas que no sigan el kebab-case del
     agregado, ni verbos distintos de los cinco estandar sin justificacion documentada aqui.
-25. **NO** escribir logs (`System.out`, `printStackTrace`, loggers ad hoc) mientras no exista una
+26. **NO** escribir logs (`System.out`, `printStackTrace`, loggers ad hoc) mientras no exista una
     estrategia de logging documentada en este archivo.
-26. **NO** tratar `keycloak_sugerencia.md` como especificacion vigente: es una propuesta.
 27. **NO** dar repositorio, datasource, caso de uso ni controller propios a una entidad hija.
     Si aparece la tentacion de crear un `DetalleXUseCase`, la operacion pertenece a la raiz.
 28. **NO** aceptar del cliente un valor que el agregado deriva (totales, subtotales). Si el
