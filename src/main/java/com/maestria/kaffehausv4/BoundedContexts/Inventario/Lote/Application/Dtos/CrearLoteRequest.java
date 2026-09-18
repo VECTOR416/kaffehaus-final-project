@@ -1,41 +1,51 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
 
+/**
+ * Payload compuesto del alta de un lote: encabezado mas la coleccion de detalles.
+ *
+ * Ya no acepta 'total'. El total es el costo de la compra, un valor derivado que calcula el
+ * agregado Lote a partir de sus lineas, de forma que encabezado y detalle no se contradigan.
+ */
 public class CrearLoteRequest {
     private LocalDateTime fechaCompra;
-    private BigDecimal total;
     private String idProveedor;
     private String idUsuario;
+    private List<DetalleLoteRequest> detalles;
 
     private CrearLoteRequest(
         LocalDateTime fechaCompra,
-        BigDecimal total,
         String idProveedor,
-        String idUsuario
+        String idUsuario,
+        List<DetalleLoteRequest> detalles
     ) {
         this.fechaCompra = fechaCompra;
-        this.total = total;
         this.idProveedor = idProveedor;
         this.idUsuario = idUsuario;
+        this.detalles = detalles;
     }
 
     public static CrearLoteRequest createFromRequest(Map<String, Object> request){
         LocalDateTime fechaCompra = Validador.fechaOpcional(request.get("fechaCompra"), "fechaCompra");
         fechaCompra = fechaCompra != null ? fechaCompra : LocalDateTime.now();
-        BigDecimal total = BigDecimal.valueOf(Validador.numeroRequerido(request.get("total"), "total"));
         String idProveedor = Validador.textoRequerido(request.get("idProveedor"), "idProveedor");
         String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
 
-        return new CrearLoteRequest(fechaCompra, total, idProveedor, idUsuario);
+        List<DetalleLoteRequest> detalles = Validador.listaDeObjetosRequerida(request.get("detalles"), "detalles").stream()
+                .map(DetalleLoteRequest::createFromRequest)
+                .collect(Collectors.toList());
+
+        return new CrearLoteRequest(fechaCompra, idProveedor, idUsuario, detalles);
     }
 
     public LocalDateTime getFechaCompra() {return fechaCompra;}
-    public BigDecimal getTotal() {return total;}
     public String getIdProveedor() {return idProveedor;}
     public String getIdUsuario() {return idUsuario;}
+    public List<DetalleLoteRequest> getDetalles() {return detalles;}
 }

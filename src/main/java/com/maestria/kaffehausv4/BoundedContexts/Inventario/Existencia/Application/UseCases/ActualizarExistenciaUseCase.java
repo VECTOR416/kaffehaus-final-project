@@ -3,8 +3,8 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Applicati
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.DetalleLote.Application.Repositories.IDetalleLoteRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.DetalleLote.Domain.ValueObjects.DetalleLoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repositories.ILoteRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Application.Repositories.IEstadoExistenciaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Domain.Aggregates.EstadoExistencia;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Domain.ValueObjects.EstadoExistenciaId;
@@ -22,17 +22,17 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 @Transactional
 public class ActualizarExistenciaUseCase {
     private final IExistenciaRepository existenciaRepository;
-    private final IDetalleLoteRepository detalleLoteRepository;
+    private final ILoteRepository loteRepository;
     private final IEstadoExistenciaRepository estadoExistenciaRepository;
     private final IUnidadRepository unidadRepository;
 
     public ActualizarExistenciaUseCase(
             IExistenciaRepository existenciaRepository,
-            IDetalleLoteRepository detalleLoteRepository,
+            ILoteRepository loteRepository,
             IEstadoExistenciaRepository estadoExistenciaRepository,
             IUnidadRepository unidadRepository) {
         this.existenciaRepository = existenciaRepository;
-        this.detalleLoteRepository = detalleLoteRepository;
+        this.loteRepository = loteRepository;
         this.estadoExistenciaRepository = estadoExistenciaRepository;
         this.unidadRepository = unidadRepository;
     }
@@ -46,7 +46,7 @@ public class ActualizarExistenciaUseCase {
         DetalleLoteId detalleLoteId = null;
         if (actualizarExistenciaRequest.getIdDetalleLote() != null) {
             detalleLoteId = new DetalleLoteId(actualizarExistenciaRequest.getIdDetalleLote());
-            detalleLoteRepository.obtenerPorId(detalleLoteId)
+            loteRepository.obtenerPorDetalleId(detalleLoteId)
                     .orElseThrow(() -> DomainException.throwException(404, "El detalle de lote con id '" + actualizarExistenciaRequest.getIdDetalleLote() + "' no existe"));
         }
         EstadoExistenciaId estadoExistenciaId = null;

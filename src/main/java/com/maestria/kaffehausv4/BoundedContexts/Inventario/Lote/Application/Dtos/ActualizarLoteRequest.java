@@ -1,41 +1,54 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
 
+/**
+ * Modificacion de un lote existente. Mantiene la semantica PATCH del proyecto: lo que no
+ * llega, no se toca.
+ *
+ * 'detalles' es opcional. Cuando viene, el caso de uso hace una conciliacion por id: las
+ * lineas con 'id' se corrigen, las que no lo traen se agregan y las que faltan se dan de baja
+ * logica. No se reemplaza la coleccion entera porque 'existencias' referencia estas lineas
+ * con ON DELETE RESTRICT: perder sus identificadores dejaria el stock huerfano.
+ */
 public class ActualizarLoteRequest {
     private LocalDateTime fechaCompra;
-    private BigDecimal total;
     private String idProveedor;
     private String idUsuario;
+    private List<ActualizarDetalleLoteRequest> detalles;
 
     private ActualizarLoteRequest(
         LocalDateTime fechaCompra,
-        BigDecimal total,
         String idProveedor,
-        String idUsuario
+        String idUsuario,
+        List<ActualizarDetalleLoteRequest> detalles
     ) {
         this.fechaCompra = fechaCompra;
-        this.total = total;
         this.idProveedor = idProveedor;
         this.idUsuario = idUsuario;
+        this.detalles = detalles;
     }
 
     public static ActualizarLoteRequest createFromRequest(Map<String, Object> request){
         LocalDateTime fechaCompra = Validador.fechaOpcional(request.get("fechaCompra"), "fechaCompra");
-        Double totalTmp = Validador.numeroOpcional(request.get("total"), "total");
-        BigDecimal total = totalTmp != null ? BigDecimal.valueOf(totalTmp) : null;
         String idProveedor = Validador.textoOpcional(request.get("idProveedor"), "idProveedor");
         String idUsuario = Validador.textoOpcional(request.get("idUsuario"), "idUsuario");
 
-        return new ActualizarLoteRequest(fechaCompra, total, idProveedor, idUsuario);
+        List<Map<String, Object>> detallesTmp = Validador.listaDeObjetosOpcional(request.get("detalles"), "detalles");
+        List<ActualizarDetalleLoteRequest> detalles = detallesTmp != null
+                ? detallesTmp.stream().map(ActualizarDetalleLoteRequest::createFromRequest).collect(Collectors.toList())
+                : null;
+
+        return new ActualizarLoteRequest(fechaCompra, idProveedor, idUsuario, detalles);
     }
 
     public LocalDateTime getFechaCompra() {return fechaCompra;}
-    public BigDecimal getTotal() {return total;}
     public String getIdProveedor() {return idProveedor;}
     public String getIdUsuario() {return idUsuario;}
+    public List<ActualizarDetalleLoteRequest> getDetalles() {return detalles;}
 }

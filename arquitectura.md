@@ -66,17 +66,18 @@ es un modulo autocontenido con sus cuatro capas dentro.
 BoundedContexts / <Contexto> / <Agregado> / {Domain, Application, Infrastructure, Presentation}
 ```
 
-Contextos existentes (4) y agregados (26):
+Contextos existentes (4) y agregados (25):
 
 | Bounded Context | Agregados |
 |---|---|
-| `Inventario` (14) | Categoria, Conversion, DetalleLote, EstadoExistencia, Existencia, IngredienteReceta, Lote, Movimiento, PasoReceta, Produccion, Producto, Receta, TipoMovimiento, Unidad |
+| `Inventario` (13) | Categoria, Conversion, EstadoExistencia, Existencia, IngredienteReceta, Lote (contiene DetalleLote), Movimiento, PasoReceta, Produccion, Producto, Receta, TipoMovimiento, Unidad |
 | `Ventas` (4) | Descuento, EstadoVenta, TipoDescuento, Venta (contiene DetalleVenta) |
 | `Personal` (6) | Cliente, Entidad, Persona, Proveedor, Rol, Usuario |
 | `Pedidos` (2) | EstadoPedido, Pedido |
 
-`Venta` es el unico agregado con **entidad hija**: `DetalleVenta` no es raiz, vive dentro de la
-raiz y no tiene slice, repositorio ni endpoints propios (ver 5.13).
+Dos agregados tienen **entidad hija**: `Venta` (con `DetalleVenta`) y `Lote` (con
+`DetalleLote`). Ninguna hija es raiz: viven dentro de su agregado y no tienen slice,
+repositorio ni endpoints propios (ver 5.13).
 
 Mas un **Shared Kernel** transversal: `com.maestria.kaffehausv4.Shared`.
 
@@ -322,7 +323,7 @@ en ningun modelo del proyecto.**
 
 | Politica | Agregados | Mecanismo |
 |---|---|---|
-| **Soft delete** (20 agregados) | Categoria, Cliente, Conversion, Descuento, DetalleLote, Entidad, Existencia, IngredienteReceta, Lote, Movimiento, PasoReceta, Persona, Produccion, Producto, Proveedor, Receta, Rol, TipoMovimiento, Unidad, Usuario | Campo `borrado` en agregado y `JpaModel`. `eliminar()` lo pone en `true` y se persiste con `save`. Todas las lecturas usan `...BorradoFalse...` |
+| **Soft delete** (19 agregados) | Categoria, Cliente, Conversion, Descuento, Entidad, Existencia, IngredienteReceta, Lote, Movimiento, PasoReceta, Persona, Produccion, Producto, Proveedor, Receta, Rol, TipoMovimiento, Unidad, Usuario | Campo `borrado` en agregado y `JpaModel`. `eliminar()` lo pone en `true` y se persiste con `save`. Todas las lecturas usan `...BorradoFalse...`. En Lote la baja arrastra tambien sus lineas |
 | **Hard delete** (6 agregados) | EstadoExistencia, EstadoPedido, EstadoVenta, Pedido, TipoDescuento, Venta | Sin columna `borrado`. El datasource comprueba `existsById` y llama `deleteById`. En Venta el borrado arrastra tambien sus lineas |
 
 La politica de un agregado la dicta el DDL de `databasev4.sql` (presencia o ausencia de la
@@ -345,7 +346,30 @@ Cada elemento de `detalles` admite `idProducto`, `precioUnitario`, `cantidad` y
 `descuentoAplicado` (opcional, por defecto 0). **No admite `subtotal`, y la venta no admite
 `total`**: ambos son derivados.
 
-### 4.7 Estado global, caching, mensajeria
+### 4.7 Contrato del agregado Lote (endpoints)
+
+`Lote` se escribe y se lee siempre entero por `api/v1/lote`. **No existe `api/v1/detalle-lote`**:
+se retiro al subordinar las lineas a su raiz.
+
+| Operacion | Payload | Efecto |
+|---|---|---|
+| `POST api/v1/lote` | encabezado + `detalles[]` (obligatorio, no vacio) | Crea encabezado y lineas en una transaccion. Devuelve 201 con el agregado completo |
+| `PUT api/v1/lote/{id}` | encabezado opcional + `detalles[]` opcional | **Concilia por id**, no reemplaza: linea con `id` se corrige, linea sin `id` se agrega, linea ausente se da de baja logica |
+| `GET api/v1/lote/{id}` | — | Devuelve el lote con sus lineas vivas |
+| `GET api/v1/lote` | `skip`/`limit`/`search` | Pagina de lotes con sus lineas, resueltas en una sola consulta por pagina |
+| `DELETE api/v1/lote/{id}` | — | Baja logica del encabezado y de todas sus lineas |
+
+En el alta cada elemento de `detalles` admite `idProducto`, `cantidadInicial`, `precioUnitario`
+y `fraccionable` (opcional). **No admite `cantidadRestante`** (nace igual a `cantidadInicial`)
+ni el lote admite `total`: ambos son derivados. En el `PUT`, `cantidadRestante` si se admite,
+como ajuste explicito de inventario, y cambiar el `idProducto` de una linea existente se
+rechaza con 400.
+
+La conciliacion por id y la baja logica no son una preferencia de estilo: `existencias`
+referencia `detalle_lote` con `ON DELETE RESTRICT`, asi que perder o borrar fisicamente esos
+identificadores dejaria el stock huerfano o haria fallar el DELETE.
+
+### 4.8 Estado global, caching, mensajeria
 
 **No existen.** El unico estado es la base de datos PostgreSQL. No hay cache (`@Cacheable`),
 ni broker de mensajes, ni eventos de dominio, ni scheduler, ni WebSocket, ni sesion HTTP.
@@ -374,7 +398,7 @@ No introducir ninguno sin actualizar este documento.
 (el modificador no se pluraliza: "TiposDescuento", no "TipoDescuentos").
 
 **Los cinco casos de uso son siempre**: `Crear`, `Actualizar`, `Obtener<Agregado>PorId`,
-`Obtener<Agregados>`, `Eliminar` (25 agregados x 5 = 125 casos de uso; `Persona` no expone
+`Obtener<Agregados>`, `Eliminar` (24 agregados x 5 = 120 casos de uso; `Persona` no expone
 ninguno). Los cinco metodos del controller son siempre:
 `crear`, `obtenerPorId`, `obtenerTodos`, `actualizar`, `eliminar`.
 
@@ -527,10 +551,10 @@ Prosa tecnica en espanol. El Javadoc se reserva para decisiones no obvias, y cua
 explica **por que** (ver `OffsetPageRequest`, `HasheadorDeContrasenaPbkdf2`, `WebConfig`,
 `IHasheadorDeContrasena`, `CrearUsuarioUseCase`). El codigo CRUD repetitivo va sin comentarios.
 
-### 5.13 Agregados con entidades hijas (caso `Venta`)
+### 5.13 Agregados con entidades hijas (`Venta` y `Lote`)
 
-`Venta` es hoy el unico agregado con entidad hija. Su forma es la plantilla obligatoria si en
-el futuro aparece otro:
+Dos agregados tienen entidad hija: `Venta` (`DetalleVenta`) y `Lote` (`DetalleLote`). Ambos
+siguen la misma forma, que es la plantilla obligatoria si aparece un tercero:
 
 - La entidad hija (`DetalleVenta`) se declara en `Domain/Aggregates/`, **en el mismo paquete
   que su raiz**. No abre carpeta propia: la co-locacion es la senal de que le pertenece.
@@ -552,8 +576,31 @@ el futuro aparece otro:
 - Persistencia: la hija conserva su `JpaModel`, `JpaMapper` y `JpaRepository`, pero **dentro
   del slice de la raiz**. `VentaDatasourceImpl` inyecta los dos `JpaRepository` y escribe
   ambas tablas; la atomicidad la da la `@Transactional` del caso de uso.
-- El DTO de la linea (`DetalleVentaRequest`) viaja anidado en el payload de la raiz y no
-  acepta valores derivados. La respuesta anida `DetalleVentaResponse` dentro de `VentaResponse`.
+- El DTO de la linea (`DetalleVentaRequest`, `DetalleLoteRequest`) viaja anidado en el payload
+  de la raiz y no acepta valores derivados. La respuesta anida la linea dentro de la del
+  agregado (`DetalleVentaResponse` en `VentaResponse`, `DetalleLoteResponse` en `LoteResponse`).
+
+**Politica de bajas y de actualizacion: la dicta el esquema, no el gusto.**
+
+| | `Venta` / `DetalleVenta` | `Lote` / `DetalleLote` |
+|---|---|---|
+| Borrado | Fisico (hard delete) | Logico (`borrado = true`) |
+| FK que apunta a la hija | ninguna | `existencias.id_detalle_lote`, `ON DELETE RESTRICT` |
+| `PUT` con `detalles` | Reemplaza todas las lineas | **Concilia por id**: corrige, agrega y da de baja |
+| `removerDetalle(id)` | Saca la linea de la coleccion | Marca la linea y la conserva en la coleccion |
+
+Antes de escribir una hija nueva hay que mirar `databasev4.sql`: si alguna tabla la referencia,
+sus identificadores son sagrados y la unica baja posible es la logica. En ese caso la raiz
+expone **dos** vistas de la coleccion: `getDetalles()` con todas (es lo que la persistencia
+debe escribir, incluidas las marcadas) y `getDetallesActivos()` con las vivas (es lo que suma
+el total, valida `validarRegistrable()` y sale en la respuesta).
+
+**Acceso a una hija desde otro agregado.** Si un agregado externo referencia una entidad hija
+(`Existencia` guarda un `DetalleLoteId`), no se le devuelve un repositorio de la hija: el
+puerto de la **raiz** expone una consulta que la alcanza, como
+`ILoteRepository.obtenerPorDetalleId(DetalleLoteId)`, que devuelve el `Lote` dueno de esa
+linea. El VO de identidad de la hija vive en `Domain/ValueObjects/` del slice de la raiz y es
+publico justo para esto.
 
 ---
 
@@ -619,15 +666,20 @@ el futuro aparece otro:
     payload lo trae, se ignora o se rechaza: la raiz es la unica fuente de ese numero.
 29. **NO** mutar la coleccion de hijas desde la capa de aplicacion. Se pasa siempre por los
     metodos de la raiz, aunque implique leer el agregado entero antes de modificarlo.
+30. **NO** borrar fisicamente ni regenerar los identificadores de una entidad hija a la que
+    otra tabla apunta. Antes de tocar una hija se consulta `databasev4.sql`: si tiene
+    referencias, la baja es logica y el `PUT` concilia por id (ver 5.13).
+31. **NO** exponer un repositorio de la hija a un agregado externo que la referencie. La
+    consulta se declara en el puerto de la raiz (`obtenerPorDetalleId`).
 
 ### 6.3 Reglas de nomenclatura obligatorias
 
-30. Paquetes en **PascalCase** dentro de `BoundedContexts` y `Shared`, a pesar de la convencion
+32. Paquetes en **PascalCase** dentro de `BoundedContexts` y `Shared`, a pesar de la convencion
     Java estandar. La consistencia con el repositorio prevalece.
-31. Identificadores de negocio **en espanol y sin tildes** (`contrasena`, `abreviatura`,
+33. Identificadores de negocio **en espanol y sin tildes** (`contrasena`, `abreviatura`,
     `motivoDiferencia`). Sin mezclar ingles y espanol en una misma clase.
-32. Interfaces de puerto con prefijo `I`.
-33. Controllers terminan en `ControllerV1`; una nueva version de API crearia `...ControllerV2`
+34. Interfaces de puerto con prefijo `I`.
+35. Controllers terminan en `ControllerV1`; una nueva version de API crearia `...ControllerV2`
     bajo `api/v2/`, sin modificar el V1.
 
 ### 6.4 Procedimiento para anadir un agregado nuevo
@@ -653,13 +705,18 @@ el futuro aparece otro:
   DTO es `PersonaResponse`. Es intencional.
 - `Ventas/Venta` deja la linea `//String search = ...` comentada en su datasource porque la
   entidad no tiene campo de texto buscable.
-- `Ventas/Venta` es el unico slice con dos `JpaModel`, dos `JpaMapper` y dos `JpaRepository`
-  (venta y detalle_venta), por la entidad hija descrita en 5.13.
-- Tests existentes: `Kaffehausv4ApplicationTests.contextLoads()`,
-  `Ventas/Venta/Domain/Aggregates/VentaTest` (dominio puro, sin Spring) y
-  `Ventas/Venta/Application/UseCases/CrearVentaUseCaseIntegracionTest` (`@SpringBootTest`
-  contra la BD real, sin `@Transactional` de clase para poder observar el rollback del caso de
-  uso). Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
+- `Ventas/Venta` e `Inventario/Lote` son los unicos slices con dos `JpaModel`, dos `JpaMapper`
+  y dos `JpaRepository`, por la entidad hija descrita en 5.13.
+- `ILoteRepository`/`ILoteDatasource` son los unicos puertos con un metodo fuera del CRUD de
+  cinco operaciones: `obtenerPorDetalleId`, que existe para que `Existencia` alcance su linea
+  de lote a traves de la raiz.
+- `Inventario/Lote` deja la linea `//String search = ...` comentada en su datasource porque la
+  entidad no tiene campo de texto buscable.
+- Tests existentes (38): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio puro, sin
+  Spring, `VentaTest` (9) y `LoteTest` (15); de integracion contra la BD real,
+  `CrearVentaUseCaseIntegracionTest` (5) y `CrearLoteUseCaseIntegracionTest` (8), ambos
+  `@SpringBootTest` sin `@Transactional` de clase para poder observar el rollback del caso de
+  uso. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
   paquete de produccion.
 - El test de integracion necesita PostgreSQL levantado (`docker compose up -d`) y limpia en
   `@AfterEach` lo que siembra. Para borrar en el `@AfterEach` usa `deleteAll(...)` y no el

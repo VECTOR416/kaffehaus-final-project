@@ -1,4 +1,4 @@
-package com.maestria.kaffehausv4.BoundedContexts.Inventario.DetalleLote.Infrastructure.Persistence.Jpa;
+package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
