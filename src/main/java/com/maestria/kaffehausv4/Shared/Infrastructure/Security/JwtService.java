@@ -1,19 +1,20 @@
-package com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Infrastructure.Tokens;
+package com.maestria.kaffehausv4.Shared.Infrastructure.Security;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.function.Function;
 
 import javax.crypto.SecretKey;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Tokens.IGeneradorDeTokens;
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects.UsuarioAutenticado;
+import com.maestria.kaffehausv4.Shared.Application.Security.IGeneradorDeTokens;
 import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.SystemException;
+import com.maestria.kaffehausv4.Shared.Domain.Security.UsuarioAutenticado;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -21,7 +22,14 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
 /**
- * Adaptador de IGeneradorDeTokens sobre JWT firmados con HMAC-SHA256.
+ * Componente de soporte de la capa de seguridad: firma, extraccion de claims y vigencia de los
+ * JWT propios del sistema (HMAC-SHA256).
+ *
+ * Es el unico punto del proyecto que conoce la libreria jjwt. Lo usan dos clientes muy
+ * distintos, y por eso implementa el puerto IGeneradorDeTokens en vez de exponerse a pelo:
+ *
+ * - Los casos de uso de login y de refresco, que solo ven el puerto y emiten tokens.
+ * - JwtAuthenticationFilter, que verifica el access token de cada peticion entrante.
  *
  * Decisiones que importan:
  *
@@ -37,7 +45,7 @@ import io.jsonwebtoken.security.Keys;
  *   intenta forzar la entrada.
  */
 @Component
-public class GeneradorDeTokensJwt implements IGeneradorDeTokens {
+public class JwtService implements IGeneradorDeTokens {
 
     private static final String CLAIM_NOMBRE_COMPLETO = "nombreCompleto";
     private static final String CLAIM_ROL_ID = "rolId";
@@ -56,7 +64,7 @@ public class GeneradorDeTokensJwt implements IGeneradorDeTokens {
     private final Duration vigenciaDeAcceso;
     private final Duration vigenciaDeRefresco;
 
-    public GeneradorDeTokensJwt(
+    public JwtService(
             @Value("${seguridad.jwt.secreto-acceso}") String secretoDeAcceso,
             @Value("${seguridad.jwt.secreto-refresco}") String secretoDeRefresco,
             @Value("${seguridad.jwt.emisor}") String emisor,
@@ -83,6 +91,8 @@ public class GeneradorDeTokensJwt implements IGeneradorDeTokens {
         }
         return Keys.hmacShaKeyFor(secreto.getBytes(StandardCharsets.UTF_8));
     }
+
+    // -------------------------------------------------- firma
 
     @Override
     public String emitirAccessToken(UsuarioAutenticado usuario) {
@@ -115,6 +125,8 @@ public class GeneradorDeTokensJwt implements IGeneradorDeTokens {
                 .compact();
     }
 
+    // -------------------------------------------------- verificacion
+
     @Override
     public UsuarioAutenticado verificarAccessToken(String accessToken) {
         Claims claims = leerClaims(accessToken, claveDeAcceso, TIPO_ACCESO);
@@ -140,6 +152,34 @@ public class GeneradorDeTokensJwt implements IGeneradorDeTokens {
         }
 
         return usuarioId;
+    }
+
+    // -------------------------------------------------- extraccion de claims
+
+    /** Id del usuario que firma el access token. Falla con 401 si el token no es valido. */
+    public String extraerUsuarioId(String accessToken) {
+        return extraerClaimDeAcceso(accessToken, Claims::getSubject);
+    }
+
+    /** Instante de expiracion del access token. Falla con 401 si el token no es valido. */
+    public Instant extraerExpiracion(String accessToken) {
+        return extraerClaimDeAcceso(accessToken, claims -> claims.getExpiration().toInstant());
+    }
+
+    /**
+     * true si el access token ya no sirve. No distingue entre caducado y alterado: un token
+     * invalido por cualquier razon tampoco es utilizable.
+     */
+    public boolean haExpirado(String accessToken) {
+        try {
+            return extraerExpiracion(accessToken).isBefore(Instant.now());
+        } catch (AutorizacionException ex) {
+            return true;
+        }
+    }
+
+    private <T> T extraerClaimDeAcceso(String accessToken, Function<Claims, T> extractor) {
+        return extractor.apply(leerClaims(accessToken, claveDeAcceso, TIPO_ACCESO));
     }
 
     /**

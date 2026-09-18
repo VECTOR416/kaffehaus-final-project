@@ -1,6 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Dtos;
 
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects.RolDelSistema;
+import com.maestria.kaffehausv4.Shared.Domain.Security.RolDelSistema;
 
 /**
  * Rol tal como lo ve el cliente: el codigo numerico del sistema (1 o 2) y su nombre. No expone

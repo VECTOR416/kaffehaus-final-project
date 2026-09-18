@@ -2,7 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Applica
 
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Domain.Aggregates.Persona;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.Aggregates.Usuario;
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects.RolDelSistema;
+import com.maestria.kaffehausv4.Shared.Domain.Security.RolDelSistema;
 
 /**
  * Datos del usuario que acompanan a los tokens. Se compone de tres agregados distintos

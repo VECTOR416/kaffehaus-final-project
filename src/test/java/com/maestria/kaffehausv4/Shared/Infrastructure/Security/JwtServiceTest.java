@@ -1,6 +1,7 @@
-package com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Infrastructure.Tokens;
+package com.maestria.kaffehausv4.Shared.Infrastructure.Security;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,15 +15,15 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects.UsuarioAutenticado;
 import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.SystemException;
+import com.maestria.kaffehausv4.Shared.Domain.Security.UsuarioAutenticado;
 
 /**
  * Pruebas del emisor de tokens. No levantan Spring: la clase se construye con sus parametros,
  * que es justo lo que permite fijar vigencias absurdas y comprobar que caducan.
  */
-class GeneradorDeTokensJwtTest {
+class JwtServiceTest {
 
     private static final String SECRETO_ACCESO = "secreto-de-acceso-para-pruebas-con-mas-de-32-caracteres";
     private static final String SECRETO_REFRESCO = "secreto-de-refresco-para-pruebas-con-mas-de-32-caracteres";
@@ -30,8 +31,8 @@ class GeneradorDeTokensJwtTest {
 
     private static final String ID_USUARIO = "33333333-3333-3333-3333-333333333333";
 
-    private GeneradorDeTokensJwt generador() {
-        return new GeneradorDeTokensJwt(SECRETO_ACCESO, SECRETO_REFRESCO, EMISOR, 15, 7);
+    private JwtService generador() {
+        return new JwtService(SECRETO_ACCESO, SECRETO_REFRESCO, EMISOR, 15, 7);
     }
 
     private UsuarioAutenticado operador() {
@@ -92,7 +93,7 @@ class GeneradorDeTokensJwtTest {
 
     @Test
     void verificarDevuelveAlMismoUsuarioQueSeEmitio() {
-        GeneradorDeTokensJwt generador = generador();
+        JwtService generador = generador();
 
         UsuarioAutenticado verificado = generador.verificarAccessToken(generador.emitirAccessToken(operador()));
 
@@ -104,7 +105,7 @@ class GeneradorDeTokensJwtTest {
 
     @Test
     void rechazaUnTokenAlterado() {
-        GeneradorDeTokensJwt generador = generador();
+        JwtService generador = generador();
         String token = generador.emitirAccessToken(operador());
 
         // Se manipula el payload para escalar de Operador a Administrador: la firma deja de cuadrar.
@@ -124,8 +125,8 @@ class GeneradorDeTokensJwtTest {
     @Test
     void rechazaUnTokenExpirado() {
         // Vigencia de cero minutos: nace vencido.
-        GeneradorDeTokensJwt generadorExpirado =
-                new GeneradorDeTokensJwt(SECRETO_ACCESO, SECRETO_REFRESCO, EMISOR, 0, 7);
+        JwtService generadorExpirado =
+                new JwtService(SECRETO_ACCESO, SECRETO_REFRESCO, EMISOR, 0, 7);
 
         String token = generadorExpirado.emitirAccessToken(operador());
 
@@ -137,7 +138,7 @@ class GeneradorDeTokensJwtTest {
 
     @Test
     void rechazaUnTokenFirmadoConOtroSecreto() {
-        GeneradorDeTokensJwt intruso = new GeneradorDeTokensJwt(
+        JwtService intruso = new JwtService(
                 "otro-secreto-de-acceso-distinto-con-mas-de-32-caracteres", SECRETO_REFRESCO, EMISOR, 15, 7);
 
         String tokenAjeno = intruso.emitirAccessToken(operador());
@@ -150,7 +151,7 @@ class GeneradorDeTokensJwtTest {
 
     @Test
     void unRefreshTokenNoSirveComoAccessToken() {
-        GeneradorDeTokensJwt generador = generador();
+        JwtService generador = generador();
         String refresh = generador.emitirRefreshToken(ID_USUARIO);
 
         AutorizacionException error = assertThrows(AutorizacionException.class,
@@ -161,7 +162,7 @@ class GeneradorDeTokensJwtTest {
 
     @Test
     void unAccessTokenNoSirveComoRefreshToken() {
-        GeneradorDeTokensJwt generador = generador();
+        JwtService generador = generador();
         String access = generador.emitirAccessToken(operador());
 
         AutorizacionException error = assertThrows(AutorizacionException.class,
@@ -181,7 +182,7 @@ class GeneradorDeTokensJwtTest {
     @Test
     void noArrancaConUnSecretoDemasiadoCorto() {
         SystemException error = assertThrows(SystemException.class,
-                () -> new GeneradorDeTokensJwt("corto", SECRETO_REFRESCO, EMISOR, 15, 7));
+                () -> new JwtService("corto", SECRETO_REFRESCO, EMISOR, 15, 7));
 
         assertEquals(500, error.getCodigo());
     }
@@ -189,7 +190,7 @@ class GeneradorDeTokensJwtTest {
     @Test
     void noArrancaSiLosDosSecretosSonElMismo() {
         SystemException error = assertThrows(SystemException.class,
-                () -> new GeneradorDeTokensJwt(SECRETO_ACCESO, SECRETO_ACCESO, EMISOR, 15, 7));
+                () -> new JwtService(SECRETO_ACCESO, SECRETO_ACCESO, EMISOR, 15, 7));
 
         assertEquals(500, error.getCodigo());
         assertTrue(error.getMensaje().contains("distintos"));
@@ -197,8 +198,8 @@ class GeneradorDeTokensJwtTest {
 
     @Test
     void rechazaUnTokenDeOtroEmisor() {
-        GeneradorDeTokensJwt otroEmisor =
-                new GeneradorDeTokensJwt(SECRETO_ACCESO, SECRETO_REFRESCO, "otro-sistema", 15, 7);
+        JwtService otroEmisor =
+                new JwtService(SECRETO_ACCESO, SECRETO_REFRESCO, "otro-sistema", 15, 7);
 
         String token = otroEmisor.emitirAccessToken(operador());
 
@@ -217,5 +218,45 @@ class GeneradorDeTokensJwtTest {
 
         assertTrue(emitido >= antes.getEpochSecond());
         assertTrue(emitido <= Instant.now().plusSeconds(5).getEpochSecond());
+    }
+
+    // -------------------------------------------------- extraccion de claims
+
+    @Test
+    void extraerUsuarioIdDevuelveElSubjectDelToken() {
+        JwtService generador = generador();
+
+        assertEquals(ID_USUARIO, generador.extraerUsuarioId(generador.emitirAccessToken(operador())));
+    }
+
+    @Test
+    void extraerExpiracionDevuelveElVencimientoDelToken() {
+        JwtService generador = generador();
+        Instant antesDeEmitir = Instant.now();
+
+        Instant expiracion = generador.extraerExpiracion(generador.emitirAccessToken(operador()));
+
+        assertTrue(expiracion.isAfter(antesDeEmitir.plus(Duration.ofMinutes(14))));
+        assertTrue(expiracion.isBefore(antesDeEmitir.plus(Duration.ofMinutes(16))));
+    }
+
+    @Test
+    void unTokenRecienEmitidoNoHaExpirado() {
+        JwtService generador = generador();
+
+        assertFalse(generador.haExpirado(generador.emitirAccessToken(operador())));
+    }
+
+    @Test
+    void unTokenVencidoHaExpirado() {
+        JwtService generadorExpirado = new JwtService(SECRETO_ACCESO, SECRETO_REFRESCO, EMISOR, 0, 7);
+
+        assertTrue(generadorExpirado.haExpirado(generadorExpirado.emitirAccessToken(operador())));
+    }
+
+    @Test
+    void unTokenIlegibleCuentaComoExpirado() {
+        // No se puede saber si vencio, y un token que no se puede leer tampoco sirve.
+        assertTrue(generador().haExpirado("esto-no-es-un-jwt"));
     }
 }

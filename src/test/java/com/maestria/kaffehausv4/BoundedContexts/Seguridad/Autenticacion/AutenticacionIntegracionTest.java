@@ -28,12 +28,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Applicat
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Dtos.IniciarSesionConGoogleRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Dtos.IniciarSesionRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Dtos.RenovarTokenRequest;
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Tokens.IGeneradorDeTokens;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Tokens.IVerificadorDeTokenGoogle;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.UseCases.IniciarSesionConGoogleUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.UseCases.IniciarSesionUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.UseCases.RenovarAccessTokenUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Crypto.IHasheadorDeContrasena;
+import com.maestria.kaffehausv4.Shared.Application.Security.IGeneradorDeTokens;
 import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 
 /**

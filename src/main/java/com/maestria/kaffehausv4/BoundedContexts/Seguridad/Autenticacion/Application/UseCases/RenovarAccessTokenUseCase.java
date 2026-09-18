@@ -13,10 +13,10 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObj
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Dtos.AccessTokenResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Dtos.RenovarTokenRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Dtos.UsuarioAutenticadoResponse;
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Tokens.IGeneradorDeTokens;
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects.RolDelSistema;
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects.UsuarioAutenticado;
+import com.maestria.kaffehausv4.Shared.Application.Security.IGeneradorDeTokens;
 import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
+import com.maestria.kaffehausv4.Shared.Domain.Security.RolDelSistema;
+import com.maestria.kaffehausv4.Shared.Domain.Security.UsuarioAutenticado;
 
 /**
  * Renovacion del access token a partir del refresh token.

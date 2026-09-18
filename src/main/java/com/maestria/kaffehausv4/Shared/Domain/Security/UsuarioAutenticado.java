@@ -1,4 +1,4 @@
-package com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects;
+package com.maestria.kaffehausv4.Shared.Domain.Security;
 
 /**
  * Identidad de quien hace la peticion: exactamente lo que lleva el access token, ni un campo
@@ -8,7 +8,9 @@ package com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.
  * payload se limita a lo imprescindible para autorizar sin volver a la base: el id del
  * usuario, su nombre para mostrarlo, y su rol. Nada de correo, telefono ni permisos.
  *
- * El guard lo construye al validar el token y lo deja disponible para la peticion en curso.
+ * Es un POJO puro y deliberadamente ajeno a Spring Security: quien lo adapta al framework es
+ * SecurityUser, en la capa externa. Asi el caso de uso de login puede construirlo y el resto
+ * del negocio puede leerlo sin arrastrar UserDetails ni GrantedAuthority.
  */
 public class UsuarioAutenticado {
 
@@ -24,7 +26,7 @@ public class UsuarioAutenticado {
         this.rolNombre = rolNombre;
     }
 
-    /** true si quien hace la peticion tiene alguno de los roles exigidos por el endpoint. */
+    /** true si quien hace la peticion tiene alguno de los roles indicados. */
     public boolean tieneAlgunRol(RolDelSistema... rolesPermitidos) {
         for (RolDelSistema rol : rolesPermitidos) {
             if (rol.tieneCodigo(this.rolId)) {

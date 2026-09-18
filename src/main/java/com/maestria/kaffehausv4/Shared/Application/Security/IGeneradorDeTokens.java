@@ -1,12 +1,14 @@
-package com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Application.Tokens;
+package com.maestria.kaffehausv4.Shared.Application.Security;
 
-import com.maestria.kaffehausv4.BoundedContexts.Seguridad.Autenticacion.Domain.ValueObjects.UsuarioAutenticado;
+import com.maestria.kaffehausv4.Shared.Domain.Security.UsuarioAutenticado;
 
 /**
  * Puerto de emision y verificacion de los tokens propios del sistema.
  *
- * Se declara en Application/, como IHasheadorDeContrasena: el caso de uso lo recibe por
- * constructor y no sabe si debajo hay JWT, PASETO o tokens opacos.
+ * Se declara en Shared/Application, igual que IHasheadorDeContrasena, y por el mismo motivo:
+ * el caso de uso de login lo recibe por constructor y no sabe si debajo hay JWT, PASETO o
+ * tokens opacos. Toda la mecanica concreta (jjwt, claves, firma) vive en
+ * Shared/Infrastructure/Security/JwtService, que es quien implementa este puerto.
  *
  * Los dos tipos de token se firman con secretos distintos a proposito: un refresh token
  * presentado como access token (o al reves) no debe validar jamas.

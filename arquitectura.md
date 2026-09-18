@@ -22,6 +22,7 @@ roles, clientes, proveedores, entidades) y sus catalogos de estados.
 | Framework | Spring Boot 4.1.1 (parent POM) |
 | Build | Maven, con wrapper (`mvnw`, `mvnw.cmd`) |
 | Web | `spring-boot-starter-webmvc` (Spring MVC, servlet, bloqueante) |
+| Seguridad | `spring-boot-starter-security` (Spring Security 7, cadena de filtros stateless con JWT) |
 | Persistencia | `spring-boot-starter-data-jpa` + Hibernate sobre PostgreSQL |
 | Driver | `org.postgresql:postgresql` (runtime) |
 | Base de datos | PostgreSQL 16-alpine via `docker-compose.yaml` (servicio `kaffehausdb`, puerto 5432) |
@@ -39,18 +40,27 @@ roles, clientes, proveedores, entidades) y sus catalogos de estados.
 extension `pgcrypto`, UUID como PK, FKs con `ON UPDATE CASCADE`); `ddl-auto: update`
 solo complementa, **no** sustituye a ese archivo.
 
-**Estado de seguridad (importante)**: el proyecto **no tiene Spring Security ni Keycloak**.
-Fueron retirados deliberadamente y el classpath no contiene ninguna libreria de seguridad.
-El API esta abierta. Las consecuencias ya absorbidas en el codigo:
+**Estado de seguridad (importante)**: el API esta **cerrada por defecto** y se protege con
+Spring Security 7 + JWT propios. Keycloak sigue descartado. La regla que gobierna todo el
+modulo: **la seguridad es un detalle tecnico externo y vive entera en
+`Shared/Infrastructure/Security`**; ninguna capa de Domain o Application conoce Spring
+Security.
 
-- El CORS se declara en `Shared/Infrastructure/Web/WebConfig` (`WebMvcConfigurer`), no en una
-  cadena de filtros.
-- El hasheo de contrasenas se hace con `IHasheadorDeContrasena` + `HasheadorDeContrasenaPbkdf2`
-  (PBKDF2 del JDK), no con `PasswordEncoder`/BCrypt.
-- Existe `AutorizacionException` preparada para el futuro esquema de autenticacion.
-
-El archivo `keycloak_sugerencia.md` en la raiz es material de referencia/propuesta, **no**
-describe el estado actual del codigo.
+- La cadena de filtros, las reglas de acceso, el filtro de JWT y el adaptador `UserDetails`
+  estan en `Shared/Infrastructure/Security` (ver 3.2). Es el unico paquete del proyecto que
+  importa `org.springframework.security`.
+- El unico paquete que importa `io.jsonwebtoken` es ese mismo, a traves de `JwtService`. Los
+  casos de uso emiten tokens contra el puerto `Shared/Application/Security/IGeneradorDeTokens`
+  y no saben que debajo hay JWT.
+- Las entidades de dominio **no** implementan `UserDetails` ni conocen `GrantedAuthority`. El
+  adaptador es `SecurityUser`, que envuelve al VO puro `Shared/Domain/Security/UsuarioAutenticado`.
+- El CORS se declara dentro de la cadena de seguridad (`SecurityConfig.corsConfigurationSource`)
+  y ya no como `WebMvcConfigurer`: los filtros corren antes que Spring MVC y el preflight debe
+  resolverse ahi.
+- El hasheo de contrasenas sigue siendo `IHasheadorDeContrasena` + `HasheadorDeContrasenaPbkdf2`
+  (PBKDF2 del JDK), **no** `PasswordEncoder`/BCrypt. El login es un caso de uso propio; no se
+  usa `AuthenticationManager` ni `DaoAuthenticationProvider`.
+- `AutorizacionException` (401/403) es la excepcion canonica, tambien dentro de los filtros.
 
 ---
 
@@ -142,7 +152,6 @@ kaffehausv4/
 ├── pom.xml                      # Dependencias y Java 21
 ├── docker-compose.yaml          # PostgreSQL 16 local (kaffehausdb:5432)
 ├── databasev4.sql               # DDL canonico del esquema (referencia obligatoria)
-├── keycloak_sugerencia.md       # Propuesta futura de auth. NO refleja el codigo actual
 ├── HELP.md                      # Nota de version del proyecto
 ├── mvnw / mvnw.cmd / .mvn/      # Maven wrapper
 └── src/
@@ -223,9 +232,19 @@ Lo unico compartido entre contextos. Espeja las mismas cuatro capas.
 | `Shared/Application/Dtos/Pagination/PaginationDTO` | Base de los requests de listado. Defaults: `skip=0`, `limit=10`, `search=""` |
 | `Shared/Application/Dtos/Pagination/PaginatedResponse<T>` | Envoltorio de salida: `data`, `skip`, `limit`, `total`, `hasMore` |
 | `Shared/Application/Crypto/IHasheadorDeContrasena` | Puerto de hasheo de credenciales |
+| `Shared/Application/Security/IGeneradorDeTokens` | Puerto de emision y verificacion de tokens. Lo consumen los casos de uso de login y refresco |
+| `Shared/Domain/Security/UsuarioAutenticado` | VO puro: quien firma la peticion (`usuarioId`, `nombreCompleto`, `rolId`, `rolNombre`). Sin Spring, sin Spring Security |
+| `Shared/Domain/Security/RolDelSistema` | Enum de roles (Operador 1, Administrador 2). Resuelve `rol.nombre` de la base y normaliza el nombre de autoridad |
 | `Shared/Infrastructure/Crypto/HasheadorDeContrasenaPbkdf2` | `@Component`. PBKDF2WithHmacSHA256, 210 000 iteraciones, sal de 16 bytes, formato `pbkdf2$iter$sal$hash`, comparacion en tiempo constante |
 | `Shared/Infrastructure/Persistence/OffsetPageRequest` | `Pageable` por offset absoluto. Evita el error de traducir `skip/limit` a numero de pagina |
-| `Shared/Infrastructure/Web/WebConfig` | CORS global via `WebMvcConfigurer` (`allowedOriginPatterns("*")`, `allowCredentials(false)`) |
+| `Shared/Infrastructure/Security/SecurityConfig` | `@EnableWebSecurity` + `@EnableMethodSecurity`. Cadena stateless, sin CSRF, reglas por ruta y rol, CORS |
+| `Shared/Infrastructure/Security/JwtAuthenticationFilter` | `OncePerRequestFilter`. Lee el Bearer token, lo verifica y deja al usuario en el `SecurityContext` |
+| `Shared/Infrastructure/Security/JwtService` | `@Component`. Implementa `IGeneradorDeTokens`. Unico punto que conoce jjwt: firma, claims y vigencia |
+| `Shared/Infrastructure/Security/SecurityUser` | Adaptador `UserDetails` que envuelve a `UsuarioAutenticado`. Concede `ROLE_<NOMBRE_DEL_ROL>` |
+| `Shared/Infrastructure/Security/RutasDeSeguridad` | Catalogo de rutas por politica de acceso. Lo leen `SecurityConfig` y el filtro |
+| `Shared/Infrastructure/Security/JwtAuthenticationEntryPoint` | 401 en JSON cuando faltan credenciales |
+| `Shared/Infrastructure/Security/JwtAccessDeniedHandler` | 403 en JSON cuando el rol no alcanza |
+| `Shared/Infrastructure/Security/EscritorDeErrorHttp` | Escribe `ErrorResponse` desde la cadena de filtros, donde `GlobalExceptionHandler` no llega |
 | `Shared/Presentation/GlobalExceptionHandler` | `@RestControllerAdvice`. Traduce excepciones a `ErrorResponse` |
 
 Metodos disponibles en `Validador` (cada uno en variante `Requerido`/`Opcional`):
@@ -246,6 +265,9 @@ y rechaza la lista vacia.
 | Consulta a base de datos | `Infrastructure/Persistence/Jpa/<Agregado>JpaRepository.java` |
 | Traduccion agregado ↔ fila | `Infrastructure/Persistence/Jpa/<Agregado>JpaMapper.java` |
 | Endpoint HTTP | `Presentation/<Agregado>ControllerV1.java` |
+| Regla de acceso por ruta o por rol | `Shared/Infrastructure/Security/RutasDeSeguridad` + `SecurityConfig` |
+| Regla de acceso de un solo endpoint | `@PreAuthorize` sobre el metodo del controller |
+| Saber quien firma la peticion | `@AuthenticationPrincipal SecurityUser` en el controller |
 | Utilidad usada por 2+ contextos | `Shared/` en la capa que le corresponda |
 | Tests | `src/test/java/...` espejando el paquete de produccion |
 
@@ -683,10 +705,14 @@ publico justo para esto.
 
 9. **NO** anadir dependencias al `pom.xml` (Lombok, MapStruct, ModelMapper, Bean Validation,
    Guava, Apache Commons, springdoc/Swagger, un logger). Todo lo que hoy se necesita se
-   resuelve con el JDK y lo ya presente.
-10. **NO** reintroducir Spring Security, Keycloak ni ninguna libreria de seguridad: fue una
-    decision explicita. Para hashear se usa `IHasheadorDeContrasena`; para 401/403 existe
-    `AutorizacionException`.
+   resuelve con el JDK y lo ya presente. En particular, **sin Lombok**: la inyeccion por
+   constructor se escribe a mano con campos `final`, no con `@RequiredArgsConstructor`.
+10. **NO** sacar la seguridad de `Shared/Infrastructure/Security`. Spring Security esta
+    admitido, pero confinado ahi: `org.springframework.security` e `io.jsonwebtoken` no pueden
+    aparecer en ningun `Domain/`, `Application/` ni `Presentation/` de un bounded context. Nada
+    de `UserDetails` en agregados, nada de anotaciones de seguridad propias en los controllers
+    (para grano fino, `@PreAuthorize`). Keycloak sigue descartado. Para hashear se usa
+    `IHasheadorDeContrasena`; para 401/403, `AutorizacionException`.
 11. **NO** usar `@Valid` ni anotaciones de Bean Validation (`@NotNull`, `@Size`...). La
     validacion es imperativa en `createFromRequest` con `Validador`. Si falta un tipo de
     validacion, se **anade un metodo a `Validador`**, no se valida ad hoc en el DTO.
