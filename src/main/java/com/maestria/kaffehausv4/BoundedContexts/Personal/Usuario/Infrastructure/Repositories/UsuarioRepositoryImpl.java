@@ -37,6 +37,11 @@ public class UsuarioRepositoryImpl implements IUsuarioRepository{
     }
 
     @Override
+    public Optional<Usuario> obtenerPorCorreo(String correo) {
+        return this.usuarioDatasource.obtenerPorCorreo(correo);
+    }
+
+    @Override
     public PaginatedResponse<List<Usuario>> obtenerTodos(ObtenerUsuariosRequest obtenerUsuariosRequest) {
         return this.usuarioDatasource.obtenerTodos(obtenerUsuariosRequest);
     }

@@ -52,6 +52,12 @@ public class UsuarioDatasourceImpl implements IUsuarioDatasource {
     }
 
     @Override
+    public Optional<Usuario> obtenerPorCorreo(String correo) {
+        return usuarioJpaRepository.findByCorreoIgnoreCaseAndBorradoFalse(correo)
+                .map(UsuarioJpaMapper::toDomain);
+    }
+
+    @Override
     public PaginatedResponse<List<Usuario>> obtenerTodos(ObtenerUsuariosRequest obtenerUsuariosRequest) {
         int skip = obtenerUsuariosRequest.getSkip();
         int limit = obtenerUsuariosRequest.getLimit();

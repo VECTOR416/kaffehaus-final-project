@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface UsuarioJpaRepository extends JpaRepository<UsuarioJpaModel, UUID>{
 
     Optional<UsuarioJpaModel> findByIdAndBorradoFalse(UUID id);
+    Optional<UsuarioJpaModel> findByCorreoIgnoreCaseAndBorradoFalse(String correo);
     Page<UsuarioJpaModel> findByBorradoFalse(Pageable pageable);
     Page<UsuarioJpaModel> findByBorradoFalseAndCorreoContainingIgnoreCase(String correo, Pageable pageable);
 }

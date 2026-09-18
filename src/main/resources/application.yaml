@@ -15,3 +15,16 @@ spring:
 
 server:
   port: ${SERVER_PORT:8081}
+
+# Modulo de seguridad. Los secretos NO deben quedarse en estos valores por defecto fuera de
+# desarrollo: en cualquier despliegue real llegan por variable de entorno.
+seguridad:
+  jwt:
+    secreto-acceso: ${JWT_SECRET:desarrollo-kaffehaus-secreto-de-acceso-cambiar-en-produccion}
+    secreto-refresco: ${JWT_REFRESH_SECRET:desarrollo-kaffehaus-secreto-de-refresco-cambiar-en-produccion}
+    emisor: ${JWT_ISSUER:kaffehausv4}
+    # Vigencias fijadas por especificacion: 15 minutos y 7 dias.
+    minutos-de-acceso: ${JWT_ACCESS_MINUTES:15}
+    dias-de-refresco: ${JWT_REFRESH_DAYS:7}
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
