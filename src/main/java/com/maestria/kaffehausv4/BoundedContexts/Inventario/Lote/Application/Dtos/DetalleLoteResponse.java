@@ -1,6 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
 
@@ -15,6 +16,7 @@ public class DetalleLoteResponse {
     private BigDecimal cantidadRestante;
     private BigDecimal precioUnitario;
     private boolean fraccionable;
+    private LocalDate fechaVencimiento;
     private boolean borrado;
 
     private DetalleLoteResponse(
@@ -24,6 +26,7 @@ public class DetalleLoteResponse {
         BigDecimal cantidadRestante,
         BigDecimal precioUnitario,
         boolean fraccionable,
+        LocalDate fechaVencimiento,
         boolean borrado
     ) {
         this.id = id;
@@ -32,6 +35,7 @@ public class DetalleLoteResponse {
         this.cantidadRestante = cantidadRestante;
         this.precioUnitario = precioUnitario;
         this.fraccionable = fraccionable;
+        this.fechaVencimiento = fechaVencimiento;
         this.borrado = borrado;
     }
 
@@ -43,6 +47,7 @@ public class DetalleLoteResponse {
             detalleLote.getCantidadRestante(),
             detalleLote.getPrecioUnitario(),
             detalleLote.isFraccionable(),
+            detalleLote.getFechaVencimiento(),
             detalleLote.isBorrado()
         );
     }
@@ -53,5 +58,6 @@ public class DetalleLoteResponse {
     public BigDecimal getCantidadRestante() {return cantidadRestante;}
     public BigDecimal getPrecioUnitario() {return precioUnitario;}
     public boolean isFraccionable() {return fraccionable;}
+    public LocalDate getFechaVencimiento() {return fechaVencimiento;}
     public boolean isBorrado() {return borrado;}
 }

@@ -19,6 +19,9 @@ public class CategoriaJpaModel {
     @Column(name = "nombre", nullable = false)
     private String nombre;
 
+    @Column(name = "es_borrable", nullable = false)
+    private Boolean esBorrable;
+
     @Column(name = "fec_c", nullable = false)
     private OffsetDateTime fecC;
 
@@ -34,6 +37,8 @@ public class CategoriaJpaModel {
     public void setId(UUID id) {this.id = id;}
     public String getNombre() {return nombre;}
     public void setNombre(String nombre) {this.nombre = nombre;}
+    public Boolean getEsBorrable() {return esBorrable;}
+    public void setEsBorrable(Boolean esBorrable) {this.esBorrable = esBorrable;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}

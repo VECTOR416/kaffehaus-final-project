@@ -12,19 +12,22 @@ public class ActualizarMovimientoRequest {
     private String motivo;
     private String idExistencia;
     private String idTipoMovimiento;
+    private String idUsuario;
 
     private ActualizarMovimientoRequest(
         BigDecimal cantidad,
         LocalDateTime fechaMovimiento,
         String motivo,
         String idExistencia,
-        String idTipoMovimiento
+        String idTipoMovimiento,
+        String idUsuario
     ) {
         this.cantidad = cantidad;
         this.fechaMovimiento = fechaMovimiento;
         this.motivo = motivo;
         this.idExistencia = idExistencia;
         this.idTipoMovimiento = idTipoMovimiento;
+        this.idUsuario = idUsuario;
     }
 
     public static ActualizarMovimientoRequest createFromRequest(Map<String, Object> request){
@@ -34,8 +37,9 @@ public class ActualizarMovimientoRequest {
         String motivo = Validador.textoOpcional(request.get("motivo"), "motivo");
         String idExistencia = Validador.textoOpcional(request.get("idExistencia"), "idExistencia");
         String idTipoMovimiento = Validador.textoOpcional(request.get("idTipoMovimiento"), "idTipoMovimiento");
+        String idUsuario = Validador.textoOpcional(request.get("idUsuario"), "idUsuario");
 
-        return new ActualizarMovimientoRequest(cantidad, fechaMovimiento, motivo, idExistencia, idTipoMovimiento);
+        return new ActualizarMovimientoRequest(cantidad, fechaMovimiento, motivo, idExistencia, idTipoMovimiento, idUsuario);
     }
 
     public BigDecimal getCantidad() {return cantidad;}
@@ -43,4 +47,5 @@ public class ActualizarMovimientoRequest {
     public String getMotivo() {return motivo;}
     public String getIdExistencia() {return idExistencia;}
     public String getIdTipoMovimiento() {return idTipoMovimiento;}
+    public String getIdUsuario() {return idUsuario;}
 }

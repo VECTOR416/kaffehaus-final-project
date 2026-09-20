@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregat
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
@@ -33,6 +34,7 @@ public class DetalleLote {
     private BigDecimal cantidadRestante;
     private BigDecimal precioUnitario;
     private boolean fraccionable;
+    private LocalDate fechaVencimiento;
     private boolean borrado;
 
     private DetalleLote(
@@ -42,6 +44,7 @@ public class DetalleLote {
         BigDecimal cantidadRestante,
         BigDecimal precioUnitario,
         boolean fraccionable,
+        LocalDate fechaVencimiento,
         boolean borrado
     ){
         this.id = id;
@@ -50,6 +53,7 @@ public class DetalleLote {
         this.cantidadRestante = cantidadRestante;
         this.precioUnitario = precioUnitario;
         this.fraccionable = fraccionable;
+        this.fechaVencimiento = fechaVencimiento;
         this.borrado = borrado;
     }
 
@@ -64,6 +68,7 @@ public class DetalleLote {
         BigDecimal cantidadRestante,
         BigDecimal precioUnitario,
         boolean fraccionable,
+        LocalDate fechaVencimiento,
         boolean borrado
     ){
         return new DetalleLote(
@@ -73,6 +78,7 @@ public class DetalleLote {
                 cantidadRestante,
                 precioUnitario,
                 fraccionable,
+                fechaVencimiento,
                 borrado);
     }
 
@@ -85,7 +91,8 @@ public class DetalleLote {
         ProductoId productoId,
         BigDecimal cantidadInicial,
         BigDecimal precioUnitario,
-        Boolean fraccionable
+        Boolean fraccionable,
+        LocalDate fechaVencimiento
     ){
         if (productoId == null || productoId.getValue() == null) {
             throw DomainException.throwException(400, "El detalle de lote requiere un producto");
@@ -102,6 +109,7 @@ public class DetalleLote {
                 cantidad,
                 aEscala(precioUnitario),
                 fraccionable != null && fraccionable,
+                fechaVencimiento,
                 false);
     }
 
@@ -109,7 +117,7 @@ public class DetalleLote {
      * Corrige los datos de compra de la linea. La cantidad inicial no puede quedar por debajo
      * de lo que aun queda en almacen: eso dejaria el stock en un estado imposible.
      */
-    void actualizarDatosDeCompra(BigDecimal cantidadInicial, BigDecimal precioUnitario, Boolean fraccionable) {
+    void actualizarDatosDeCompra(BigDecimal cantidadInicial, BigDecimal precioUnitario, Boolean fraccionable, LocalDate fechaVencimiento) {
         if (cantidadInicial != null) {
             exigirCantidadInicialValida(cantidadInicial);
             BigDecimal nueva = aEscala(cantidadInicial);
@@ -126,6 +134,7 @@ public class DetalleLote {
         }
 
         this.fraccionable = fraccionable != null ? fraccionable : this.fraccionable;
+        this.fechaVencimiento = fechaVencimiento != null ? fechaVencimiento : this.fechaVencimiento;
     }
 
     /** Ajusta el stock restante de la linea. Nunca negativo ni por encima de lo comprado. */
@@ -174,5 +183,6 @@ public class DetalleLote {
     public BigDecimal getCantidadRestante() {return cantidadRestante;}
     public BigDecimal getPrecioUnitario() {return precioUnitario;}
     public boolean isFraccionable() {return fraccionable;}
+    public LocalDate getFechaVencimiento() {return fechaVencimiento;}
     public boolean isBorrado() {return borrado;}
 }

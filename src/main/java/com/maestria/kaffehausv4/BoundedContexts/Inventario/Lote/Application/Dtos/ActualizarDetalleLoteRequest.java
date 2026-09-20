@@ -1,6 +1,8 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
@@ -22,6 +24,7 @@ public class ActualizarDetalleLoteRequest {
     private BigDecimal cantidadRestante;
     private BigDecimal precioUnitario;
     private Boolean fraccionable;
+    private LocalDate fechaVencimiento;
 
     private ActualizarDetalleLoteRequest(
         String id,
@@ -29,7 +32,8 @@ public class ActualizarDetalleLoteRequest {
         BigDecimal cantidadInicial,
         BigDecimal cantidadRestante,
         BigDecimal precioUnitario,
-        Boolean fraccionable
+        Boolean fraccionable,
+        LocalDate fechaVencimiento
     ) {
         this.id = id;
         this.idProducto = idProducto;
@@ -37,6 +41,7 @@ public class ActualizarDetalleLoteRequest {
         this.cantidadRestante = cantidadRestante;
         this.precioUnitario = precioUnitario;
         this.fraccionable = fraccionable;
+        this.fechaVencimiento = fechaVencimiento;
     }
 
     public static ActualizarDetalleLoteRequest createFromRequest(Map<String, Object> request){
@@ -49,8 +54,10 @@ public class ActualizarDetalleLoteRequest {
         Double precioUnitarioTmp = Validador.numeroOpcional(request.get("precioUnitario"), "precioUnitario");
         BigDecimal precioUnitario = precioUnitarioTmp != null ? BigDecimal.valueOf(precioUnitarioTmp) : null;
         Boolean fraccionable = Validador.booleanoOpcional(request.get("fraccionable"), "fraccionable");
+        LocalDateTime fechaVencimientoTmp = Validador.fechaOpcional(request.get("fechaVencimiento"), "fechaVencimiento");
+        LocalDate fechaVencimiento = fechaVencimientoTmp != null ? fechaVencimientoTmp.toLocalDate() : null;
 
-        return new ActualizarDetalleLoteRequest(id, idProducto, cantidadInicial, cantidadRestante, precioUnitario, fraccionable);
+        return new ActualizarDetalleLoteRequest(id, idProducto, cantidadInicial, cantidadRestante, precioUnitario, fraccionable, fechaVencimiento);
     }
 
     public String getId() {return id;}
@@ -59,4 +66,5 @@ public class ActualizarDetalleLoteRequest {
     public BigDecimal getCantidadRestante() {return cantidadRestante;}
     public BigDecimal getPrecioUnitario() {return precioUnitario;}
     public Boolean getFraccionable() {return fraccionable;}
+    public LocalDate getFechaVencimiento() {return fechaVencimiento;}
 }

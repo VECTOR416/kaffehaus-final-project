@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 
 public class Producto {
@@ -14,6 +15,7 @@ public class Producto {
     private BigDecimal stockMinimo;
     private boolean vendible;
     private UnidadId unidadActualId;
+    private TipoId tipoId;
     private CategoriaId categoriaId;
     private ProductoId productoPadreId;
     private boolean borrado;
@@ -26,6 +28,7 @@ public class Producto {
         BigDecimal stockMinimo,
         boolean vendible,
         UnidadId unidadActualId,
+        TipoId tipoId,
         CategoriaId categoriaId,
         ProductoId productoPadreId,
         boolean borrado
@@ -37,6 +40,7 @@ public class Producto {
         this.stockMinimo = stockMinimo;
         this.vendible = vendible;
         this.unidadActualId = unidadActualId;
+        this.tipoId = tipoId;
         this.categoriaId = categoriaId;
         this.productoPadreId = productoPadreId;
         this.borrado = borrado;
@@ -50,11 +54,12 @@ public class Producto {
         BigDecimal stockMinimo,
         boolean vendible,
         UnidadId unidadActualId,
+        TipoId tipoId,
         CategoriaId categoriaId,
         ProductoId productoPadreId,
         boolean borrado
     ){
-        return new Producto(new ProductoId(id), nombre, stock, precio, stockMinimo, vendible, unidadActualId, categoriaId, productoPadreId, borrado);
+        return new Producto(new ProductoId(id), nombre, stock, precio, stockMinimo, vendible, unidadActualId, tipoId, categoriaId, productoPadreId, borrado);
     }
 
     public static Producto crear(
@@ -64,10 +69,11 @@ public class Producto {
         BigDecimal stockMinimo,
         boolean vendible,
         UnidadId unidadActualId,
+        TipoId tipoId,
         CategoriaId categoriaId,
         ProductoId productoPadreId
     ){
-        return new Producto(null, nombre, stock, precio, stockMinimo, vendible, unidadActualId, categoriaId, productoPadreId, false);
+        return new Producto(null, nombre, stock, precio, stockMinimo, vendible, unidadActualId, tipoId, categoriaId, productoPadreId, false);
     }
 
     public void actualizar(
@@ -77,6 +83,7 @@ public class Producto {
         BigDecimal stockMinimo,
         Boolean vendible,
         UnidadId unidadActualId,
+        TipoId tipoId,
         CategoriaId categoriaId,
         ProductoId productoPadreId
     ){
@@ -86,6 +93,7 @@ public class Producto {
         this.stockMinimo = stockMinimo != null ? stockMinimo : this.stockMinimo;
         this.vendible = vendible != null ? vendible : this.vendible;
         this.unidadActualId = unidadActualId != null ? unidadActualId : this.unidadActualId;
+        this.tipoId = tipoId != null ? tipoId : this.tipoId;
         this.categoriaId = categoriaId != null ? categoriaId : this.categoriaId;
         this.productoPadreId = productoPadreId != null ? productoPadreId : this.productoPadreId;
     }
@@ -101,6 +109,7 @@ public class Producto {
     public BigDecimal getStockMinimo() {return stockMinimo;}
     public boolean isVendible() {return vendible;}
     public UnidadId getUnidadActualId() {return unidadActualId;}
+    public TipoId getTipoId() {return tipoId;}
     public CategoriaId getCategoriaId() {return categoriaId;}
     public ProductoId getProductoPadreId() {return productoPadreId;}
     public boolean isBorrado() {return borrado;}

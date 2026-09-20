@@ -93,12 +93,21 @@ CREATE TABLE conversiones (
 -- 3. PRODUCTOS Y RECETARIO
 -- ============================================================================
 
-CREATE TABLE categoria (
+CREATE TABLE tipo (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre VARCHAR(100) NOT NULL,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
     borrado BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE categoria (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre VARCHAR(100) NOT NULL,
+    fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE,
+    es_borrable BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE producto (
@@ -108,6 +117,7 @@ CREATE TABLE producto (
     precio NUMERIC(12, 2) NOT NULL DEFAULT 0,
     stock_minimo NUMERIC(12, 2) NOT NULL DEFAULT 0,
     unidad_actual UUID NOT NULL REFERENCES unidad(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    id_tipo UUID NOT NULL REFERENCES tipo(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     id_categoria UUID NOT NULL REFERENCES categoria(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     vendible BOOLEAN NOT NULL DEFAULT TRUE,
     id_producto_padre UUID REFERENCES producto(id) ON UPDATE CASCADE ON DELETE SET NULL,
@@ -202,6 +212,7 @@ CREATE TABLE detalle_lote (
     cantidad_restante NUMERIC(12, 2) NOT NULL,
     precio_unitario NUMERIC(12, 2) NOT NULL,
     fraccionable BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_vencimiento DATE,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
     borrado BOOLEAN NOT NULL DEFAULT FALSE
@@ -215,7 +226,9 @@ CREATE TABLE existencias (
     id_estado_existencia UUID NOT NULL REFERENCES estado_existencia(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fecha_acabado TIMESTAMP,
     fecha_vencimiento DATE,
+    fecha_apertura TIMESTAMP,
     unidad UUID NOT NULL REFERENCES unidad(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    id_usuario UUID REFERENCES usuario(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
     borrado BOOLEAN NOT NULL DEFAULT FALSE
@@ -227,6 +240,7 @@ CREATE TABLE movimientos (
     cantidad NUMERIC(12, 4) NOT NULL,
     fecha_movimiento TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     id_tipo_movimiento UUID NOT NULL REFERENCES tipo_movimiento(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    id_usuario UUID NOT NULL REFERENCES usuario(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     motivo TEXT,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
@@ -323,6 +337,10 @@ CREATE INDEX idx_usuario_correo ON usuario(correo);
 CREATE INDEX idx_existencias_estado ON existencias(id_estado_existencia);
 CREATE INDEX idx_existencias_detalle_lote ON existencias(id_detalle_lote);
 CREATE INDEX idx_movimientos_existencia ON movimientos(id_existencia);
+CREATE INDEX idx_movimientos_usuario ON movimientos(id_usuario);
+CREATE INDEX idx_producto_tipo ON producto(id_tipo);
+CREATE INDEX idx_producto_categoria ON producto(id_categoria);
+CREATE INDEX idx_existencias_usuario ON existencias(id_usuario);
 CREATE INDEX idx_ingredientes_receta_receta ON ingredientes_receta(id_receta);
 CREATE INDEX idx_pasos_receta_receta ON pasos_receta(id_receta);
 CREATE INDEX idx_detalle_venta_venta ON detalle_venta(id_venta);

@@ -5,15 +5,18 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.Aggr
 public class CategoriaResponse {
     private String id;
     private String nombre;
+    private boolean esBorrable;
     private boolean borrado;
 
     private CategoriaResponse(
         String id,
         String nombre,
+        boolean esBorrable,
         boolean borrado
     ) {
         this.id = id;
         this.nombre = nombre;
+        this.esBorrable = esBorrable;
         this.borrado = borrado;
     }
 
@@ -21,11 +24,13 @@ public class CategoriaResponse {
         return new CategoriaResponse(
             categoria.getId().getValue(),
             categoria.getNombre(),
+            categoria.isEsBorrable(),
             categoria.isBorrado()
         );
     }
 
     public String getId() {return id;}
     public String getNombre() {return nombre;}
+    public boolean isEsBorrable() {return esBorrable;}
     public boolean isBorrado() {return borrado;}
 }

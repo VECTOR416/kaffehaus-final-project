@@ -14,6 +14,7 @@ public class MovimientoResponse {
     private String motivo;
     private String idExistencia;
     private TipoMovimientoResponse tipoMovimiento;
+    private String idUsuario;
     private boolean borrado;
 
     private MovimientoResponse(
@@ -23,6 +24,7 @@ public class MovimientoResponse {
         String motivo,
         String idExistencia,
         TipoMovimientoResponse tipoMovimiento,
+        String idUsuario,
         boolean borrado
     ) {
         this.id = id;
@@ -31,6 +33,7 @@ public class MovimientoResponse {
         this.motivo = motivo;
         this.idExistencia = idExistencia;
         this.tipoMovimiento = tipoMovimiento;
+        this.idUsuario = idUsuario;
         this.borrado = borrado;
     }
 
@@ -43,6 +46,7 @@ public class MovimientoResponse {
             movimiento.getMotivo(),
             movimiento.getExistenciaId() != null ? movimiento.getExistenciaId().getValue() : null,
             tipoMovimientoResponse,
+            movimiento.getUsuarioId() != null ? movimiento.getUsuarioId().getValue() : null,
             movimiento.isBorrado()
         );
     }
@@ -53,5 +57,6 @@ public class MovimientoResponse {
     public String getMotivo() {return motivo;}
     public String getIdExistencia() {return idExistencia;}
     public TipoMovimientoResponse getTipoMovimiento() {return tipoMovimiento;}
+    public String getIdUsuario() {return idUsuario;}
     public boolean isBorrado() {return borrado;}
 }

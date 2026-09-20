@@ -16,9 +16,11 @@ public class ExistenciaResponse {
     private BigDecimal contenidoActual;
     private LocalDateTime fechaAcabado;
     private LocalDate fechaVencimiento;
+    private LocalDateTime fechaApertura;
     private String idDetalleLote;
     private EstadoExistenciaResponse estadoExistencia;
     private UnidadResponse unidad;
+    private String idUsuario;
     private boolean borrado;
 
     private ExistenciaResponse(
@@ -27,9 +29,11 @@ public class ExistenciaResponse {
         BigDecimal contenidoActual,
         LocalDateTime fechaAcabado,
         LocalDate fechaVencimiento,
+        LocalDateTime fechaApertura,
         String idDetalleLote,
         EstadoExistenciaResponse estadoExistencia,
         UnidadResponse unidad,
+        String idUsuario,
         boolean borrado
     ) {
         this.id = id;
@@ -37,9 +41,11 @@ public class ExistenciaResponse {
         this.contenidoActual = contenidoActual;
         this.fechaAcabado = fechaAcabado;
         this.fechaVencimiento = fechaVencimiento;
+        this.fechaApertura = fechaApertura;
         this.idDetalleLote = idDetalleLote;
         this.estadoExistencia = estadoExistencia;
         this.unidad = unidad;
+        this.idUsuario = idUsuario;
         this.borrado = borrado;
     }
 
@@ -52,9 +58,11 @@ public class ExistenciaResponse {
             existencia.getContenidoActual(),
             existencia.getFechaAcabado(),
             existencia.getFechaVencimiento(),
+            existencia.getFechaApertura(),
             existencia.getDetalleLoteId() != null ? existencia.getDetalleLoteId().getValue() : null,
             estadoExistenciaResponse,
             unidadResponse,
+            existencia.getUsuarioId() != null ? existencia.getUsuarioId().getValue() : null,
             existencia.isBorrado()
         );
     }
@@ -64,8 +72,10 @@ public class ExistenciaResponse {
     public BigDecimal getContenidoActual() {return contenidoActual;}
     public LocalDateTime getFechaAcabado() {return fechaAcabado;}
     public LocalDate getFechaVencimiento() {return fechaVencimiento;}
+    public LocalDateTime getFechaApertura() {return fechaApertura;}
     public String getIdDetalleLote() {return idDetalleLote;}
     public EstadoExistenciaResponse getEstadoExistencia() {return estadoExistencia;}
     public UnidadResponse getUnidad() {return unidad;}
+    public String getIdUsuario() {return idUsuario;}
     public boolean isBorrado() {return borrado;}
 }

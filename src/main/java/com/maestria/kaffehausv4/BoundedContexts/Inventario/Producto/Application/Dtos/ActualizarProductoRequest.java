@@ -12,6 +12,7 @@ public class ActualizarProductoRequest {
     private BigDecimal stockMinimo;
     private Boolean vendible;
     private String idUnidadActual;
+    private String idTipo;
     private String idCategoria;
     private String idProductoPadre;
 
@@ -22,6 +23,7 @@ public class ActualizarProductoRequest {
         BigDecimal stockMinimo,
         Boolean vendible,
         String idUnidadActual,
+        String idTipo,
         String idCategoria,
         String idProductoPadre
     ) {
@@ -31,6 +33,7 @@ public class ActualizarProductoRequest {
         this.stockMinimo = stockMinimo;
         this.vendible = vendible;
         this.idUnidadActual = idUnidadActual;
+        this.idTipo = idTipo;
         this.idCategoria = idCategoria;
         this.idProductoPadre = idProductoPadre;
     }
@@ -46,10 +49,11 @@ public class ActualizarProductoRequest {
         Boolean vendibleTmp = Validador.booleanoOpcional(request.get("vendible"), "vendible");
         Boolean vendible = vendibleTmp;
         String idUnidadActual = Validador.textoOpcional(request.get("idUnidadActual"), "idUnidadActual");
+        String idTipo = Validador.textoOpcional(request.get("idTipo"), "idTipo");
         String idCategoria = Validador.textoOpcional(request.get("idCategoria"), "idCategoria");
         String idProductoPadre = Validador.textoOpcional(request.get("idProductoPadre"), "idProductoPadre");
 
-        return new ActualizarProductoRequest(nombre, stock, precio, stockMinimo, vendible, idUnidadActual, idCategoria, idProductoPadre);
+        return new ActualizarProductoRequest(nombre, stock, precio, stockMinimo, vendible, idUnidadActual, idTipo, idCategoria, idProductoPadre);
     }
 
     public String getNombre() {return nombre;}
@@ -58,6 +62,7 @@ public class ActualizarProductoRequest {
     public BigDecimal getStockMinimo() {return stockMinimo;}
     public Boolean getVendible() {return vendible;}
     public String getIdUnidadActual() {return idUnidadActual;}
+    public String getIdTipo() {return idTipo;}
     public String getIdCategoria() {return idCategoria;}
     public String getIdProductoPadre() {return idProductoPadre;}
 }

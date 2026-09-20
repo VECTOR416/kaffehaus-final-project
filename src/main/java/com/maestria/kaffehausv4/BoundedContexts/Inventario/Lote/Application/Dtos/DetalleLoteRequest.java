@@ -1,6 +1,8 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
@@ -17,17 +19,20 @@ public class DetalleLoteRequest {
     private BigDecimal cantidadInicial;
     private BigDecimal precioUnitario;
     private Boolean fraccionable;
+    private LocalDate fechaVencimiento;
 
     private DetalleLoteRequest(
         String idProducto,
         BigDecimal cantidadInicial,
         BigDecimal precioUnitario,
-        Boolean fraccionable
+        Boolean fraccionable,
+        LocalDate fechaVencimiento
     ) {
         this.idProducto = idProducto;
         this.cantidadInicial = cantidadInicial;
         this.precioUnitario = precioUnitario;
         this.fraccionable = fraccionable;
+        this.fechaVencimiento = fechaVencimiento;
     }
 
     public static DetalleLoteRequest createFromRequest(Map<String, Object> request){
@@ -35,12 +40,15 @@ public class DetalleLoteRequest {
         BigDecimal cantidadInicial = BigDecimal.valueOf(Validador.numeroRequerido(request.get("cantidadInicial"), "cantidadInicial"));
         BigDecimal precioUnitario = BigDecimal.valueOf(Validador.numeroRequerido(request.get("precioUnitario"), "precioUnitario"));
         Boolean fraccionable = Validador.booleanoOpcional(request.get("fraccionable"), "fraccionable");
+        LocalDateTime fechaVencimientoTmp = Validador.fechaOpcional(request.get("fechaVencimiento"), "fechaVencimiento");
+        LocalDate fechaVencimiento = fechaVencimientoTmp != null ? fechaVencimientoTmp.toLocalDate() : null;
 
-        return new DetalleLoteRequest(idProducto, cantidadInicial, precioUnitario, fraccionable);
+        return new DetalleLoteRequest(idProducto, cantidadInicial, precioUnitario, fraccionable, fechaVencimiento);
     }
 
     public String getIdProducto() {return idProducto;}
     public BigDecimal getCantidadInicial() {return cantidadInicial;}
     public BigDecimal getPrecioUnitario() {return precioUnitario;}
     public Boolean getFraccionable() {return fraccionable;}
+    public LocalDate getFechaVencimiento() {return fechaVencimiento;}
 }

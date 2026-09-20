@@ -3,6 +3,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Infrastruct
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
@@ -21,6 +22,7 @@ public class ProductoJpaMapper {
         model.setStockMinimo(producto.getStockMinimo());
         model.setVendible(producto.isVendible());
         model.setUnidadActual(UUID.fromString(producto.getUnidadActualId().getValue()));
+        model.setIdTipo(UUID.fromString(producto.getTipoId().getValue()));
         model.setIdCategoria(UUID.fromString(producto.getCategoriaId().getValue()));
         model.setIdProductoPadre(producto.getProductoPadreId() != null ? UUID.fromString(producto.getProductoPadreId().getValue()) : null);
         model.setBorrado(producto.isBorrado());
@@ -36,6 +38,7 @@ public class ProductoJpaMapper {
         model.setStockMinimo(producto.getStockMinimo());
         model.setVendible(producto.isVendible());
         model.setUnidadActual(UUID.fromString(producto.getUnidadActualId().getValue()));
+        model.setIdTipo(UUID.fromString(producto.getTipoId().getValue()));
         model.setIdCategoria(UUID.fromString(producto.getCategoriaId().getValue()));
         model.setIdProductoPadre(producto.getProductoPadreId() != null ? UUID.fromString(producto.getProductoPadreId().getValue()) : null);
         model.setBorrado(producto.isBorrado());
@@ -51,6 +54,7 @@ public class ProductoJpaMapper {
                 model.getStockMinimo(),
                 model.getVendible(),
                 new UnidadId(model.getUnidadActual().toString()),
+                new TipoId(model.getIdTipo().toString()),
                 new CategoriaId(model.getIdCategoria().toString()),
                 model.getIdProductoPadre() != null ? new ProductoId(model.getIdProductoPadre().toString()) : null,
                 model.getBorrado() != null && model.getBorrado());

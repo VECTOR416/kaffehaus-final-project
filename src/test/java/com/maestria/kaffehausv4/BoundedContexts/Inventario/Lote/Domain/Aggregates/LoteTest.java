@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -44,9 +45,11 @@ class LoteTest {
                 false,
                 List.of(
                         DetalleLote.restaurar(ID_DETALLE_CAFE, PRODUCTO_CAFE,
-                                new BigDecimal("10.00"), new BigDecimal("10.00"), new BigDecimal("12.00"), false, false),
+                                new BigDecimal("10.00"), new BigDecimal("10.00"), new BigDecimal("12.00"), false,
+                                LocalDate.of(2027, 1, 31), false),
                         DetalleLote.restaurar(ID_DETALLE_AZUCAR, PRODUCTO_AZUCAR,
-                                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("5.00"), true, false)));
+                                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("5.00"), true,
+                                null, false)));
     }
 
     @Test
@@ -61,8 +64,8 @@ class LoteTest {
     void agregarDetalleAcumulaElCostoDeLaCompra() {
         Lote lote = loteVacio();
 
-        lote.agregarDetalle(PRODUCTO_CAFE, new BigDecimal("10"), new BigDecimal("12.00"), false);
-        lote.agregarDetalle(PRODUCTO_AZUCAR, new BigDecimal("8"), new BigDecimal("5.00"), true);
+        lote.agregarDetalle(PRODUCTO_CAFE, new BigDecimal("10"), new BigDecimal("12.00"), false, LocalDate.of(2027, 1, 31));
+        lote.agregarDetalle(PRODUCTO_AZUCAR, new BigDecimal("8"), new BigDecimal("5.00"), true, null);
 
         assertEquals(2, lote.getDetallesActivos().size());
         assertEquals(new BigDecimal("160.00"), lote.getTotal());
@@ -72,7 +75,7 @@ class LoteTest {
     void laCantidadRestanteNaceIgualALaCantidadComprada() {
         Lote lote = loteVacio();
 
-        lote.agregarDetalle(PRODUCTO_CAFE, new BigDecimal("10"), new BigDecimal("12.00"), false);
+        lote.agregarDetalle(PRODUCTO_CAFE, new BigDecimal("10"), new BigDecimal("12.00"), false, LocalDate.of(2027, 1, 31));
 
         DetalleLote detalle = lote.getDetallesActivos().get(0);
         assertEquals(detalle.getCantidadInicial(), detalle.getCantidadRestante());
@@ -115,7 +118,7 @@ class LoteTest {
         lote.ajustarCantidadRestante(ID_DETALLE_CAFE, new BigDecimal("7"));
 
         DomainException error = assertThrows(DomainException.class,
-                () -> lote.actualizarDetalle(ID_DETALLE_CAFE, new BigDecimal("5"), null, null));
+                () -> lote.actualizarDetalle(ID_DETALLE_CAFE, new BigDecimal("5"), null, null, null));
 
         assertEquals(400, error.getCodigo());
         assertEquals(new BigDecimal("10.00"), lote.getDetallesActivos().get(0).getCantidadInicial());
@@ -126,7 +129,7 @@ class LoteTest {
         Lote lote = loteVacio();
 
         DomainException error = assertThrows(DomainException.class,
-                () -> lote.agregarDetalle(PRODUCTO_CAFE, BigDecimal.ZERO, new BigDecimal("12.00"), false));
+                () -> lote.agregarDetalle(PRODUCTO_CAFE, BigDecimal.ZERO, new BigDecimal("12.00"), false, null));
 
         assertEquals(400, error.getCodigo());
         assertTrue(lote.getDetalles().isEmpty());
@@ -138,7 +141,7 @@ class LoteTest {
         Lote lote = loteVacio();
 
         DomainException error = assertThrows(DomainException.class,
-                () -> lote.agregarDetalle(PRODUCTO_CAFE, new BigDecimal("10"), new BigDecimal("-1.00"), false));
+                () -> lote.agregarDetalle(PRODUCTO_CAFE, new BigDecimal("10"), new BigDecimal("-1.00"), false, null));
 
         assertEquals(400, error.getCodigo());
     }
@@ -202,7 +205,7 @@ class LoteTest {
     void actualizarDetalleRecalculaElCostoDelLote() {
         Lote lote = lotePersistido();
 
-        lote.actualizarDetalle(ID_DETALLE_AZUCAR, null, new BigDecimal("6.00"), null);
+        lote.actualizarDetalle(ID_DETALLE_AZUCAR, null, new BigDecimal("6.00"), null, null);
 
         assertEquals(new BigDecimal("168.00"), lote.getTotal());
         assertFalse(lote.getDetallesActivos().get(1).isBorrado());

@@ -21,6 +21,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Infrastructure.Persistence.Jpa.CategoriaJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Infrastructure.Persistence.Jpa.CategoriaJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Dtos.ActualizarRecetaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Dtos.CrearRecetaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Dtos.PasoRecetaResponse;
@@ -53,12 +55,14 @@ class CrearRecetaUseCaseIntegracionTest {
     @Autowired private IngredienteRecetaJpaRepository ingredienteRecetaJpaRepository;
     @Autowired private PasoRecetaJpaRepository pasoRecetaJpaRepository;
     @Autowired private ProductoJpaRepository productoJpaRepository;
+    @Autowired private TipoJpaRepository tipoJpaRepository;
     @Autowired private CategoriaJpaRepository categoriaJpaRepository;
     @Autowired private UnidadJpaRepository unidadJpaRepository;
 
     private static final String PRODUCTO_INEXISTENTE = "00000000-0000-0000-0000-0000000000ff";
 
     private UUID idUnidad;
+    private UUID idTipo;
     private UUID idCategoria;
     private UUID idProductoPan;
     private UUID idHarina;
@@ -78,10 +82,19 @@ class CrearRecetaUseCaseIntegracionTest {
         unidad.setBorrado(false);
         unidadJpaRepository.save(unidad);
 
+        idTipo = UUID.randomUUID();
+        TipoJpaModel tipo = new TipoJpaModel();
+        tipo.setId(idTipo);
+        tipo.setNombre("tipo-test");
+        tipo.setFecC(OffsetDateTime.now());
+        tipo.setBorrado(false);
+        tipoJpaRepository.save(tipo);
+
         idCategoria = UUID.randomUUID();
         CategoriaJpaModel categoria = new CategoriaJpaModel();
         categoria.setId(idCategoria);
         categoria.setNombre("categoria-test");
+        categoria.setEsBorrable(true);
         categoria.setFecC(OffsetDateTime.now());
         categoria.setBorrado(false);
         categoriaJpaRepository.save(categoria);
@@ -101,6 +114,7 @@ class CrearRecetaUseCaseIntegracionTest {
         producto.setStockMinimo(new BigDecimal("1.00"));
         producto.setVendible(true);
         producto.setUnidadActual(idUnidad);
+        producto.setIdTipo(idTipo);
         producto.setIdCategoria(idCategoria);
         producto.setFecC(OffsetDateTime.now());
         producto.setBorrado(false);
@@ -125,6 +139,7 @@ class CrearRecetaUseCaseIntegracionTest {
         productoJpaRepository.deleteById(idProductoPan);
         productoJpaRepository.deleteById(idHarina);
         productoJpaRepository.deleteById(idAgua);
+        tipoJpaRepository.deleteById(idTipo);
         categoriaJpaRepository.deleteById(idCategoria);
         unidadJpaRepository.deleteById(idUnidad);
     }

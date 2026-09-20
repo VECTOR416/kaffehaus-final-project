@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregat
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -103,9 +104,10 @@ public class Lote {
         ProductoId productoId,
         BigDecimal cantidadInicial,
         BigDecimal precioUnitario,
-        Boolean fraccionable
+        Boolean fraccionable,
+        LocalDate fechaVencimiento
     ){
-        this.detalles.add(DetalleLote.crear(productoId, cantidadInicial, precioUnitario, fraccionable));
+        this.detalles.add(DetalleLote.crear(productoId, cantidadInicial, precioUnitario, fraccionable, fechaVencimiento));
         recalcularTotal();
     }
 
@@ -114,9 +116,10 @@ public class Lote {
         String detalleLoteId,
         BigDecimal cantidadInicial,
         BigDecimal precioUnitario,
-        Boolean fraccionable
+        Boolean fraccionable,
+        LocalDate fechaVencimiento
     ){
-        detalleVivo(detalleLoteId).actualizarDatosDeCompra(cantidadInicial, precioUnitario, fraccionable);
+        detalleVivo(detalleLoteId).actualizarDatosDeCompra(cantidadInicial, precioUnitario, fraccionable, fechaVencimiento);
         recalcularTotal();
     }
 

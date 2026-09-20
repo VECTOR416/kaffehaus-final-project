@@ -88,11 +88,11 @@ es un modulo autocontenido con sus cuatro capas dentro.
 BoundedContexts / <Contexto> / <Agregado> / {Domain, Application, Infrastructure, Presentation}
 ```
 
-Contextos existentes (4) y agregados (23):
+Contextos existentes (4) y agregados (24):
 
 | Bounded Context | Agregados |
 |---|---|
-| `Inventario` (11) | Categoria, Conversion, EstadoExistencia, Existencia, Lote (contiene DetalleLote), Movimiento, Produccion, Producto, Receta (contiene IngredienteReceta y PasoReceta), TipoMovimiento, Unidad |
+| `Inventario` (12) | Categoria, Conversion, EstadoExistencia, Existencia, Lote (contiene DetalleLote), Movimiento, Produccion, Producto, Receta (contiene IngredienteReceta y PasoReceta), Tipo, TipoMovimiento, Unidad |
 | `Ventas` (4) | Descuento, EstadoVenta, TipoDescuento, Venta (contiene DetalleVenta) |
 | `Personal` (6) | Cliente, Entidad, Persona, Proveedor, Rol, Usuario |
 | `Pedidos` (2) | EstadoPedido, Pedido |
@@ -184,8 +184,9 @@ kaffehausv4/
 
 ### 3.1 Anatomia de un agregado (plantilla obligatoria)
 
-Estructura canonica, tomada de `Inventario/Categoria` (slice de referencia; usalo como molde
-literal al crear un agregado nuevo):
+Estructura canonica, tomada de `Inventario/Tipo` (slice de referencia; usalo como molde
+literal al crear un agregado nuevo). `Inventario/Categoria` es el mismo molde mas un campo
+`esBorrable`, igual que `Unidad` y `Conversion`:
 
 ```
 <Agregado>/
@@ -296,22 +297,22 @@ y rechaza la lista vacia.
 ### 4.1 Recorrido de una peticion de escritura
 
 ```
-POST /api/v1/categoria  { "nombre": "Bebidas" }
+POST /api/v1/tipo  { "nombre": "Bebidas" }
   │
-  ▼ CategoriaControllerV1.crear(@RequestBody Map<String,Object> body)
+  ▼ TipoControllerV1.crear(@RequestBody Map<String,Object> body)
   │    El controller NO deserializa a una clase tipada: recibe un Map crudo
-  ▼ CrearCategoriaRequest.createFromRequest(body)
+  ▼ CrearTipoRequest.createFromRequest(body)
   │    Validador.textoRequerido(...) → lanza DomainException(400) si falla
-  ▼ CrearCategoriaUseCase.execute(request)            @Service @Transactional
-  │    Categoria.crear(nombre)                        → agregado sin id, borrado=false
-  ▼ ICategoriaRepository.crear(categoria)
-  ▼ CategoriaRepositoryImpl                           → delegacion pura
-  ▼ ICategoriaDatasource.crear(categoria)
-  ▼ CategoriaDatasourceImpl
-  │    CategoriaJpaMapper.toPersistence(...)          → genera UUID.randomUUID(), fija fecC
-  │    categoriaJpaRepository.save(model)
-  │    CategoriaJpaMapper.toDomain(model)             → vuelve al agregado
-  ▼ CategoriaResponse.createFromAggregate(creada)
+  ▼ CrearTipoUseCase.execute(request)            @Service @Transactional
+  │    Tipo.crear(nombre)                        → agregado sin id, borrado=false
+  ▼ ITipoRepository.crear(tipo)
+  ▼ TipoRepositoryImpl                           → delegacion pura
+  ▼ ITipoDatasource.crear(tipo)
+  ▼ TipoDatasourceImpl
+  │    TipoJpaMapper.toPersistence(...)          → genera UUID.randomUUID(), fija fecC
+  │    tipoJpaRepository.save(model)
+  │    TipoJpaMapper.toDomain(model)             → vuelve al agregado
+  ▼ TipoResponse.createFromAggregate(creada)
   ▼ ResponseEntity.status(201).body(response)
 ```
 
@@ -321,16 +322,16 @@ devuelve el `ErrorResponse` con el `codigo` como status HTTP.
 ### 4.2 Recorrido de un listado paginado
 
 ```
-GET /api/v1/categoria?skip=0&limit=10&search=cafe
+GET /api/v1/tipo?skip=0&limit=10&search=cafe
   ▼ Controller: @RequestParam(required=false) skip/limit/search → se meten en un HashMap
-  ▼ ObtenerCategoriasRequest.createFromRequest(params)   → extends PaginationDTO (defaults)
-  ▼ ObtenerCategoriasUseCase.execute(...)                @Transactional(readOnly = true)
+  ▼ ObtenerTiposRequest.createFromRequest(params)   → extends PaginationDTO (defaults)
+  ▼ ObtenerTiposUseCase.execute(...)                @Transactional(readOnly = true)
   ▼ Repository → Datasource
   │    Pageable pageable = new OffsetPageRequest(skip, limit)
   │    search vacio  → findByBorradoFalse(pageable)
   │    search lleno  → findByBorradoFalseAnd<Campo>ContainingIgnoreCase(search.trim(), pageable)
   │    hasMore = skip + datos.size() < pagina.getTotalElements()
-  ▼ PaginatedResponse<List<Categoria>>  →  el UseCase remapea a PaginatedResponse<List<...Response>>
+  ▼ PaginatedResponse<List<Tipo>>  →  el UseCase remapea a PaginatedResponse<List<...Response>>
 ```
 
 El **UseCase reconstruye siempre un `PaginatedResponse` nuevo** copiando `skip/limit/total/hasMore`
@@ -412,8 +413,8 @@ se retiro al subordinar las lineas a su raiz.
 | `GET api/v1/lote` | `skip`/`limit`/`search` | Pagina de lotes con sus lineas, resueltas en una sola consulta por pagina |
 | `DELETE api/v1/lote/{id}` | — | Baja logica del encabezado y de todas sus lineas |
 
-En el alta cada elemento de `detalles` admite `idProducto`, `cantidadInicial`, `precioUnitario`
-y `fraccionable` (opcional). **No admite `cantidadRestante`** (nace igual a `cantidadInicial`)
+En el alta cada elemento de `detalles` admite `idProducto`, `cantidadInicial`, `precioUnitario`,
+`fraccionable` (opcional) y `fechaVencimiento` (opcional, la caducidad de esa compra). **No admite `cantidadRestante`** (nace igual a `cantidadInicial`)
 ni el lote admite `total`: ambos son derivados. En el `PUT`, `cantidadRestante` si se admite,
 como ajuste explicito de inventario, y cambiar el `idProducto` de una linea existente se
 rechaza con 400.
@@ -470,7 +471,7 @@ No introducir ninguno sin actualizar este documento.
 (el modificador no se pluraliza: "TiposDescuento", no "TipoDescuentos").
 
 **Los cinco casos de uso son siempre**: `Crear`, `Actualizar`, `Obtener<Agregado>PorId`,
-`Obtener<Agregados>`, `Eliminar` (22 agregados x 5 = 110 casos de uso; `Persona` no expone
+`Obtener<Agregados>`, `Eliminar` (23 agregados x 5 = 115 casos de uso; `Persona` no expone
 ninguno). Los cinco metodos del controller son siempre:
 `crear`, `obtenerPorId`, `obtenerTodos`, `actualizar`, `eliminar`.
 
@@ -479,19 +480,19 @@ ninguno). Los cinco metodos del controller son siempre:
 Contrato fijo:
 
 ```java
-public class Categoria {
-    private CategoriaId id;
+public class Tipo {
+    private TipoId id;
     private String nombre;
     private boolean borrado;
 
-    private Categoria(...) { ... }                       // constructor SIEMPRE privado
+    private Tipo(...) { ... }                            // constructor SIEMPRE privado
 
-    public static Categoria restaurar(String id, ...)    // desde persistencia (con id)
-    public static Categoria crear(...)                   // nuevo (id = null, borrado = false)
+    public static Tipo restaurar(String id, ...)         // desde persistencia (con id)
+    public static Tipo crear(...)                        // nuevo (id = null, borrado = false)
     public void actualizar(...)                          // patch parcial: null = no cambia
     public void eliminar()                               // solo si el agregado es soft-delete
 
-    public CategoriaId getId() {return id;}              // getters en una linea, sin setters
+    public TipoId getId() {return id;}                   // getters en una linea, sin setters
 }
 ```
 
@@ -787,7 +788,7 @@ publico justo para esto.
 ### 6.4 Procedimiento para anadir un agregado nuevo
 
 1. Confirmar que la tabla existe en `databasev4.sql` y anotar si tiene columna `borrado`.
-2. Copiar literalmente la estructura de `Inventario/Categoria` (19 archivos) y renombrar.
+2. Copiar literalmente la estructura de `Inventario/Tipo` (19 archivos) y renombrar.
 3. Ajustar campos en: agregado, `JpaModel`, `JpaMapper`, DTOs y llamadas a `Validador`.
 4. Declarar en el `JpaRepository` los derivados necesarios: `findByIdAndBorradoFalse`,
    `findByBorradoFalse`, y el `findByBorradoFalseAnd<CampoTexto>ContainingIgnoreCase` para

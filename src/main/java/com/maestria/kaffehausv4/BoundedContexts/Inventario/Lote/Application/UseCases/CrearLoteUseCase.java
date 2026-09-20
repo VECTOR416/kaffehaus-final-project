@@ -80,7 +80,8 @@ public class CrearLoteUseCase {
                     productoId,
                     detalle.getCantidadInicial(),
                     detalle.getPrecioUnitario(),
-                    detalle.getFraccionable());
+                    detalle.getFraccionable(),
+                    detalle.getFechaVencimiento());
         }
     }
 }

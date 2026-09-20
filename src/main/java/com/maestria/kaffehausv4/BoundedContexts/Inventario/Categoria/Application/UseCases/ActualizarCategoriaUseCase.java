@@ -27,7 +27,8 @@ public class ActualizarCategoriaUseCase {
                 .orElseThrow(() -> DomainException.throwException(404, "La categoria con id '" + categoriaId + "' no existe"));
 
         categoria.actualizar(
-                actualizarCategoriaRequest.getNombre());
+                actualizarCategoriaRequest.getNombre(),
+                actualizarCategoriaRequest.getEsBorrable());
 
         Categoria categoriaActualizada = categoriaRepository.actualizar(id, categoria);
 

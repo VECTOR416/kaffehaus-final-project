@@ -13,6 +13,7 @@ public class CategoriaJpaMapper {
         CategoriaJpaModel model = new CategoriaJpaModel();
         model.setId(categoria.getId() != null ? UUID.fromString(categoria.getId().getValue()) : UUID.randomUUID());
         model.setNombre(categoria.getNombre());
+        model.setEsBorrable(categoria.isEsBorrable());
         model.setBorrado(categoria.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
@@ -21,6 +22,7 @@ public class CategoriaJpaMapper {
 
     public static void copiarCambios(Categoria categoria, CategoriaJpaModel model) {
         model.setNombre(categoria.getNombre());
+        model.setEsBorrable(categoria.isEsBorrable());
         model.setBorrado(categoria.isBorrado());
         model.setFecU(OffsetDateTime.now());
     }
@@ -29,6 +31,7 @@ public class CategoriaJpaMapper {
         return Categoria.restaurar(
                 model.getId().toString(),
                 model.getNombre(),
+                model.getEsBorrable() != null && model.getEsBorrable(),
                 model.getBorrado() != null && model.getBorrado());
     }
 }

@@ -126,7 +126,8 @@ public class ActualizarLoteUseCase {
                 productoId,
                 detalle.getCantidadInicial(),
                 detalle.getPrecioUnitario(),
-                detalle.getFraccionable());
+                detalle.getFraccionable(),
+                detalle.getFechaVencimiento());
     }
 
     private void corregirDetalleExistente(Lote lote, ActualizarDetalleLoteRequest detalle) {
@@ -141,7 +142,8 @@ public class ActualizarLoteUseCase {
                 detalle.getId(),
                 detalle.getCantidadInicial(),
                 detalle.getPrecioUnitario(),
-                detalle.getFraccionable());
+                detalle.getFraccionable(),
+                detalle.getFechaVencimiento());
 
         if (detalle.getCantidadRestante() != null) {
             lote.ajustarCantidadRestante(detalle.getId(), detalle.getCantidadRestante());

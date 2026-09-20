@@ -24,6 +24,7 @@ public class DetalleLoteJpaMapper {
         model.setCantidadRestante(detalleLote.getCantidadRestante());
         model.setPrecioUnitario(detalleLote.getPrecioUnitario());
         model.setFraccionable(detalleLote.isFraccionable());
+        model.setFechaVencimiento(detalleLote.getFechaVencimiento());
         model.setIdLote(idLote);
         model.setIdProducto(UUID.fromString(detalleLote.getProductoId().getValue()));
         model.setBorrado(detalleLote.isBorrado());
@@ -37,6 +38,7 @@ public class DetalleLoteJpaMapper {
         model.setCantidadRestante(detalleLote.getCantidadRestante());
         model.setPrecioUnitario(detalleLote.getPrecioUnitario());
         model.setFraccionable(detalleLote.isFraccionable());
+        model.setFechaVencimiento(detalleLote.getFechaVencimiento());
         model.setBorrado(detalleLote.isBorrado());
         model.setFecU(OffsetDateTime.now());
     }
@@ -49,6 +51,7 @@ public class DetalleLoteJpaMapper {
                 model.getCantidadRestante(),
                 model.getPrecioUnitario(),
                 model.getFraccionable() != null && model.getFraccionable(),
+                model.getFechaVencimiento(),
                 model.getBorrado() != null && model.getBorrado());
     }
 }

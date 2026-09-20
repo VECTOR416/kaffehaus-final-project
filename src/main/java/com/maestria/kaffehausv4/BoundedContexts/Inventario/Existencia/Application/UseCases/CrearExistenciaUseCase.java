@@ -15,6 +15,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.Agg
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.Repositories.IUnidadRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates.Unidad;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 @Service
@@ -24,16 +26,19 @@ public class CrearExistenciaUseCase {
     private final ILoteRepository loteRepository;
     private final IEstadoExistenciaRepository estadoExistenciaRepository;
     private final IUnidadRepository unidadRepository;
+    private final IUsuarioRepository usuarioRepository;
 
     public CrearExistenciaUseCase(
             IExistenciaRepository existenciaRepository,
             ILoteRepository loteRepository,
             IEstadoExistenciaRepository estadoExistenciaRepository,
-            IUnidadRepository unidadRepository) {
+            IUnidadRepository unidadRepository,
+            IUsuarioRepository usuarioRepository) {
         this.existenciaRepository = existenciaRepository;
         this.loteRepository = loteRepository;
         this.estadoExistenciaRepository = estadoExistenciaRepository;
         this.unidadRepository = unidadRepository;
+        this.usuarioRepository = usuarioRepository;
     }
 
     public ExistenciaResponse execute(CrearExistenciaRequest crearExistenciaRequest) {
@@ -47,14 +52,23 @@ public class CrearExistenciaUseCase {
         Unidad unidad = unidadRepository.obtenerPorId(unidadId)
                 .orElseThrow(() -> DomainException.throwException(404, "La unidad con id '" + crearExistenciaRequest.getIdUnidad() + "' no existe"));
 
+        UsuarioId usuarioId = null;
+        if (crearExistenciaRequest.getIdUsuario() != null) {
+            usuarioId = new UsuarioId(crearExistenciaRequest.getIdUsuario());
+            usuarioRepository.obtenerPorId(usuarioId)
+                    .orElseThrow(() -> DomainException.throwException(404, "El usuario con id '" + crearExistenciaRequest.getIdUsuario() + "' no existe"));
+        }
+
         Existencia existencia = Existencia.crear(
                 crearExistenciaRequest.getContenidoInicial(),
                 crearExistenciaRequest.getContenidoActual(),
                 crearExistenciaRequest.getFechaAcabado(),
                 crearExistenciaRequest.getFechaVencimiento(),
+                crearExistenciaRequest.getFechaApertura(),
                 detalleLoteId,
                 estadoExistenciaId,
-                unidadId);
+                unidadId,
+                usuarioId);
 
         Existencia existenciaCreada = existenciaRepository.crear(existencia);
 

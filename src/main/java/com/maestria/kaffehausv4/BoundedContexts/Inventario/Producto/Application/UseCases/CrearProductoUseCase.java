@@ -3,6 +3,9 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Application.Repositories.ITipoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.Aggregates.Tipo;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Application.Repositories.ICategoriaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.Aggregates.Categoria;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
@@ -21,14 +24,17 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 public class CrearProductoUseCase {
     private final IProductoRepository productoRepository;
     private final IUnidadRepository unidadRepository;
+    private final ITipoRepository tipoRepository;
     private final ICategoriaRepository categoriaRepository;
 
     public CrearProductoUseCase(
             IProductoRepository productoRepository,
             IUnidadRepository unidadRepository,
+            ITipoRepository tipoRepository,
             ICategoriaRepository categoriaRepository) {
         this.productoRepository = productoRepository;
         this.unidadRepository = unidadRepository;
+        this.tipoRepository = tipoRepository;
         this.categoriaRepository = categoriaRepository;
     }
 
@@ -36,6 +42,9 @@ public class CrearProductoUseCase {
         UnidadId unidadActualId = new UnidadId(crearProductoRequest.getIdUnidadActual());
         Unidad unidadActual = unidadRepository.obtenerPorId(unidadActualId)
                 .orElseThrow(() -> DomainException.throwException(404, "La unidad con id '" + crearProductoRequest.getIdUnidadActual() + "' no existe"));
+        TipoId tipoId = new TipoId(crearProductoRequest.getIdTipo());
+        Tipo tipo = tipoRepository.obtenerPorId(tipoId)
+                .orElseThrow(() -> DomainException.throwException(404, "El tipo con id '" + crearProductoRequest.getIdTipo() + "' no existe"));
         CategoriaId categoriaId = new CategoriaId(crearProductoRequest.getIdCategoria());
         Categoria categoria = categoriaRepository.obtenerPorId(categoriaId)
                 .orElseThrow(() -> DomainException.throwException(404, "La categoria con id '" + crearProductoRequest.getIdCategoria() + "' no existe"));
@@ -53,11 +62,12 @@ public class CrearProductoUseCase {
                 crearProductoRequest.getStockMinimo(),
                 crearProductoRequest.isVendible(),
                 unidadActualId,
+                tipoId,
                 categoriaId,
                 productoPadreId);
 
         Producto productoCreado = productoRepository.crear(producto);
 
-        return ProductoResponse.createFromAggregate(productoCreado, unidadActual, categoria);
+        return ProductoResponse.createFromAggregate(productoCreado, unidadActual, tipo, categoria);
     }
 }

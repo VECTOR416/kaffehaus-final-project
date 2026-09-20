@@ -35,6 +35,9 @@ public class ProductoJpaModel {
     @Column(name = "unidad_actual", nullable = false)
     private UUID unidadActual;
 
+    @Column(name = "id_tipo", nullable = false)
+    private UUID idTipo;
+
     @Column(name = "id_categoria", nullable = false)
     private UUID idCategoria;
 
@@ -66,6 +69,8 @@ public class ProductoJpaModel {
     public void setVendible(Boolean vendible) {this.vendible = vendible;}
     public UUID getUnidadActual() {return unidadActual;}
     public void setUnidadActual(UUID unidadActual) {this.unidadActual = unidadActual;}
+    public UUID getIdTipo() {return idTipo;}
+    public void setIdTipo(UUID idTipo) {this.idTipo = idTipo;}
     public UUID getIdCategoria() {return idCategoria;}
     public void setIdCategoria(UUID idCategoria) {this.idCategoria = idCategoria;}
     public UUID getIdProductoPadre() {return idProductoPadre;}

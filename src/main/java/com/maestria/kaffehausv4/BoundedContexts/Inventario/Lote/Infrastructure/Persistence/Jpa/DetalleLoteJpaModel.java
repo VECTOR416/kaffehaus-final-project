@@ -1,6 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -29,6 +30,9 @@ public class DetalleLoteJpaModel {
     @Column(name = "fraccionable", nullable = false)
     private Boolean fraccionable;
 
+    @Column(name = "fecha_vencimiento")
+    private LocalDate fechaVencimiento;
+
     @Column(name = "id_lote", nullable = false)
     private UUID idLote;
 
@@ -56,6 +60,8 @@ public class DetalleLoteJpaModel {
     public void setPrecioUnitario(BigDecimal precioUnitario) {this.precioUnitario = precioUnitario;}
     public Boolean getFraccionable() {return fraccionable;}
     public void setFraccionable(Boolean fraccionable) {this.fraccionable = fraccionable;}
+    public LocalDate getFechaVencimiento() {return fechaVencimiento;}
+    public void setFechaVencimiento(LocalDate fechaVencimiento) {this.fechaVencimiento = fechaVencimiento;}
     public UUID getIdLote() {return idLote;}
     public void setIdLote(UUID idLote) {this.idLote = idLote;}
     public UUID getIdProducto() {return idProducto;}

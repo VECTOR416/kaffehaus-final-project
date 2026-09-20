@@ -31,6 +31,9 @@ public class ExistenciaJpaModel {
     @Column(name = "fecha_vencimiento")
     private LocalDate fechaVencimiento;
 
+    @Column(name = "fecha_apertura")
+    private LocalDateTime fechaApertura;
+
     @Column(name = "id_detalle_lote", nullable = false)
     private UUID idDetalleLote;
 
@@ -39,6 +42,9 @@ public class ExistenciaJpaModel {
 
     @Column(name = "unidad", nullable = false)
     private UUID unidad;
+
+    @Column(name = "id_usuario")
+    private UUID idUsuario;
 
     @Column(name = "fec_c", nullable = false)
     private OffsetDateTime fecC;
@@ -61,12 +67,16 @@ public class ExistenciaJpaModel {
     public void setFechaAcabado(LocalDateTime fechaAcabado) {this.fechaAcabado = fechaAcabado;}
     public LocalDate getFechaVencimiento() {return fechaVencimiento;}
     public void setFechaVencimiento(LocalDate fechaVencimiento) {this.fechaVencimiento = fechaVencimiento;}
+    public LocalDateTime getFechaApertura() {return fechaApertura;}
+    public void setFechaApertura(LocalDateTime fechaApertura) {this.fechaApertura = fechaApertura;}
     public UUID getIdDetalleLote() {return idDetalleLote;}
     public void setIdDetalleLote(UUID idDetalleLote) {this.idDetalleLote = idDetalleLote;}
     public UUID getIdEstadoExistencia() {return idEstadoExistencia;}
     public void setIdEstadoExistencia(UUID idEstadoExistencia) {this.idEstadoExistencia = idEstadoExistencia;}
     public UUID getUnidad() {return unidad;}
     public void setUnidad(UUID unidad) {this.unidad = unidad;}
+    public UUID getIdUsuario() {return idUsuario;}
+    public void setIdUsuario(UUID idUsuario) {this.idUsuario = idUsuario;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}

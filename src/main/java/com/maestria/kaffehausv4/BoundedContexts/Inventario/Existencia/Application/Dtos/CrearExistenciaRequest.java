@@ -12,26 +12,32 @@ public class CrearExistenciaRequest {
     private BigDecimal contenidoActual;
     private LocalDateTime fechaAcabado;
     private LocalDate fechaVencimiento;
+    private LocalDateTime fechaApertura;
     private String idDetalleLote;
     private String idEstadoExistencia;
     private String idUnidad;
+    private String idUsuario;
 
     private CrearExistenciaRequest(
         BigDecimal contenidoInicial,
         BigDecimal contenidoActual,
         LocalDateTime fechaAcabado,
         LocalDate fechaVencimiento,
+        LocalDateTime fechaApertura,
         String idDetalleLote,
         String idEstadoExistencia,
-        String idUnidad
+        String idUnidad,
+        String idUsuario
     ) {
         this.contenidoInicial = contenidoInicial;
         this.contenidoActual = contenidoActual;
         this.fechaAcabado = fechaAcabado;
         this.fechaVencimiento = fechaVencimiento;
+        this.fechaApertura = fechaApertura;
         this.idDetalleLote = idDetalleLote;
         this.idEstadoExistencia = idEstadoExistencia;
         this.idUnidad = idUnidad;
+        this.idUsuario = idUsuario;
     }
 
     public static CrearExistenciaRequest createFromRequest(Map<String, Object> request){
@@ -40,18 +46,22 @@ public class CrearExistenciaRequest {
         LocalDateTime fechaAcabado = Validador.fechaOpcional(request.get("fechaAcabado"), "fechaAcabado");
         LocalDateTime fechaVencimientoTmp = Validador.fechaOpcional(request.get("fechaVencimiento"), "fechaVencimiento");
         LocalDate fechaVencimiento = fechaVencimientoTmp != null ? fechaVencimientoTmp.toLocalDate() : null;
+        LocalDateTime fechaApertura = Validador.fechaOpcional(request.get("fechaApertura"), "fechaApertura");
         String idDetalleLote = Validador.textoRequerido(request.get("idDetalleLote"), "idDetalleLote");
         String idEstadoExistencia = Validador.textoRequerido(request.get("idEstadoExistencia"), "idEstadoExistencia");
         String idUnidad = Validador.textoRequerido(request.get("idUnidad"), "idUnidad");
+        String idUsuario = Validador.textoOpcional(request.get("idUsuario"), "idUsuario");
 
-        return new CrearExistenciaRequest(contenidoInicial, contenidoActual, fechaAcabado, fechaVencimiento, idDetalleLote, idEstadoExistencia, idUnidad);
+        return new CrearExistenciaRequest(contenidoInicial, contenidoActual, fechaAcabado, fechaVencimiento, fechaApertura, idDetalleLote, idEstadoExistencia, idUnidad, idUsuario);
     }
 
     public BigDecimal getContenidoInicial() {return contenidoInicial;}
     public BigDecimal getContenidoActual() {return contenidoActual;}
     public LocalDateTime getFechaAcabado() {return fechaAcabado;}
     public LocalDate getFechaVencimiento() {return fechaVencimiento;}
+    public LocalDateTime getFechaApertura() {return fechaApertura;}
     public String getIdDetalleLote() {return idDetalleLote;}
     public String getIdEstadoExistencia() {return idEstadoExistencia;}
     public String getIdUnidad() {return idUnidad;}
+    public String getIdUsuario() {return idUsuario;}
 }

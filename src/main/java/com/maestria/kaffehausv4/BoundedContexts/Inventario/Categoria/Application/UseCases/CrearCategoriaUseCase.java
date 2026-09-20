@@ -20,7 +20,8 @@ public class CrearCategoriaUseCase {
 
     public CategoriaResponse execute(CrearCategoriaRequest crearCategoriaRequest) {
         Categoria categoria = Categoria.crear(
-                crearCategoriaRequest.getNombre());
+                crearCategoriaRequest.getNombre(),
+                crearCategoriaRequest.isEsBorrable());
 
         Categoria categoriaCreada = categoriaRepository.crear(categoria);
 
