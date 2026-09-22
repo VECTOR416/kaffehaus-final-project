@@ -16,8 +16,6 @@ spring:
 server:
   port: ${SERVER_PORT:8081}
 
-# Modulo de seguridad. Los secretos NO deben quedarse en estos valores por defecto fuera de
-# desarrollo: en cualquier despliegue real llegan por variable de entorno.
 seguridad:
   jwt:
     secreto-acceso: ${JWT_SECRET:desarrollo-kaffehaus-secreto-de-acceso-cambiar-en-produccion}

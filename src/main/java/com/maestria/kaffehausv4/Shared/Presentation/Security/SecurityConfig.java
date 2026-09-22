@@ -71,35 +71,22 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // 401 en JSON en vez de la redireccion a un formulario que aqui no existe.
                 .exceptionHandling(errores -> errores.authenticationEntryPoint(
                         (peticion, respuesta, excepcion) -> escritorDeErrorHttp.escribir(respuesta,
                                 new AutorizacionException(401,
                                         "Falta la cabecera Authorization con un token Bearer valido"))))
-                .authorizeHttpRequests(rutas -> rutas
-                        .requestMatchers(RUTA_DE_AUTENTICACION + "/**").permitAll()
-                        .anyRequest().authenticated())
+                // .authorizeHttpRequests(rutas -> rutas
+                //         .requestMatchers(RUTA_DE_AUTENTICACION + "/**").permitAll()
+                //         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
-    /** Registra el guardia de @RequiereRol. Sobre un endpoint sin anotar no hace nada. */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(guardiaDeRoles).addPathPatterns("/**");
     }
 
-    /**
-     * CORS de la API.
-     *
-     * Se declara dentro de la cadena de seguridad, y no como WebMvcConfigurer, porque los
-     * filtros corren antes que Spring MVC: si el preflight OPTIONS no se resuelve aqui, el
-     * navegador recibe un 401 antes de que MVC llegue a opinar.
-     *
-     * allowCredentials sigue en false y por eso el comodin de origen es aceptable: la
-     * autenticacion viaja en la cabecera Authorization, no en cookies. Si algun dia se pasa a
-     * cookies, hay que enumerar los dominios del frontend en allowedOriginPatterns.
-     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuracion = new CorsConfiguration();
