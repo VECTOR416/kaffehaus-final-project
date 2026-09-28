@@ -23,6 +23,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.P
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.LoteJpaMapper;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.LoteJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.LoteJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Shared.Infrastructure.Persistence.OffsetPageRequest;
@@ -115,6 +116,27 @@ public class LoteDatasourceImpl implements ILoteDatasource {
         return detalleLoteJpaRepository.findByIdAndBorradoFalse(aUuid(detalleLoteId.getValue()))
                 .map(DetalleLoteJpaModel::getIdLote)
                 .flatMap(idLote -> obtenerPorId(new LoteId(idLote.toString())));
+    }
+
+    @Override
+    public List<Lote> obtenerPorProducto(ProductoId productoId) {
+        List<UUID> idsLote = detalleLoteJpaRepository.findByIdProductoAndBorradoFalse(aUuid(productoId.getValue())).stream()
+                .map(DetalleLoteJpaModel::getIdLote)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (idsLote.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<LoteJpaModel> lotes = loteJpaRepository.findByIdInAndBorradoFalse(idsLote);
+        Map<UUID, List<DetalleLoteJpaModel>> detallesPorLote = detallesDe(lotes);
+
+        return lotes.stream()
+                .map(model -> LoteJpaMapper.toDomain(
+                        model,
+                        detallesPorLote.getOrDefault(model.getId(), Collections.emptyList())))
+                .collect(Collectors.toList());
     }
 
     @Override

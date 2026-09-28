@@ -46,4 +46,9 @@ public class EstadoExistenciaRepositoryImpl implements IEstadoExistenciaReposito
         this.estadoExistenciaDatasource.eliminar(estadoExistenciaId);
     }
 
+    @Override
+    public Optional<EstadoExistencia> obtenerPorNombre(String nombre) {
+        return this.estadoExistenciaDatasource.obtenerPorNombre(nombre);
+    }
+
 }

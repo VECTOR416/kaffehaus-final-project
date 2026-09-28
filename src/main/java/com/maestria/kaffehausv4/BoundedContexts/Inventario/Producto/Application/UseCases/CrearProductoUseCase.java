@@ -61,6 +61,7 @@ public class CrearProductoUseCase {
                 crearProductoRequest.getPrecio(),
                 crearProductoRequest.getStockMinimo(),
                 crearProductoRequest.isVendible(),
+                crearProductoRequest.isEsStockDirecto(),
                 unidadActualId,
                 tipoId,
                 categoriaId,

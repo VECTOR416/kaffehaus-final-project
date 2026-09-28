@@ -13,6 +13,7 @@ public class CrearMovimientoRequest {
     private String idExistencia;
     private String idTipoMovimiento;
     private String idUsuario;
+    private String idProduccion;
 
     private CrearMovimientoRequest(
         BigDecimal cantidad,
@@ -20,7 +21,8 @@ public class CrearMovimientoRequest {
         String motivo,
         String idExistencia,
         String idTipoMovimiento,
-        String idUsuario
+        String idUsuario,
+        String idProduccion
     ) {
         this.cantidad = cantidad;
         this.fechaMovimiento = fechaMovimiento;
@@ -28,6 +30,7 @@ public class CrearMovimientoRequest {
         this.idExistencia = idExistencia;
         this.idTipoMovimiento = idTipoMovimiento;
         this.idUsuario = idUsuario;
+        this.idProduccion = idProduccion;
     }
 
     public static CrearMovimientoRequest createFromRequest(Map<String, Object> request){
@@ -38,8 +41,9 @@ public class CrearMovimientoRequest {
         String idExistencia = Validador.textoRequerido(request.get("idExistencia"), "idExistencia");
         String idTipoMovimiento = Validador.textoRequerido(request.get("idTipoMovimiento"), "idTipoMovimiento");
         String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+        String idProduccion = Validador.textoOpcional(request.get("idProduccion"), "idProduccion");
 
-        return new CrearMovimientoRequest(cantidad, fechaMovimiento, motivo, idExistencia, idTipoMovimiento, idUsuario);
+        return new CrearMovimientoRequest(cantidad, fechaMovimiento, motivo, idExistencia, idTipoMovimiento, idUsuario, idProduccion);
     }
 
     public BigDecimal getCantidad() {return cantidad;}
@@ -48,4 +52,5 @@ public class CrearMovimientoRequest {
     public String getIdExistencia() {return idExistencia;}
     public String getIdTipoMovimiento() {return idTipoMovimiento;}
     public String getIdUsuario() {return idUsuario;}
+    public String getIdProduccion() {return idProduccion;}
 }

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,6 +20,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Infrastructure.Persistence.Jpa.CategoriaJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Infrastructure.Persistence.Jpa.EstadoExistenciaJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Infrastructure.Persistence.Jpa.EstadoExistenciaJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Infrastructure.Persistence.Jpa.ExistenciaJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Infrastructure.Persistence.Jpa.ExistenciaJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.DetalleLoteJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.DetalleLoteJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.LoteJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.LoteJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Infrastructure.Persistence.Jpa.MovimientoJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Infrastructure.Persistence.Jpa.CategoriaJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaRepository;
@@ -28,6 +38,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Infrastructure
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Infrastructure.Persistence.Jpa.UnidadJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Infrastructure.Persistence.Jpa.PersonaJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Infrastructure.Persistence.Jpa.PersonaJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Infrastructure.Persistence.Jpa.ProveedorJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Infrastructure.Persistence.Jpa.ProveedorJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Infrastructure.Persistence.Jpa.RolJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Infrastructure.Persistence.Jpa.RolJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.Persistence.Jpa.UsuarioJpaModel;
@@ -48,6 +60,10 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * transaccion, que es justo lo que se quiere observar. Envolver la prueba en una
  * transaccion externa haria que el rollback del caso de uso fuera indistinguible del
  * rollback de la prueba.
+ *
+ * Los productos de la prueba son de stock directo, asi que cada uno recibe una existencia
+ * abierta: la venta descuenta de ahi y registra el movimiento 'Venta'. El descuento de
+ * insumos de un producto bajo demanda (MTO) se prueba en FlujoInventarioIntegracionTest.
  */
 @SpringBootTest
 class CrearVentaUseCaseIntegracionTest {
@@ -67,6 +83,12 @@ class CrearVentaUseCaseIntegracionTest {
     @Autowired private PersonaJpaRepository personaJpaRepository;
     @Autowired private RolJpaRepository rolJpaRepository;
     @Autowired private EstadoVentaJpaRepository estadoVentaJpaRepository;
+    @Autowired private ProveedorJpaRepository proveedorJpaRepository;
+    @Autowired private LoteJpaRepository loteJpaRepository;
+    @Autowired private DetalleLoteJpaRepository detalleLoteJpaRepository;
+    @Autowired private EstadoExistenciaJpaRepository estadoExistenciaJpaRepository;
+    @Autowired private ExistenciaJpaRepository existenciaJpaRepository;
+    @Autowired private MovimientoJpaRepository movimientoJpaRepository;
 
     private static final String PRODUCTO_INEXISTENTE = "00000000-0000-0000-0000-0000000000ff";
 
@@ -79,6 +101,12 @@ class CrearVentaUseCaseIntegracionTest {
     private UUID idCategoria;
     private UUID idProductoCafe;
     private UUID idProductoTe;
+    private UUID idProveedor;
+    private UUID idLote;
+    private UUID idEstadoExistencia;
+    private UUID idExistenciaCafe;
+    private UUID idExistenciaTe;
+    private final List<UUID> detallesLote = new ArrayList<>();
 
     private final List<UUID> ventasCreadas = new ArrayList<>();
 
@@ -151,6 +179,72 @@ class CrearVentaUseCaseIntegracionTest {
 
         idProductoCafe = guardarProducto("cafe-test", new BigDecimal("12.50"));
         idProductoTe = guardarProducto("te-test", new BigDecimal("8.00"));
+
+        sembrarStock();
+    }
+
+    /** Un lote de compra con una existencia abierta de 10 unidades por producto. */
+    private void sembrarStock() {
+        idProveedor = UUID.randomUUID();
+        ProveedorJpaModel proveedor = new ProveedorJpaModel();
+        proveedor.setId(idProveedor);
+        proveedor.setIdPersona(idPersona);
+        proveedor.setFecC(OffsetDateTime.now());
+        proveedor.setBorrado(false);
+        proveedorJpaRepository.save(proveedor);
+
+        idLote = UUID.randomUUID();
+        LoteJpaModel lote = new LoteJpaModel();
+        lote.setId(idLote);
+        lote.setFechaCompra(LocalDateTime.now());
+        lote.setTotal(new BigDecimal("0.00"));
+        lote.setIdProveedor(idProveedor);
+        lote.setIdUsuario(idUsuario);
+        lote.setEsProduccion(false);
+        lote.setFecC(OffsetDateTime.now());
+        lote.setBorrado(false);
+        loteJpaRepository.save(lote);
+
+        idEstadoExistencia = UUID.randomUUID();
+        EstadoExistenciaJpaModel estado = new EstadoExistenciaJpaModel();
+        estado.setId(idEstadoExistencia);
+        estado.setNombre("ESTADO_EXISTENCIA_TEST_" + idEstadoExistencia);
+        estado.setFecC(OffsetDateTime.now());
+        estado.setBorrado(false);
+        estadoExistenciaJpaRepository.save(estado);
+
+        idExistenciaCafe = abrirExistencia(idProductoCafe);
+        idExistenciaTe = abrirExistencia(idProductoTe);
+    }
+
+    private UUID abrirExistencia(UUID idProducto) {
+        UUID idDetalle = UUID.randomUUID();
+        DetalleLoteJpaModel detalle = new DetalleLoteJpaModel();
+        detalle.setId(idDetalle);
+        detalle.setIdLote(idLote);
+        detalle.setIdProducto(idProducto);
+        detalle.setCantidadInicial(new BigDecimal("1.00"));
+        detalle.setCantidadRestante(new BigDecimal("0.00"));
+        detalle.setPrecioUnitario(new BigDecimal("50.00"));
+        detalle.setFraccionable(false);
+        detalle.setFecC(OffsetDateTime.now());
+        detalle.setBorrado(false);
+        detalleLoteJpaRepository.save(detalle);
+        detallesLote.add(idDetalle);
+
+        UUID idExistencia = UUID.randomUUID();
+        ExistenciaJpaModel existencia = new ExistenciaJpaModel();
+        existencia.setId(idExistencia);
+        existencia.setIdDetalleLote(idDetalle);
+        existencia.setContenidoInicial(new BigDecimal("10.0000"));
+        existencia.setContenidoActual(new BigDecimal("10.0000"));
+        existencia.setIdEstadoExistencia(idEstadoExistencia);
+        existencia.setUnidad(idUnidad);
+        existencia.setIdUsuario(idUsuario);
+        existencia.setFecC(OffsetDateTime.now());
+        existencia.setBorrado(false);
+        existenciaJpaRepository.save(existencia);
+        return idExistencia;
     }
 
     private UUID guardarProducto(String nombre, BigDecimal precio) {
@@ -162,6 +256,7 @@ class CrearVentaUseCaseIntegracionTest {
         producto.setPrecio(precio);
         producto.setStockMinimo(new BigDecimal("1.00"));
         producto.setVendible(true);
+        producto.setEsStockDirecto(true);
         producto.setUnidadActual(idUnidad);
         producto.setIdTipo(idTipo);
         producto.setIdCategoria(idCategoria);
@@ -181,6 +276,17 @@ class CrearVentaUseCaseIntegracionTest {
             ventaJpaRepository.deleteById(idVenta);
         }
         ventasCreadas.clear();
+
+        List<UUID> existencias = List.of(idExistenciaCafe, idExistenciaTe);
+        movimientoJpaRepository.deleteAll(movimientoJpaRepository.findAll().stream()
+                .filter(movimiento -> existencias.contains(movimiento.getIdExistencia()))
+                .toList());
+        existenciaJpaRepository.deleteAllById(existencias);
+        detalleLoteJpaRepository.deleteAllById(detallesLote);
+        detallesLote.clear();
+        loteJpaRepository.deleteById(idLote);
+        proveedorJpaRepository.deleteById(idProveedor);
+        estadoExistenciaJpaRepository.deleteById(idEstadoExistencia);
 
         productoJpaRepository.deleteById(idProductoCafe);
         productoJpaRepository.deleteById(idProductoTe);
@@ -224,6 +330,38 @@ class CrearVentaUseCaseIntegracionTest {
         assertEquals(2, releida.getDetalles().size());
         assertEquals(new BigDecimal("45.00"), releida.getTotal());
         assertEquals(2, detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(UUID.fromString(respuesta.getId())).size());
+    }
+
+    @Test
+    void laVentaDescuentaLasExistenciasDeLosProductosDeStockDirecto() {
+        VentaResponse respuesta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(List.of(
+                detalle(idProductoCafe, "12.50", "2", "0"),
+                detalle(idProductoTe, "8.00", "3", "0")))));
+
+        ventasCreadas.add(UUID.fromString(respuesta.getId()));
+
+        assertEquals(0, new BigDecimal("8").compareTo(existenciaJpaRepository.findById(idExistenciaCafe).orElseThrow().getContenidoActual()));
+        assertEquals(0, new BigDecimal("7").compareTo(existenciaJpaRepository.findById(idExistenciaTe).orElseThrow().getContenidoActual()));
+        assertEquals(2, movimientoJpaRepository.findAll().stream()
+                .filter(movimiento -> movimiento.getIdExistencia().equals(idExistenciaCafe) || movimiento.getIdExistencia().equals(idExistenciaTe))
+                .filter(movimiento -> movimiento.getMotivo().contains(respuesta.getId()))
+                .count());
+    }
+
+    @Test
+    void revierteLaVentaCompletaSiNoHayStockSuficiente() {
+        long ventasAntes = ventaJpaRepository.count();
+
+        CrearVentaRequest request = CrearVentaRequest.createFromRequest(payloadCon(List.of(
+                detalle(idProductoCafe, "12.50", "2", "0"),
+                detalle(idProductoTe, "8.00", "11", "0"))));
+
+        DomainException error = assertThrows(DomainException.class, () -> crearVentaUseCase.execute(request));
+
+        assertEquals(409, error.getCodigo());
+        assertEquals(ventasAntes, ventaJpaRepository.count());
+        // El cafe se habia descontado antes de fallar el te: el rollback lo devuelve.
+        assertEquals(0, new BigDecimal("10").compareTo(existenciaJpaRepository.findById(idExistenciaCafe).orElseThrow().getContenidoActual()));
     }
 
     @Test

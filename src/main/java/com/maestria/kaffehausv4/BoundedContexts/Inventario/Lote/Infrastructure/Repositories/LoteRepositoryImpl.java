@@ -11,6 +11,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repo
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 @Repository
@@ -40,6 +41,11 @@ public class LoteRepositoryImpl implements ILoteRepository{
     @Override
     public Optional<Lote> obtenerPorDetalleId(DetalleLoteId detalleLoteId) {
         return this.loteDatasource.obtenerPorDetalleId(detalleLoteId);
+    }
+
+    @Override
+    public List<Lote> obtenerPorProducto(ProductoId productoId) {
+        return this.loteDatasource.obtenerPorProducto(productoId);
     }
 
     @Override

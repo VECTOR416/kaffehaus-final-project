@@ -36,6 +36,9 @@ public class MovimientoJpaModel {
     @Column(name = "id_usuario", nullable = false)
     private UUID idUsuario;
 
+    @Column(name = "id_produccion")
+    private UUID idProduccion;
+
     @Column(name = "fec_c", nullable = false)
     private OffsetDateTime fecC;
 
@@ -61,6 +64,8 @@ public class MovimientoJpaModel {
     public void setIdTipoMovimiento(UUID idTipoMovimiento) {this.idTipoMovimiento = idTipoMovimiento;}
     public UUID getIdUsuario() {return idUsuario;}
     public void setIdUsuario(UUID idUsuario) {this.idUsuario = idUsuario;}
+    public UUID getIdProduccion() {return idProduccion;}
+    public void setIdProduccion(UUID idProduccion) {this.idProduccion = idProduccion;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}

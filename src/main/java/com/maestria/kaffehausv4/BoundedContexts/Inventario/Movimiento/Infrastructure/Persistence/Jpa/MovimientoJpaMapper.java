@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.ValueObjects.ProduccionId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.ValueObjects.TipoMovimientoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 
@@ -21,6 +22,7 @@ public class MovimientoJpaMapper {
         model.setIdExistencia(UUID.fromString(movimiento.getExistenciaId().getValue()));
         model.setIdTipoMovimiento(UUID.fromString(movimiento.getTipoMovimientoId().getValue()));
         model.setIdUsuario(UUID.fromString(movimiento.getUsuarioId().getValue()));
+        model.setIdProduccion(movimiento.getProduccionId() != null ? UUID.fromString(movimiento.getProduccionId().getValue()) : null);
         model.setBorrado(movimiento.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
@@ -34,6 +36,7 @@ public class MovimientoJpaMapper {
         model.setIdExistencia(UUID.fromString(movimiento.getExistenciaId().getValue()));
         model.setIdTipoMovimiento(UUID.fromString(movimiento.getTipoMovimientoId().getValue()));
         model.setIdUsuario(UUID.fromString(movimiento.getUsuarioId().getValue()));
+        model.setIdProduccion(movimiento.getProduccionId() != null ? UUID.fromString(movimiento.getProduccionId().getValue()) : null);
         model.setBorrado(movimiento.isBorrado());
         model.setFecU(OffsetDateTime.now());
     }
@@ -47,6 +50,7 @@ public class MovimientoJpaMapper {
                 new ExistenciaId(model.getIdExistencia().toString()),
                 new TipoMovimientoId(model.getIdTipoMovimiento().toString()),
                 new UsuarioId(model.getIdUsuario().toString()),
+                model.getIdProduccion() != null ? new ProduccionId(model.getIdProduccion().toString()) : null,
                 model.getBorrado() != null && model.getBorrado());
     }
 }

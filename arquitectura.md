@@ -423,6 +423,14 @@ La conciliacion por id y la baja logica no son una preferencia de estilo: `exist
 referencia `detalle_lote` con `ON DELETE RESTRICT`, asi que perder o borrar fisicamente esos
 identificadores dejaria el stock huerfano o haria fallar el DELETE.
 
+**Dos origenes, uno solo por lote** (`chk_lote_origen` en la base y la raiz en el dominio):
+un lote de **compra** tiene `idProveedor` y no tiene `idProduccion`; un lote de **produccion**
+(`esProduccion = true`) tiene `idProduccion` y no tiene proveedor. `POST api/v1/lote` crea
+solo compras (`Lote.crear` exige proveedor); los lotes de produccion los crea exclusivamente
+`CrearProduccionUseCase` con `Lote.registrarProduccion(...)`. Un `PUT` que intente dar
+proveedor a un lote de produccion se rechaza con 400. La respuesta incluye `esProduccion` e
+`idProduccion`.
+
 ### 4.8 Contrato del agregado Receta (endpoints)
 
 `Receta` se escribe y se lee siempre entera por `api/v1/receta`. **No existen
@@ -442,7 +450,62 @@ solo `descripcion` (mas `id` en el `PUT`): **el numero de paso no se envia nunca
 orden del array ES la secuencia y la raiz es quien asigna 1..N. Cambiar el `idProducto` de un
 ingrediente existente se rechaza con 400.
 
-### 4.9 Estado global, caching, mensajeria
+### 4.9 Flujo de inventario: MTS, MTO y auditoria
+
+Dos naturalezas operativas conviven, y las distingue `producto.es_stock_directo`:
+
+| | Stock directo (`true`, MTS / reventa / insumo) | Bajo demanda (`false`, MTO) |
+|---|---|---|
+| Existencias propias | Si | No |
+| Como entra al inventario | Compra (`api/v1/lote`) o produccion (`api/v1/produccion`) | Nunca |
+| Que descuenta al venderse | Sus existencias, FEFO. Movimiento `Venta` | Los insumos de su receta vigente (backflush). Movimiento `Consumo venta` |
+
+**Produccion (MTS)** — `POST api/v1/produccion`, en una sola transaccion:
+
+1. Guarda la produccion. `diferencia` es derivada (`cantidadReal - cantidadEsperada`).
+2. Consume los ingredientes de la receta escalados por `cantidadEsperada / receta.cantidad`.
+   Cada consumo es un movimiento `Consumo produccion` con `id_produccion`.
+3. Si `cantidadReal > 0`: el producto terminado **no** se suma a `producto.stock`. Se crea un
+   lote de produccion con una linea a costo unitario = costo de los insumos / `cantidadReal`
+   y `fechaVencimiento` (obligatoria en el payload), y se abre una existencia `Abierta` con
+   esa cantidad. Su entrada es un movimiento `Ingreso produccion` con `id_produccion`.
+4. Desde ahi el producto terminado se vende o se consume como insumo de otra receta por el
+   mismo camino que cualquier producto de stock directo.
+
+Producir un producto MTO se rechaza con 409. Una produccion registrada solo admite corregir
+`motivoDiferencia` y `fechaProduccion`; cantidades y receta se rechazan con 400.
+
+**Venta** — `CrearVentaUseCase` guarda la venta y descuenta el inventario de cada linea en la
+misma transaccion. `movimientos` no guarda `id_detalle_venta`: la salida se reconoce por su
+tipo y por el id de la venta que cita el `motivo`.
+
+**El descuento** vive en un solo sitio, `RegistrarSalidaDeInventarioUseCase` (slice
+Movimiento), una operacion interna sin endpoint (ver 5.5):
+
+- Stock directo: reparte el consumo entre las existencias abiertas del producto en orden FEFO
+  (vence antes primero; sin vencimiento, al final). Una existencia que llega a cero registra
+  `fecha_acabado` y pasa a `Agotada`.
+- MTO: explota la receta vigente (la viva mas reciente del producto) y recurre por cada
+  ingrediente; un ingrediente MTO explota a su vez su receta y un ciclo se rechaza con 409.
+- Si no alcanza el stock responde 409 y la transaccion del llamador revierte entera.
+- Solo cuenta existencias abiertas en la `unidad_actual` del producto: no convierte unidades.
+- Costeo por unidad de contenido: en una compra, `precio_unitario / contenido_inicial` de la
+  existencia; en un lote de produccion, el propio `precio_unitario` (lo decide `Lote`).
+
+**Catalogo resuelto por nombre.** Igual que los roles, el flujo busca por nombre las filas
+que necesita (`ITipoMovimientoRepository.obtenerPorNombre`,
+`IEstadoExistenciaRepository.obtenerPorNombre`): tipos `Consumo produccion`,
+`Ingreso produccion`, `Venta`, `Consumo venta`; estados `Abierta`, `Agotada`. Las siembra la
+seccion 7 de `databasev4.sql`. Si falta una,
+el flujo responde 404 nombrandola.
+
+**Movimientos inmutables.** Un movimiento es auditoria: `Movimiento.actualizar()` y
+`Movimiento.eliminar()` lanzan 409, asi que `PUT` y `DELETE api/v1/movimiento/{id}` responden
+409 (404 si no existe). Ni siquiera se admite la baja logica, porque esconderlo romperia la
+traza del contenido de su existencia. Un error se corrige con un movimiento compensatorio.
+La cantidad es siempre una magnitud positiva; la direccion la da el tipo.
+
+### 4.10 Estado global, caching, mensajeria
 
 **No existen.** El unico estado es la base de datos PostgreSQL. No hay cache (`@Cacheable`),
 ni broker de mensajes, ni eventos de dominio, ni scheduler, ni WebSocket, ni sesion HTTP.
@@ -529,6 +592,11 @@ ocurre exclusivamente en Infrastructure.
   `@Autowired` en campos.
 - Solo dependen de interfaces `I*Repository` (y `IHasheadorDeContrasena` cuando aplica),
   nunca de `I*Datasource` ni de clases de Infrastructure.
+- **Unica excepcion: la operacion interna de inventario.** `RegistrarSalidaDeInventarioUseCase`
+  no tiene controller y la inyectan `CrearProduccionUseCase` y `CrearVentaUseCase`, que la
+  ejecutan dentro de su transaccion. Existe para que el descuento FEFO y el backflush vivan
+  en un solo lugar. Su request se arma con `crear(...)`, no con `createFromRequest(Map)`,
+  porque no viaja por HTTP. No se crean operaciones internas nuevas sin documentarlas aqui.
 - Firma de entrada: DTO de request, o `String` crudo para los que van por id
   (`execute(String categoriaId)`, `execute(String id, Actualizar...Request request)`).
 - Devuelven siempre DTOs (`<Agregado>Response`, `PaginatedResponse<List<...Response>>`) o `void`.
@@ -814,16 +882,24 @@ publico justo para esto.
 - `pasos_receta` es la unica tabla con un indice unico parcial, y `RecetaDatasourceImpl` el
   unico datasource que escribe en dos fases. Ambas cosas son consecuencia de tener una
   coleccion ordenada bajo borrado logico; no se replican sin esa combinacion.
-- `ILoteRepository`/`ILoteDatasource` son los unicos puertos con un metodo fuera del CRUD de
-  cinco operaciones: `obtenerPorDetalleId`, que existe para que `Existencia` alcance su linea
-  de lote a traves de la raiz.
+- Puertos con metodos fuera del CRUD de cinco operaciones, todos al servicio del flujo de
+  inventario (4.9): `ILoteRepository.obtenerPorDetalleId` y `obtenerPorProducto`,
+  `IExistenciaRepository.obtenerDisponiblesPorDetallesLote` (FEFO),
+  `IRecetaRepository.obtenerPorProductoObtenido`, y `obtenerPorNombre` en
+  `ITipoMovimientoRepository` e `IEstadoExistenciaRepository`. Cada uno repite la firma en su
+  `I*Datasource`.
+- `Inventario/Movimiento` tiene un sexto caso de uso, `RegistrarSalidaDeInventarioUseCase`,
+  sin endpoint (ver 5.5). Sus `Actualizar` y `Eliminar` existen pero el agregado los rechaza
+  con 409: los movimientos son inmutables.
 - `Inventario/Lote` deja la linea `//String search = ...` comentada en su datasource porque la
   entidad no tiene campo de texto buscable.
-- Tests existentes (67): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio puro, sin
-  Spring, `VentaTest` (10), `LoteTest` (15) y `RecetaTest` (18); de integracion contra la BD
-  real, `CrearVentaUseCaseIntegracionTest` (6), `CrearLoteUseCaseIntegracionTest` (8) y
-  `CrearRecetaUseCaseIntegracionTest` (9), los tres `@SpringBootTest` sin `@Transactional` de
-  clase para poder observar el rollback del caso de uso. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
+- Tests de negocio existentes (92): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio
+  puro, sin Spring, `VentaTest` (10), `LoteTest` (20), `RecetaTest` (18), `ExistenciaTest` (4),
+  `ProduccionTest` (5) y `MovimientoTest` (3); de integracion contra la BD real,
+  `CrearVentaUseCaseIntegracionTest` (8), `CrearLoteUseCaseIntegracionTest` (8),
+  `CrearRecetaUseCaseIntegracionTest` (9) y `FlujoInventarioIntegracionTest` (6), todos
+  `@SpringBootTest` sin `@Transactional` de clase para poder observar el rollback del caso de
+  uso. Los de integracion de inventario necesitan el catalogo de 4.9 en la base. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
   paquete de produccion.
 - El test de integracion necesita PostgreSQL levantado (`docker compose up -d`) y limpia en
   `@AfterEach` lo que siembra. Para borrar en el `@AfterEach` usa `deleteAll(...)` y no el

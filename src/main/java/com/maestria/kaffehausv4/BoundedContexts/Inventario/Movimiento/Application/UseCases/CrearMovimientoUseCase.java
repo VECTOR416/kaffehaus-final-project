@@ -9,6 +9,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.MovimientoResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Repositories.IMovimientoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Repositories.IProduccionRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.ValueObjects.ProduccionId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.Repositories.ITipoMovimientoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.ValueObjects.TipoMovimientoId;
@@ -23,16 +25,19 @@ public class CrearMovimientoUseCase {
     private final IExistenciaRepository existenciaRepository;
     private final ITipoMovimientoRepository tipoMovimientoRepository;
     private final IUsuarioRepository usuarioRepository;
+    private final IProduccionRepository produccionRepository;
 
     public CrearMovimientoUseCase(
             IMovimientoRepository movimientoRepository,
             IExistenciaRepository existenciaRepository,
             ITipoMovimientoRepository tipoMovimientoRepository,
-            IUsuarioRepository usuarioRepository) {
+            IUsuarioRepository usuarioRepository,
+            IProduccionRepository produccionRepository) {
         this.movimientoRepository = movimientoRepository;
         this.existenciaRepository = existenciaRepository;
         this.tipoMovimientoRepository = tipoMovimientoRepository;
         this.usuarioRepository = usuarioRepository;
+        this.produccionRepository = produccionRepository;
     }
 
     public MovimientoResponse execute(CrearMovimientoRequest crearMovimientoRequest) {
@@ -46,6 +51,12 @@ public class CrearMovimientoUseCase {
         UsuarioId usuarioId = new UsuarioId(crearMovimientoRequest.getIdUsuario());
         usuarioRepository.obtenerPorId(usuarioId)
                 .orElseThrow(() -> DomainException.throwException(404, "El usuario con id '" + crearMovimientoRequest.getIdUsuario() + "' no existe"));
+        ProduccionId produccionId = null;
+        if (crearMovimientoRequest.getIdProduccion() != null) {
+            produccionId = new ProduccionId(crearMovimientoRequest.getIdProduccion());
+            produccionRepository.obtenerPorId(produccionId)
+                    .orElseThrow(() -> DomainException.throwException(404, "La produccion con id '" + crearMovimientoRequest.getIdProduccion() + "' no existe"));
+        }
 
         Movimiento movimiento = Movimiento.crear(
                 crearMovimientoRequest.getCantidad(),
@@ -53,7 +64,8 @@ public class CrearMovimientoUseCase {
                 crearMovimientoRequest.getMotivo(),
                 existenciaId,
                 tipoMovimientoId,
-                usuarioId);
+                usuarioId,
+                produccionId);
 
         Movimiento movimientoCreado = movimientoRepository.crear(movimiento);
 

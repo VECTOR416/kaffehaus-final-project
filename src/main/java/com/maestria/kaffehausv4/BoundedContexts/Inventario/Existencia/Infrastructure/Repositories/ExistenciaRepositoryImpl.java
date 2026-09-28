@@ -10,6 +10,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Repositories.IExistenciaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.Aggregates.Existencia;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 @Repository
@@ -44,6 +45,11 @@ public class ExistenciaRepositoryImpl implements IExistenciaRepository{
     @Override
     public void eliminar(ExistenciaId existenciaId) {
         this.existenciaDatasource.eliminar(existenciaId);
+    }
+
+    @Override
+    public List<Existencia> obtenerDisponiblesPorDetallesLote(List<DetalleLoteId> detalleLoteIds) {
+        return this.existenciaDatasource.obtenerDisponiblesPorDetallesLote(detalleLoteIds);
     }
 
 }

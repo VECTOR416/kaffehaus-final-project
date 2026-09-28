@@ -88,6 +88,12 @@ public class TipoMovimientoDatasourceImpl implements ITipoMovimientoDatasource {
         tipoMovimientoJpaRepository.save(model);
     }
 
+    @Override
+    public Optional<TipoMovimiento> obtenerPorNombre(String nombre) {
+        return tipoMovimientoJpaRepository.findFirstByNombreIgnoreCaseAndBorradoFalse(nombre)
+                .map(TipoMovimientoJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

@@ -14,6 +14,7 @@ public class Producto {
     private BigDecimal precio;
     private BigDecimal stockMinimo;
     private boolean vendible;
+    private boolean esStockDirecto;
     private UnidadId unidadActualId;
     private TipoId tipoId;
     private CategoriaId categoriaId;
@@ -27,6 +28,7 @@ public class Producto {
         BigDecimal precio,
         BigDecimal stockMinimo,
         boolean vendible,
+        boolean esStockDirecto,
         UnidadId unidadActualId,
         TipoId tipoId,
         CategoriaId categoriaId,
@@ -39,6 +41,7 @@ public class Producto {
         this.precio = precio;
         this.stockMinimo = stockMinimo;
         this.vendible = vendible;
+        this.esStockDirecto = esStockDirecto;
         this.unidadActualId = unidadActualId;
         this.tipoId = tipoId;
         this.categoriaId = categoriaId;
@@ -53,13 +56,14 @@ public class Producto {
         BigDecimal precio,
         BigDecimal stockMinimo,
         boolean vendible,
+        boolean esStockDirecto,
         UnidadId unidadActualId,
         TipoId tipoId,
         CategoriaId categoriaId,
         ProductoId productoPadreId,
         boolean borrado
     ){
-        return new Producto(new ProductoId(id), nombre, stock, precio, stockMinimo, vendible, unidadActualId, tipoId, categoriaId, productoPadreId, borrado);
+        return new Producto(new ProductoId(id), nombre, stock, precio, stockMinimo, vendible, esStockDirecto, unidadActualId, tipoId, categoriaId, productoPadreId, borrado);
     }
 
     public static Producto crear(
@@ -68,12 +72,13 @@ public class Producto {
         BigDecimal precio,
         BigDecimal stockMinimo,
         boolean vendible,
+        boolean esStockDirecto,
         UnidadId unidadActualId,
         TipoId tipoId,
         CategoriaId categoriaId,
         ProductoId productoPadreId
     ){
-        return new Producto(null, nombre, stock, precio, stockMinimo, vendible, unidadActualId, tipoId, categoriaId, productoPadreId, false);
+        return new Producto(null, nombre, stock, precio, stockMinimo, vendible, esStockDirecto, unidadActualId, tipoId, categoriaId, productoPadreId, false);
     }
 
     public void actualizar(
@@ -82,6 +87,7 @@ public class Producto {
         BigDecimal precio,
         BigDecimal stockMinimo,
         Boolean vendible,
+        Boolean esStockDirecto,
         UnidadId unidadActualId,
         TipoId tipoId,
         CategoriaId categoriaId,
@@ -92,6 +98,7 @@ public class Producto {
         this.precio = precio != null ? precio : this.precio;
         this.stockMinimo = stockMinimo != null ? stockMinimo : this.stockMinimo;
         this.vendible = vendible != null ? vendible : this.vendible;
+        this.esStockDirecto = esStockDirecto != null ? esStockDirecto : this.esStockDirecto;
         this.unidadActualId = unidadActualId != null ? unidadActualId : this.unidadActualId;
         this.tipoId = tipoId != null ? tipoId : this.tipoId;
         this.categoriaId = categoriaId != null ? categoriaId : this.categoriaId;
@@ -108,6 +115,12 @@ public class Producto {
     public BigDecimal getPrecio() {return precio;}
     public BigDecimal getStockMinimo() {return stockMinimo;}
     public boolean isVendible() {return vendible;}
+
+    /**
+     * TRUE: tiene stock fisico propio (MTS, reventa) y al venderse descuenta sus existencias.
+     * FALSE: se prepara al pedirlo (MTO) y al venderse descuenta los insumos de su receta.
+     */
+    public boolean isEsStockDirecto() {return esStockDirecto;}
     public UnidadId getUnidadActualId() {return unidadActualId;}
     public TipoId getTipoId() {return tipoId;}
     public CategoriaId getCategoriaId() {return categoriaId;}

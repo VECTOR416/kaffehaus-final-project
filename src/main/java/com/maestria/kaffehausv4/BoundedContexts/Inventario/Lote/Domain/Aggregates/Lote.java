@@ -9,7 +9,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.ValueObjects.ProduccionId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
@@ -28,14 +30,24 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  *
  * Las lineas dadas de baja siguen en la coleccion marcadas como borradas, porque el borrado
  * es logico y la baja debe llegar a la base de datos como un UPDATE.
+ *
+ * Un lote tiene uno de dos origenes, y solo uno (lo exige tambien 'chk_lote_origen'):
+ * - Compra: tiene proveedor y no tiene produccion. Nace con crear(...).
+ * - Produccion interna (MTS): tiene produccion y no tiene proveedor. Nace con
+ *   registrarProduccion(...), con una sola linea: el producto terminado a su costo unitario.
  */
 public class Lote {
+
+    /** Escala de calculo del costo por unidad de contenido; se redondea al final, no antes. */
+    private static final int ESCALA_COSTO_CONTENIDO = 6;
 
     private LoteId id;
     private LocalDateTime fechaCompra;
     private BigDecimal total;
     private ProveedorId proveedorId;
     private UsuarioId usuarioId;
+    private boolean esProduccion;
+    private ProduccionId produccionId;
     private boolean borrado;
     private final List<DetalleLote> detalles;
 
@@ -45,6 +57,8 @@ public class Lote {
         BigDecimal total,
         ProveedorId proveedorId,
         UsuarioId usuarioId,
+        boolean esProduccion,
+        ProduccionId produccionId,
         boolean borrado,
         List<DetalleLote> detalles
     ){
@@ -53,6 +67,8 @@ public class Lote {
         this.total = total;
         this.proveedorId = proveedorId;
         this.usuarioId = usuarioId;
+        this.esProduccion = esProduccion;
+        this.produccionId = produccionId;
         this.borrado = borrado;
         this.detalles = detalles != null ? new ArrayList<>(detalles) : new ArrayList<>();
     }
@@ -67,33 +83,74 @@ public class Lote {
         BigDecimal total,
         ProveedorId proveedorId,
         UsuarioId usuarioId,
+        boolean esProduccion,
+        ProduccionId produccionId,
         boolean borrado,
         List<DetalleLote> detalles
     ){
-        return new Lote(new LoteId(id), fechaCompra, total, proveedorId, usuarioId, borrado, detalles);
+        return new Lote(new LoteId(id), fechaCompra, total, proveedorId, usuarioId, esProduccion, produccionId, borrado, detalles);
     }
 
     /**
-     * Crea un lote sin lineas y con total en cero. Las lineas se incorporan despues con
-     * agregarDetalle(...), que es lo que mantiene el total en sincronia.
+     * Crea un lote de compra sin lineas y con total en cero. Las lineas se incorporan despues
+     * con agregarDetalle(...), que es lo que mantiene el total en sincronia.
      */
     public static Lote crear(
         LocalDateTime fechaCompra,
         ProveedorId proveedorId,
         UsuarioId usuarioId
     ){
-        return new Lote(null, fechaCompra, aEscala(BigDecimal.ZERO), proveedorId, usuarioId, false, null);
+        if (proveedorId == null || proveedorId.getValue() == null) {
+            throw DomainException.throwException(400, "Un lote de compra requiere un proveedor");
+        }
+        return new Lote(null, fechaCompra, aEscala(BigDecimal.ZERO), proveedorId, usuarioId, false, null, false, null);
+    }
+
+    /**
+     * Crea el lote que deja una produccion interna (MTS): una sola linea con el producto
+     * terminado, su costo unitario calculado a partir de los insumos consumidos y su
+     * caducidad. No tiene proveedor.
+     *
+     * La linea nace con la cantidad restante en cero porque la produccion se abre entera en
+     * una existencia en el mismo acto: 'cantidad_restante' cuenta unidades aun cerradas, igual
+     * que en una compra, y aqui no queda ninguna.
+     */
+    public static Lote registrarProduccion(
+        LocalDateTime fechaProduccion,
+        ProduccionId produccionId,
+        UsuarioId usuarioId,
+        ProductoId productoId,
+        BigDecimal cantidadProducida,
+        BigDecimal costoUnitario,
+        LocalDate fechaVencimiento
+    ){
+        if (produccionId == null || produccionId.getValue() == null) {
+            throw DomainException.throwException(400, "Un lote de produccion requiere la produccion que lo origina");
+        }
+
+        Lote lote = new Lote(null, fechaProduccion, aEscala(BigDecimal.ZERO), null, usuarioId, true, produccionId, false, null);
+
+        DetalleLote detalle = DetalleLote.crear(productoId, cantidadProducida, costoUnitario, false, fechaVencimiento);
+        detalle.ajustarCantidadRestante(BigDecimal.ZERO);
+        lote.detalles.add(detalle);
+        lote.recalcularTotal();
+
+        return lote;
     }
 
     /**
      * Actualiza los datos de encabezado. El total no es parametro: solo cambia al mutar las
-     * lineas del agregado.
+     * lineas del agregado. El origen del lote no cambia nunca: un lote de produccion no puede
+     * recibir proveedor, porque dejaria de explicar de donde salio su stock.
      */
     public void actualizar(
         LocalDateTime fechaCompra,
         ProveedorId proveedorId,
         UsuarioId usuarioId
     ){
+        if (this.esProduccion && proveedorId != null) {
+            throw DomainException.throwException(400, "Un lote de produccion no tiene proveedor");
+        }
         this.fechaCompra = fechaCompra != null ? fechaCompra : this.fechaCompra;
         this.proveedorId = proveedorId != null ? proveedorId : this.proveedorId;
         this.usuarioId = usuarioId != null ? usuarioId : this.usuarioId;
@@ -154,6 +211,26 @@ public class Lote {
         }
     }
 
+    /**
+     * Costo de una unidad del contenido de una existencia abierta desde una linea de este lote.
+     *
+     * En una compra el precio es por unidad comprada (una bolsa) y la existencia guarda el
+     * contenido de esa unidad (1000 g): el costo por gramo es precio / contenido inicial. En
+     * una produccion la existencia se abre con la cantidad producida en la misma unidad de la
+     * linea, asi que el costo por unidad de contenido es el propio costo unitario.
+     */
+    public BigDecimal costoPorUnidadDeContenido(DetalleLoteId detalleLoteId, BigDecimal contenidoInicial) {
+        DetalleLote detalle = detalleVivo(detalleLoteId.getValue());
+
+        if (this.esProduccion) {
+            return detalle.getPrecioUnitario();
+        }
+        if (contenidoInicial == null || contenidoInicial.signum() <= 0) {
+            throw DomainException.throwException(400, "El contenido inicial de la existencia debe ser mayor a cero");
+        }
+        return detalle.getPrecioUnitario().divide(contenidoInicial, ESCALA_COSTO_CONTENIDO, RoundingMode.HALF_UP);
+    }
+
     private DetalleLote detalleVivo(String detalleLoteId) {
         return this.detalles.stream()
                 .filter(detalle -> !detalle.isBorrado())
@@ -180,6 +257,8 @@ public class Lote {
     public BigDecimal getTotal() {return total;}
     public ProveedorId getProveedorId() {return proveedorId;}
     public UsuarioId getUsuarioId() {return usuarioId;}
+    public boolean isEsProduccion() {return esProduccion;}
+    public ProduccionId getProduccionId() {return produccionId;}
     public boolean isBorrado() {return borrado;}
 
     /** Todas las lineas, incluidas las dadas de baja: es lo que la persistencia debe escribir. */

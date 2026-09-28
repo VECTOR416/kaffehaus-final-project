@@ -11,6 +11,7 @@ public class CrearProductoRequest {
     private BigDecimal precio;
     private BigDecimal stockMinimo;
     private boolean vendible;
+    private boolean esStockDirecto;
     private String idUnidadActual;
     private String idTipo;
     private String idCategoria;
@@ -22,6 +23,7 @@ public class CrearProductoRequest {
         BigDecimal precio,
         BigDecimal stockMinimo,
         boolean vendible,
+        boolean esStockDirecto,
         String idUnidadActual,
         String idTipo,
         String idCategoria,
@@ -32,6 +34,7 @@ public class CrearProductoRequest {
         this.precio = precio;
         this.stockMinimo = stockMinimo;
         this.vendible = vendible;
+        this.esStockDirecto = esStockDirecto;
         this.idUnidadActual = idUnidadActual;
         this.idTipo = idTipo;
         this.idCategoria = idCategoria;
@@ -45,12 +48,14 @@ public class CrearProductoRequest {
         BigDecimal stockMinimo = BigDecimal.valueOf(Validador.numeroRequerido(request.get("stockMinimo"), "stockMinimo"));
         Boolean vendibleTmp = Validador.booleanoOpcional(request.get("vendible"), "vendible");
         boolean vendible = vendibleTmp != null ? vendibleTmp : true;
+        Boolean esStockDirectoTmp = Validador.booleanoOpcional(request.get("esStockDirecto"), "esStockDirecto");
+        boolean esStockDirecto = esStockDirectoTmp != null ? esStockDirectoTmp : true;
         String idUnidadActual = Validador.textoRequerido(request.get("idUnidadActual"), "idUnidadActual");
         String idTipo = Validador.textoRequerido(request.get("idTipo"), "idTipo");
         String idCategoria = Validador.textoRequerido(request.get("idCategoria"), "idCategoria");
         String idProductoPadre = Validador.textoOpcional(request.get("idProductoPadre"), "idProductoPadre");
 
-        return new CrearProductoRequest(nombre, stock, precio, stockMinimo, vendible, idUnidadActual, idTipo, idCategoria, idProductoPadre);
+        return new CrearProductoRequest(nombre, stock, precio, stockMinimo, vendible, esStockDirecto, idUnidadActual, idTipo, idCategoria, idProductoPadre);
     }
 
     public String getNombre() {return nombre;}
@@ -58,6 +63,7 @@ public class CrearProductoRequest {
     public BigDecimal getPrecio() {return precio;}
     public BigDecimal getStockMinimo() {return stockMinimo;}
     public boolean isVendible() {return vendible;}
+    public boolean isEsStockDirecto() {return esStockDirecto;}
     public String getIdUnidadActual() {return idUnidadActual;}
     public String getIdTipo() {return idTipo;}
     public String getIdCategoria() {return idCategoria;}

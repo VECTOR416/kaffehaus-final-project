@@ -120,6 +120,9 @@ CREATE TABLE producto (
     id_tipo UUID NOT NULL REFERENCES tipo(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     id_categoria UUID NOT NULL REFERENCES categoria(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     vendible BOOLEAN NOT NULL DEFAULT TRUE,
+    -- TRUE: stock fisico directo (MTS, reventa, pre-elaborados). FALSE: se prepara al pedirlo
+    -- bajo receta (MTO) y su venta descuenta los insumos de la receta (backflush).
+    es_stock_directo BOOLEAN NOT NULL DEFAULT TRUE,
     id_producto_padre UUID REFERENCES producto(id) ON UPDATE CASCADE ON DELETE SET NULL,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
@@ -193,15 +196,22 @@ CREATE TABLE tipo_movimiento (
     borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+-- Un lote nace de una compra (proveedor) o de una produccion interna (MTS), nunca de ambas.
 CREATE TABLE lote (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     fecha_compra TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    id_proveedor UUID NOT NULL REFERENCES proveedor(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    id_proveedor UUID REFERENCES proveedor(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     total NUMERIC(12, 2) NOT NULL DEFAULT 0,
     id_usuario UUID NOT NULL REFERENCES usuario(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    es_produccion BOOLEAN NOT NULL DEFAULT FALSE,
+    id_produccion UUID REFERENCES produccion(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
-    borrado BOOLEAN NOT NULL DEFAULT FALSE
+    borrado BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT chk_lote_origen CHECK (
+        (es_produccion = FALSE AND id_proveedor IS NOT NULL AND id_produccion IS NULL)
+        OR (es_produccion = TRUE AND id_produccion IS NOT NULL AND id_proveedor IS NULL)
+    )
 );
 
 CREATE TABLE detalle_lote (
@@ -242,6 +252,9 @@ CREATE TABLE movimientos (
     id_tipo_movimiento UUID NOT NULL REFERENCES tipo_movimiento(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     id_usuario UUID NOT NULL REFERENCES usuario(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     motivo TEXT,
+    -- Consumos de insumos y entradas de producto terminado de una produccion (MTS). Las
+    -- salidas por venta no guardan id_detalle_venta: se identifican por su tipo y su motivo.
+    id_produccion UUID REFERENCES produccion(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
     borrado BOOLEAN NOT NULL DEFAULT FALSE
@@ -338,6 +351,9 @@ CREATE INDEX idx_existencias_estado ON existencias(id_estado_existencia);
 CREATE INDEX idx_existencias_detalle_lote ON existencias(id_detalle_lote);
 CREATE INDEX idx_movimientos_existencia ON movimientos(id_existencia);
 CREATE INDEX idx_movimientos_usuario ON movimientos(id_usuario);
+CREATE INDEX idx_movimientos_produccion ON movimientos(id_produccion);
+CREATE INDEX idx_lote_produccion ON lote(id_produccion);
+CREATE INDEX idx_detalle_lote_producto ON detalle_lote(id_producto);
 CREATE INDEX idx_producto_tipo ON producto(id_tipo);
 CREATE INDEX idx_producto_categoria ON producto(id_categoria);
 CREATE INDEX idx_existencias_usuario ON existencias(id_usuario);
@@ -345,3 +361,24 @@ CREATE INDEX idx_ingredientes_receta_receta ON ingredientes_receta(id_receta);
 CREATE INDEX idx_pasos_receta_receta ON pasos_receta(id_receta);
 CREATE INDEX idx_detalle_venta_venta ON detalle_venta(id_venta);
 CREATE INDEX idx_pedidos_venta ON pedidos(id_venta);
+
+-- ============================================================================
+-- 7. CATALOGOS QUE EL FLUJO DE INVENTARIO RESUELVE POR NOMBRE
+-- ============================================================================
+-- Los casos de uso de produccion y venta buscan estas filas por nombre (igual que los roles):
+--   Consumo produccion  insumo que sale de su existencia hacia una produccion (id_produccion)
+--   Ingreso produccion  producto terminado que entra a su existencia (id_produccion)
+--   Venta               producto de stock directo (MTS) que sale al venderse
+--   Consumo venta       insumo descontado por la receta de un producto MTO vendido (backflush)
+--   Abierta / Agotada   estado de la existencia del producto terminado / de una ya vaciada
+
+INSERT INTO tipo_movimiento (nombre) VALUES
+    ('Apertura'),
+    ('Consumo produccion'),
+    ('Ingreso produccion'),
+    ('Venta'),
+    ('Consumo venta');
+
+INSERT INTO estado_existencia (nombre) VALUES
+    ('Abierta'),
+    ('Agotada');

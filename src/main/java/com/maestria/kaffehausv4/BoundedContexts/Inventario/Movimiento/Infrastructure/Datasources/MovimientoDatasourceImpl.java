@@ -81,6 +81,7 @@ public class MovimientoDatasourceImpl implements IMovimientoDatasource {
         MovimientoJpaModel model = movimientoJpaRepository.findByIdAndBorradoFalse(aUuid(movimientoId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El movimiento con id '" + movimientoId.getValue() + "' no existe"));
 
+        // El dominio decide la baja y la rechaza: un movimiento es auditoria inmutable.
         Movimiento movimiento = MovimientoJpaMapper.toDomain(model);
         movimiento.eliminar();
 

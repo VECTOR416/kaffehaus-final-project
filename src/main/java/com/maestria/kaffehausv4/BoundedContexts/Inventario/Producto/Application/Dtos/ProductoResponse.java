@@ -17,6 +17,7 @@ public class ProductoResponse {
     private BigDecimal precio;
     private BigDecimal stockMinimo;
     private boolean vendible;
+    private boolean esStockDirecto;
     private UnidadResponse unidadActual;
     private TipoResponse tipo;
     private CategoriaResponse categoria;
@@ -30,6 +31,7 @@ public class ProductoResponse {
         BigDecimal precio,
         BigDecimal stockMinimo,
         boolean vendible,
+        boolean esStockDirecto,
         UnidadResponse unidadActual,
         TipoResponse tipo,
         CategoriaResponse categoria,
@@ -42,6 +44,7 @@ public class ProductoResponse {
         this.precio = precio;
         this.stockMinimo = stockMinimo;
         this.vendible = vendible;
+        this.esStockDirecto = esStockDirecto;
         this.unidadActual = unidadActual;
         this.tipo = tipo;
         this.categoria = categoria;
@@ -60,6 +63,7 @@ public class ProductoResponse {
             producto.getPrecio(),
             producto.getStockMinimo(),
             producto.isVendible(),
+            producto.isEsStockDirecto(),
             unidadActualResponse,
             tipoResponse,
             categoriaResponse,
@@ -74,6 +78,7 @@ public class ProductoResponse {
     public BigDecimal getPrecio() {return precio;}
     public BigDecimal getStockMinimo() {return stockMinimo;}
     public boolean isVendible() {return vendible;}
+    public boolean isEsStockDirecto() {return esStockDirecto;}
     public UnidadResponse getUnidadActual() {return unidadActual;}
     public TipoResponse getTipo() {return tipo;}
     public CategoriaResponse getCategoria() {return categoria;}

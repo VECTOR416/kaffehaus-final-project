@@ -24,11 +24,18 @@ public class LoteJpaModel {
     @Column(name = "total", nullable = false)
     private BigDecimal total;
 
-    @Column(name = "id_proveedor", nullable = false)
+    // Nulo en los lotes de produccion interna (ver chk_lote_origen en databasev4.sql).
+    @Column(name = "id_proveedor")
     private UUID idProveedor;
 
     @Column(name = "id_usuario", nullable = false)
     private UUID idUsuario;
+
+    @Column(name = "es_produccion", nullable = false)
+    private Boolean esProduccion;
+
+    @Column(name = "id_produccion")
+    private UUID idProduccion;
 
     @Column(name = "fec_c", nullable = false)
     private OffsetDateTime fecC;
@@ -51,6 +58,10 @@ public class LoteJpaModel {
     public void setIdProveedor(UUID idProveedor) {this.idProveedor = idProveedor;}
     public UUID getIdUsuario() {return idUsuario;}
     public void setIdUsuario(UUID idUsuario) {this.idUsuario = idUsuario;}
+    public Boolean getEsProduccion() {return esProduccion;}
+    public void setEsProduccion(Boolean esProduccion) {this.esProduccion = esProduccion;}
+    public UUID getIdProduccion() {return idProduccion;}
+    public void setIdProduccion(UUID idProduccion) {this.idProduccion = idProduccion;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}

@@ -1,12 +1,25 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.Aggregates;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.ValueObjects.ProduccionId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.ValueObjects.RecetaId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * Raiz del agregado Produccion: una elaboracion por lotes en cocina (MTS).
+ *
+ * La diferencia NO se recibe desde fuera: es cantidadReal - cantidadEsperada y la calcula la
+ * raiz. Una vez registrada, la produccion ya consumio insumos y abrio su lote, asi que sus
+ * cantidades y su receta quedan fijas: solo se admite corregir el motivo y la fecha.
+ */
 public class Produccion {
+
+    /** Escala de NUMERIC(12, 2) en 'produccion'. */
+    private static final int ESCALA = 2;
+
     private ProduccionId id;
     private BigDecimal cantidadEsperada;
     private BigDecimal cantidadReal;
@@ -49,35 +62,63 @@ public class Produccion {
         return new Produccion(new ProduccionId(id), cantidadEsperada, cantidadReal, diferencia, motivoDiferencia, fechaProduccion, recetaId, borrado);
     }
 
+    /**
+     * Registra una produccion. La cantidad esperada escala la receta (es lo que se planifico
+     * elaborar); la real es lo que salio de cocina y puede ser cero si la tanda se perdio.
+     */
     public static Produccion crear(
         BigDecimal cantidadEsperada,
         BigDecimal cantidadReal,
-        BigDecimal diferencia,
         String motivoDiferencia,
         LocalDateTime fechaProduccion,
         RecetaId recetaId
     ){
-        return new Produccion(null, cantidadEsperada, cantidadReal, diferencia, motivoDiferencia, fechaProduccion, recetaId, false);
+        if (cantidadEsperada == null || cantidadEsperada.signum() <= 0) {
+            throw DomainException.throwException(400, "La cantidad esperada de la produccion debe ser mayor a cero");
+        }
+        if (cantidadReal == null || cantidadReal.signum() < 0) {
+            throw DomainException.throwException(400, "La cantidad real de la produccion no puede ser negativa");
+        }
+        if (recetaId == null || recetaId.getValue() == null) {
+            throw DomainException.throwException(400, "La produccion requiere una receta");
+        }
+
+        BigDecimal esperada = aEscala(cantidadEsperada);
+        BigDecimal real = aEscala(cantidadReal);
+
+        return new Produccion(null, esperada, real, real.subtract(esperada), motivoDiferencia, fechaProduccion, recetaId, false);
     }
 
+    /**
+     * Solo corrige datos descriptivos. Las cantidades y la receta no se tocan: los consumos y
+     * el lote que generaron son movimientos de auditoria inmutables.
+     */
     public void actualizar(
-        BigDecimal cantidadEsperada,
-        BigDecimal cantidadReal,
-        BigDecimal diferencia,
         String motivoDiferencia,
-        LocalDateTime fechaProduccion,
-        RecetaId recetaId
+        LocalDateTime fechaProduccion
     ){
-        this.cantidadEsperada = cantidadEsperada != null ? cantidadEsperada : this.cantidadEsperada;
-        this.cantidadReal = cantidadReal != null ? cantidadReal : this.cantidadReal;
-        this.diferencia = diferencia != null ? diferencia : this.diferencia;
         this.motivoDiferencia = motivoDiferencia != null ? motivoDiferencia : this.motivoDiferencia;
         this.fechaProduccion = fechaProduccion != null ? fechaProduccion : this.fechaProduccion;
-        this.recetaId = recetaId != null ? recetaId : this.recetaId;
     }
 
     public void eliminar(){
         this.borrado = true;
+    }
+
+    /** Factor por el que se multiplica cada ingrediente: cantidad esperada / rendimiento de la receta. */
+    public BigDecimal factorSobre(BigDecimal rendimientoReceta) {
+        if (rendimientoReceta == null || rendimientoReceta.signum() <= 0) {
+            throw DomainException.throwException(400, "El rendimiento de la receta debe ser mayor a cero");
+        }
+        return this.cantidadEsperada.divide(rendimientoReceta, 6, RoundingMode.HALF_UP);
+    }
+
+    public boolean produjoUnidades() {
+        return this.cantidadReal.signum() > 0;
+    }
+
+    private static BigDecimal aEscala(BigDecimal valor) {
+        return valor.setScale(ESCALA, RoundingMode.HALF_UP);
     }
 
     public ProduccionId getId() {return id;}

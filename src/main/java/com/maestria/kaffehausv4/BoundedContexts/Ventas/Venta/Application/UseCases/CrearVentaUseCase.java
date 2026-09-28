@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.RegistrarSalidaDeInventarioRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.UseCases.RegistrarSalidaDeInventarioUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Application.Repositories.IClienteRepository;
@@ -18,6 +20,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.Cr
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.DetalleVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Repositories.IVentaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.DetalleVenta;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.Venta;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
@@ -29,27 +32,40 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * lo entrega una sola vez a IVentaRepository. La @Transactional de la clase cubre encabezado
  * y lineas: si una linea es invalida, la excepcion se propaga antes o durante el guardado y
  * la transaccion revierte entera, de modo que nunca queda una venta sin detalle.
+ *
+ * Tras guardar la venta descuenta el inventario de cada linea en la misma transaccion: un
+ * producto de stock directo (MTS) sale de sus existencias; uno bajo demanda (MTO) descuenta
+ * los insumos de su receta (backflush). Si falta stock, la venta tampoco se registra. Los
+ * movimientos no guardan la linea de venta: se reconocen por su tipo y por la venta que
+ * citan en el motivo.
  */
 @Service
 @Transactional
 public class CrearVentaUseCase {
+    // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
+    private static final String TIPO_VENTA = "Venta";
+    private static final String TIPO_CONSUMO_VENTA = "Consumo venta";
+
     private final IVentaRepository ventaRepository;
     private final IUsuarioRepository usuarioRepository;
     private final IClienteRepository clienteRepository;
     private final IEstadoVentaRepository estadoVentaRepository;
     private final IProductoRepository productoRepository;
+    private final RegistrarSalidaDeInventarioUseCase registrarSalidaDeInventarioUseCase;
 
     public CrearVentaUseCase(
             IVentaRepository ventaRepository,
             IUsuarioRepository usuarioRepository,
             IClienteRepository clienteRepository,
             IEstadoVentaRepository estadoVentaRepository,
-            IProductoRepository productoRepository) {
+            IProductoRepository productoRepository,
+            RegistrarSalidaDeInventarioUseCase registrarSalidaDeInventarioUseCase) {
         this.ventaRepository = ventaRepository;
         this.usuarioRepository = usuarioRepository;
         this.clienteRepository = clienteRepository;
         this.estadoVentaRepository = estadoVentaRepository;
         this.productoRepository = productoRepository;
+        this.registrarSalidaDeInventarioUseCase = registrarSalidaDeInventarioUseCase;
     }
 
     public VentaResponse execute(CrearVentaRequest crearVentaRequest) {
@@ -77,7 +93,23 @@ public class CrearVentaUseCase {
 
         Venta ventaCreada = ventaRepository.crear(venta);
 
+        descontarInventario(ventaCreada);
+
         return VentaResponse.createFromAggregate(ventaCreada, estadoVenta);
+    }
+
+    private void descontarInventario(Venta venta) {
+        for (DetalleVenta detalle : venta.getDetallesActivos()) {
+            registrarSalidaDeInventarioUseCase.execute(RegistrarSalidaDeInventarioRequest.crear(
+                    detalle.getProductoId().getValue(),
+                    detalle.getCantidad(),
+                    TIPO_VENTA,
+                    TIPO_CONSUMO_VENTA,
+                    venta.getUsuarioId().getValue(),
+                    null,
+                    "Venta '" + venta.getId().getValue() + "'",
+                    venta.getFechaVenta()));
+        }
     }
 
     /**

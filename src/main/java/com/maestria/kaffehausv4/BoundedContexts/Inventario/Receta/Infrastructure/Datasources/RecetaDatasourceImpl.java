@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Datasources.IRecetaDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Dtos.ObtenerRecetasRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.Aggregates.IngredienteReceta;
@@ -231,6 +232,12 @@ public class RecetaDatasourceImpl implements IRecetaDatasource {
                 receta.getPasos().stream()
                         .map(paso -> conciliarPaso(paso, id))
                         .collect(Collectors.toList()));
+    }
+
+    @Override
+    public Optional<Receta> obtenerPorProductoObtenido(ProductoId productoId) {
+        return recetaJpaRepository.findFirstByIdProductoObtenidoAndBorradoFalseOrderByFecCDesc(aUuid(productoId.getValue()))
+                .flatMap(model -> obtenerPorId(new RecetaId(model.getId().toString())));
     }
 
     private static UUID aUuid(String valor) {

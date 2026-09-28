@@ -178,6 +178,7 @@ class CrearLoteUseCaseIntegracionTest {
         producto.setPrecio(new BigDecimal("15.00"));
         producto.setStockMinimo(new BigDecimal("1.00"));
         producto.setVendible(true);
+        producto.setEsStockDirecto(true);
         producto.setUnidadActual(idUnidad);
         producto.setIdTipo(idTipo);
         producto.setIdCategoria(idCategoria);

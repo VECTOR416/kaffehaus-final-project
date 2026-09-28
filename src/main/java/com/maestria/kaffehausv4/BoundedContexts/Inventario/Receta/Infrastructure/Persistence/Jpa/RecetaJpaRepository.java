@@ -12,4 +12,5 @@ public interface RecetaJpaRepository extends JpaRepository<RecetaJpaModel, UUID>
     Optional<RecetaJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<RecetaJpaModel> findByBorradoFalse(Pageable pageable);
     Page<RecetaJpaModel> findByBorradoFalseAndTituloContainingIgnoreCase(String titulo, Pageable pageable);
+    Optional<RecetaJpaModel> findFirstByIdProductoObtenidoAndBorradoFalseOrderByFecCDesc(UUID idProductoObtenido);
 }

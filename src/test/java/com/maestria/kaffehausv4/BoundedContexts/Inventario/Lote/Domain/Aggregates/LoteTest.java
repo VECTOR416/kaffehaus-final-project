@@ -12,6 +12,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.ValueObjects.ProduccionId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
@@ -42,6 +44,8 @@ class LoteTest {
                 new BigDecimal("160.00"),
                 new ProveedorId("11111111-1111-1111-1111-111111111111"),
                 new UsuarioId("22222222-2222-2222-2222-222222222222"),
+                false,
+                null,
                 false,
                 List.of(
                         DetalleLote.restaurar(ID_DETALLE_CAFE, PRODUCTO_CAFE,
@@ -209,5 +213,68 @@ class LoteTest {
 
         assertEquals(new BigDecimal("168.00"), lote.getTotal());
         assertFalse(lote.getDetallesActivos().get(1).isBorrado());
+    }
+
+    private Lote loteDeProduccion() {
+        return Lote.registrarProduccion(
+                LocalDateTime.of(2026, 9, 27, 8, 0),
+                new ProduccionId("66666666-6666-6666-6666-666666666666"),
+                new UsuarioId("22222222-2222-2222-2222-222222222222"),
+                PRODUCTO_CAFE,
+                new BigDecimal("20"),
+                new BigDecimal("7.25"),
+                LocalDate.of(2026, 9, 29));
+    }
+
+    @Test
+    void unLoteDeCompraExigeProveedor() {
+        DomainException error = assertThrows(DomainException.class, () -> Lote.crear(
+                LocalDateTime.of(2026, 9, 17, 10, 30),
+                null,
+                new UsuarioId("22222222-2222-2222-2222-222222222222")));
+
+        assertEquals(400, error.getCodigo());
+    }
+
+    @Test
+    void unLoteDeProduccionNaceSinProveedorYConUnaLineaAbiertaPorCompleto() {
+        Lote lote = loteDeProduccion();
+
+        assertTrue(lote.isEsProduccion());
+        assertEquals(null, lote.getProveedorId());
+        assertEquals("66666666-6666-6666-6666-666666666666", lote.getProduccionId().getValue());
+        assertEquals(1, lote.getDetallesActivos().size());
+        assertEquals(new BigDecimal("20.00"), lote.getDetallesActivos().get(0).getCantidadInicial());
+        assertEquals(new BigDecimal("0.00"), lote.getDetallesActivos().get(0).getCantidadRestante());
+        assertEquals(new BigDecimal("145.00"), lote.getTotal());
+    }
+
+    @Test
+    void unLoteDeProduccionExigeLaProduccionQueLoOrigina() {
+        DomainException error = assertThrows(DomainException.class, () -> Lote.registrarProduccion(
+                LocalDateTime.of(2026, 9, 27, 8, 0), null,
+                new UsuarioId("22222222-2222-2222-2222-222222222222"),
+                PRODUCTO_CAFE, new BigDecimal("20"), new BigDecimal("7.25"), null));
+
+        assertEquals(400, error.getCodigo());
+    }
+
+    @Test
+    void unLoteDeProduccionNoAdmiteProveedor() {
+        Lote lote = loteDeProduccion();
+
+        DomainException error = assertThrows(DomainException.class, () -> lote.actualizar(
+                null, new ProveedorId("11111111-1111-1111-1111-111111111111"), null));
+
+        assertEquals(400, error.getCodigo());
+    }
+
+    @Test
+    void elCostoPorUnidadDeContenidoDeUnaCompraReparteElPrecioEntreElContenido() {
+        Lote lote = lotePersistido();
+
+        BigDecimal costoPorGramo = lote.costoPorUnidadDeContenido(new DetalleLoteId(ID_DETALLE_CAFE), new BigDecimal("1000"));
+
+        assertEquals(0, new BigDecimal("0.012").compareTo(costoPorGramo));
     }
 }

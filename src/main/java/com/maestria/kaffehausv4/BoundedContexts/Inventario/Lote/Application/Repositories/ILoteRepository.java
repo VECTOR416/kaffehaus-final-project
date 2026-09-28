@@ -7,6 +7,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 public interface ILoteRepository {
@@ -20,6 +21,12 @@ public interface ILoteRepository {
      * Lo usa Existencia para validar la linea de la que sale su stock.
      */
     Optional<Lote> obtenerPorDetalleId(DetalleLoteId detalleLoteId);
+
+    /**
+     * Lotes vivos con al menos una linea viva del producto. Es el punto de partida para
+     * localizar sus existencias al descontar inventario, y el que da el costo de cada una.
+     */
+    List<Lote> obtenerPorProducto(ProductoId productoId);
     PaginatedResponse<List<Lote>> obtenerTodos(ObtenerLotesRequest obtenerLotesRequest);
     void eliminar(LoteId loteId);
 }

@@ -75,6 +75,7 @@ public class ActualizarProductoUseCase {
                 actualizarProductoRequest.getPrecio(),
                 actualizarProductoRequest.getStockMinimo(),
                 actualizarProductoRequest.getVendible(),
+                actualizarProductoRequest.getEsStockDirecto(),
                 unidadActualId,
                 tipoId,
                 categoriaId,

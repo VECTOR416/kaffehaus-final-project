@@ -46,4 +46,9 @@ public class TipoMovimientoRepositoryImpl implements ITipoMovimientoRepository{
         this.tipoMovimientoDatasource.eliminar(tipoMovimientoId);
     }
 
+    @Override
+    public Optional<TipoMovimiento> obtenerPorNombre(String nombre) {
+        return this.tipoMovimientoDatasource.obtenerPorNombre(nombre);
+    }
+
 }

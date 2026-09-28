@@ -32,6 +32,9 @@ public class ProductoJpaModel {
     @Column(name = "vendible", nullable = false)
     private Boolean vendible;
 
+    @Column(name = "es_stock_directo", nullable = false)
+    private Boolean esStockDirecto;
+
     @Column(name = "unidad_actual", nullable = false)
     private UUID unidadActual;
 
@@ -67,6 +70,8 @@ public class ProductoJpaModel {
     public void setStockMinimo(BigDecimal stockMinimo) {this.stockMinimo = stockMinimo;}
     public Boolean getVendible() {return vendible;}
     public void setVendible(Boolean vendible) {this.vendible = vendible;}
+    public Boolean getEsStockDirecto() {return esStockDirecto;}
+    public void setEsStockDirecto(Boolean esStockDirecto) {this.esStockDirecto = esStockDirecto;}
     public UUID getUnidadActual() {return unidadActual;}
     public void setUnidadActual(UUID unidadActual) {this.unidadActual = unidadActual;}
     public UUID getIdTipo() {return idTipo;}
