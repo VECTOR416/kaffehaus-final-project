@@ -6,51 +6,60 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
  * Payload compuesto del alta de una venta: encabezado mas la coleccion de detalles.
  *
- * Ya no acepta 'total'. El total es un valor derivado que calcula el agregado Venta a partir
- * de sus lineas, de forma que encabezado y detalle no puedan contradecirse.
+ * No admite 'total' (derivado) ni 'idEstadoVenta': una venta nace 'Completada' y el estado lo
+ * asigna el sistema (ventas.md VEN-01, VEN-02). 'claveIdempotencia' es opcional: la genera el
+ * POS para que un reintento tras un timeout no cobre dos veces (VEN-66).
  */
 public class CrearVentaRequest {
+    private static final List<String> CAMPOS_DERIVADOS = List.of("total", "idEstadoVenta");
+
     private LocalDateTime fechaVenta;
     private String idUsuario;
     private String idCliente;
-    private String idEstadoVenta;
+    private String claveIdempotencia;
     private List<DetalleVentaRequest> detalles;
 
     private CrearVentaRequest(
         LocalDateTime fechaVenta,
         String idUsuario,
         String idCliente,
-        String idEstadoVenta,
+        String claveIdempotencia,
         List<DetalleVentaRequest> detalles
     ) {
         this.fechaVenta = fechaVenta;
         this.idUsuario = idUsuario;
         this.idCliente = idCliente;
-        this.idEstadoVenta = idEstadoVenta;
+        this.claveIdempotencia = claveIdempotencia;
         this.detalles = detalles;
     }
 
     public static CrearVentaRequest createFromRequest(Map<String, Object> request){
+        for (String campo : CAMPOS_DERIVADOS) {
+            if (request.get(campo) != null) {
+                throw DomainException.throwException(400, "El campo '" + campo + "' de una venta lo asigna el sistema; no se envia");
+            }
+        }
         LocalDateTime fechaVenta = Validador.fechaOpcional(request.get("fechaVenta"), "fechaVenta");
         fechaVenta = fechaVenta != null ? fechaVenta : LocalDateTime.now();
         String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
         String idCliente = Validador.textoOpcional(request.get("idCliente"), "idCliente");
-        String idEstadoVenta = Validador.textoRequerido(request.get("idEstadoVenta"), "idEstadoVenta");
+        String claveIdempotencia = Validador.textoOpcional(request.get("claveIdempotencia"), "claveIdempotencia");
 
         List<DetalleVentaRequest> detalles = Validador.listaDeObjetosRequerida(request.get("detalles"), "detalles").stream()
                 .map(DetalleVentaRequest::createFromRequest)
                 .collect(Collectors.toList());
 
-        return new CrearVentaRequest(fechaVenta, idUsuario, idCliente, idEstadoVenta, detalles);
+        return new CrearVentaRequest(fechaVenta, idUsuario, idCliente, claveIdempotencia, detalles);
     }
 
     public LocalDateTime getFechaVenta() {return fechaVenta;}
     public String getIdUsuario() {return idUsuario;}
     public String getIdCliente() {return idCliente;}
-    public String getIdEstadoVenta() {return idEstadoVenta;}
+    public String getClaveIdempotencia() {return claveIdempotencia;}
     public List<DetalleVentaRequest> getDetalles() {return detalles;}
 }

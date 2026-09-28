@@ -89,6 +89,13 @@ public class MovimientoDatasourceImpl implements IMovimientoDatasource {
         movimientoJpaRepository.save(model);
     }
 
+    @Override
+    public List<Movimiento> obtenerPorMotivo(String motivo) {
+        return movimientoJpaRepository.findByMotivoAndBorradoFalseOrderByFechaMovimientoAsc(motivo).stream()
+                .map(MovimientoJpaMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

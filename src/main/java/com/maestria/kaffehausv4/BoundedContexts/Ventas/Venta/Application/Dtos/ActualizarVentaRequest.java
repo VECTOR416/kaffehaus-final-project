@@ -1,59 +1,34 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos;
 
-import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
- * Modificacion de una venta existente. Mantiene la semantica PATCH del proyecto: lo que no
- * llega, no se toca.
- *
- * 'detalles' es opcional. Cuando viene, el caso de uso hace una conciliacion por id: las
- * lineas con 'id' se corrigen, las que no lo traen se agregan y las que faltan se dan de baja
- * logica. No se reemplaza la coleccion entera porque el sistema no usa borrado fisico: cada
- * reemplazo dejaria una fila muerta por linea modificada.
+ * Correccion de una venta registrada: solo 'idCliente' (ventas.md VEN-31). Productos,
+ * cantidades, importes, fecha, usuario y estado ya justificaron movimientos de inventario
+ * inmutables; se corrigen anulando y registrando otra venta (VEN-30). Cualquier otro campo se
+ * rechaza en lugar de ignorarse.
  */
 public class ActualizarVentaRequest {
-    private LocalDateTime fechaVenta;
-    private String idUsuario;
     private String idCliente;
-    private String idEstadoVenta;
-    private List<ActualizarDetalleVentaRequest> detalles;
 
-    private ActualizarVentaRequest(
-        LocalDateTime fechaVenta,
-        String idUsuario,
-        String idCliente,
-        String idEstadoVenta,
-        List<ActualizarDetalleVentaRequest> detalles
-    ) {
-        this.fechaVenta = fechaVenta;
-        this.idUsuario = idUsuario;
+    private ActualizarVentaRequest(String idCliente) {
         this.idCliente = idCliente;
-        this.idEstadoVenta = idEstadoVenta;
-        this.detalles = detalles;
     }
 
     public static ActualizarVentaRequest createFromRequest(Map<String, Object> request){
-        LocalDateTime fechaVenta = Validador.fechaOpcional(request.get("fechaVenta"), "fechaVenta");
-        String idUsuario = Validador.textoOpcional(request.get("idUsuario"), "idUsuario");
-        String idCliente = Validador.textoOpcional(request.get("idCliente"), "idCliente");
-        String idEstadoVenta = Validador.textoOpcional(request.get("idEstadoVenta"), "idEstadoVenta");
+        for (Map.Entry<String, Object> campo : request.entrySet()) {
+            if (!"idCliente".equals(campo.getKey()) && campo.getValue() != null) {
+                throw DomainException.throwException(400, "El campo '" + campo.getKey()
+                        + "' de una venta registrada no se modifica; anula la venta y registra otra");
+            }
+        }
+        String idCliente = Validador.textoRequerido(request.get("idCliente"), "idCliente");
 
-        List<Map<String, Object>> detallesTmp = Validador.listaDeObjetosOpcional(request.get("detalles"), "detalles");
-        List<ActualizarDetalleVentaRequest> detalles = detallesTmp != null
-                ? detallesTmp.stream().map(ActualizarDetalleVentaRequest::createFromRequest).collect(Collectors.toList())
-                : null;
-
-        return new ActualizarVentaRequest(fechaVenta, idUsuario, idCliente, idEstadoVenta, detalles);
+        return new ActualizarVentaRequest(idCliente);
     }
 
-    public LocalDateTime getFechaVenta() {return fechaVenta;}
-    public String getIdUsuario() {return idUsuario;}
     public String getIdCliente() {return idCliente;}
-    public String getIdEstadoVenta() {return idEstadoVenta;}
-    public List<ActualizarDetalleVentaRequest> getDetalles() {return detalles;}
 }

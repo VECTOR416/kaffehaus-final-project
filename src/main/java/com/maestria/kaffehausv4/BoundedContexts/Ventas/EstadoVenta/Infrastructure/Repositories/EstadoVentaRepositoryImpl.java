@@ -46,4 +46,9 @@ public class EstadoVentaRepositoryImpl implements IEstadoVentaRepository{
         this.estadoVentaDatasource.eliminar(estadoVentaId);
     }
 
+    @Override
+    public Optional<EstadoVenta> obtenerPorNombre(String nombre) {
+        return this.estadoVentaDatasource.obtenerPorNombre(nombre);
+    }
+
 }

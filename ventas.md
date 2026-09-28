@@ -213,7 +213,8 @@ sequenceDiagram
   - Requiere `@RequiereRol("Administrador")`: una anulación deshace un cobro.
   - `motivo` es obligatorio.
   - Solo se anula una venta `Completada` (409 si ya está `Anulada`).
-  - La venta pasa a `Anulada`. Sus líneas, precios, costos y movimientos se conservan.
+  - La venta pasa a `Anulada` y guarda `motivo_anulacion` e `id_usuario_anulacion`. Sus
+    líneas, precios, costos y movimientos se conservan.
   - Todo en una transacción (INV-50).
 - **VEN-41 — Sin reintegro (`reintegrar = false`), el caso por defecto.** El producto se
   entregó o se preparó: un café servido no vuelve a la bolsa. La venta queda sin efecto
@@ -298,9 +299,11 @@ ALTER TABLE venta ADD CONSTRAINT chk_venta_total CHECK (total >= 0);
   dejó escrituras y el reintento es seguro.
 - **VEN-66 — Idempotencia del alta.** Si el POS no recibe respuesta (timeout) y reintenta,
   no debe cobrar dos veces. El alta acepta una `claveIdempotencia` opcional generada por el
-  POS: si ya existe una venta con esa clave, se devuelve esa venta (200) en lugar de crear
-  otra. Requiere una columna `venta.clave_idempotencia` con índice único parcial
-  `WHERE clave_idempotencia IS NOT NULL`.
+  POS: si ya existe una venta con esa clave, se devuelve esa misma venta (201, el mismo cuerpo
+  que la primera vez) en lugar de crear otra. Se guarda en `venta.clave_idempotencia` con el
+  índice único parcial `uq_venta_clave_idempotencia` (`WHERE clave_idempotencia IS NOT NULL`).
+  Si dos altas con la misma clave llegan a la vez, la segunda choca con el índice, revierte y
+  responde 409; al reintentar recibe la de la primera.
 
 ### 7.3 Consultas
 
@@ -328,24 +331,26 @@ ALTER TABLE venta ADD CONSTRAINT chk_venta_total CHECK (total >= 0);
 
 Estado al 2026-09-27 respecto del código en `feature-inventarios`.
 
-| Regla | Estado | Nota |
+| Regla | Estado | Dónde |
 |---|---|---|
+| VEN-01..03 Estado asignado por el sistema | Implementado | `Venta.crear` nace `Completada`; el alta rechaza `idEstadoVenta` (400) |
 | VEN-04 Al menos una línea; total y subtotal derivados | Implementado | `Venta`, `DetalleVenta` |
-| VEN-21 Alta en una transacción con descuento de inventario | Implementado | `CrearVentaUseCase` + `RegistrarSalidaDeInventarioUseCase`, líneas en orden de `id` de producto |
+| VEN-10..12 Vendible y solo productos base | Implementado | `CrearVentaUseCase` (400) |
+| VEN-13 Precio desde `producto.precio` | Implementado | La línea rechaza `precioUnitario` (400) |
+| VEN-14 Descuento vigente más favorable | Implementado | `IDescuentoRepository.obtenerVigentes`, `Descuento.importeSobre`; `Descuento.validarCon` al darlo de alta o editarlo |
+| VEN-21 Alta en una transacción con descuento de inventario | Implementado | `CrearVentaUseCase` + `RegistrarSalidaDeInventarioUseCase` |
 | VEN-22 409 que remite a abrir una presentación | Implementado | Mensaje e `idProducto` de INV-34 |
-| VEN-64 Sin sobreventa concurrente | Implementado | Test de concurrencia |
-| VEN-01..03 Estado asignado por el sistema | **Pendiente** | Hoy el alta recibe `idEstadoVenta` del cliente; falta sembrar `Completada` y `Anulada` |
-| VEN-10..12 Vendible y solo productos base | **Pendiente** | |
-| VEN-13 Precio desde `producto.precio` | **Pendiente** | Hoy el POS envía `precioUnitario` |
-| VEN-14 Descuento desde `descuentos` | **Pendiente** | Hoy el POS envía `descuentoAplicado`; falta sembrar `Porcentaje` y `Monto fijo` |
-| VEN-23 `detalle_venta.costo_total` | **Pendiente** | Columna nueva; el costo ya lo devuelve el consumo |
-| VEN-30..33 Venta inmutable; `PUT` solo `idCliente`; `DELETE` → 409 | **Pendiente** | Hoy el `PUT` concilia líneas y el `DELETE` da de baja **sin tocar inventario**: ambos pueden desalinear ventas e inventario |
-| VEN-40..44 Anulación y reintegro | **Pendiente** | Nuevo endpoint y tipo de movimiento `Devolucion venta` (entrada) |
-| VEN-50..53 Pedidos | **Pendiente** | Hoy `Pedido` es CRUD sin transiciones ni vínculo con la anulación |
-| VEN-60 CHECK de importes | **Pendiente** | El dominio ya valida |
-| VEN-65 Interbloqueo como 409 | **Pendiente** | Hoy llega como 500 |
-| VEN-66 Idempotencia del alta | **Pendiente** | Columna e índice nuevos |
+| VEN-23 `detalle_venta.costo_total` | Implementado | `Venta.registrarCosto`; `VentaResponse.costoTotal` |
+| VEN-30..33 Venta inmutable; `PUT` solo `idCliente`; `DELETE` → 409 | Implementado | `ActualizarVentaRequest`, `Venta.asignarCliente`, `Venta.eliminar` |
+| VEN-40..44 Anulación y reintegro | Implementado | `POST api/v1/venta/{id}/anulacion` (rol `Administrador`) → `RegistrarAnulacionDeVentaUseCase` + `RegistrarReintegroDeInventarioUseCase` |
+| VEN-50..53 Pedidos | Implementado | `CrearPedidoUseCase` (nace `Recibido`), `ActualizarPedidoUseCase` (transiciones; cancelar anula la venta) |
+| VEN-60 CHECK de importes | Implementado | `chk_detalle_venta_importes`, `chk_venta_total` |
+| VEN-63 Un pedido por venta, nunca de una anulada | Implementado | `CrearPedidoUseCase` (409) + `pedidos.id_venta UNIQUE` |
+| VEN-64 Sin sobreventa concurrente | Implementado | Test de concurrencia en `FlujoInventarioIntegracionTest` |
+| VEN-65 Interbloqueo como 409 | Implementado | `GlobalExceptionHandler` traduce `PessimisticLockingFailureException` |
+| VEN-66 Idempotencia del alta | Implementado | `venta.clave_idempotencia` + `uq_venta_clave_idempotencia` |
+| Consultas de la sección 7.3 | **Pendiente** | Los datos existen (`costo_total`, estado, movimientos); faltan los endpoints de reporte |
 
-**Riesgo actual a cerrar primero:** VEN-30..33. Mientras el `PUT` y el `DELETE` de venta sigan
-como CRUD, una corrección o una baja cambian la venta sin mover el inventario que ella ya
-descontó.
+**Límite conocido.** Anular directamente una venta que tiene un pedido vivo no cancela el
+pedido: la cancelación va del pedido a la venta (VEN-52), no al revés. Hasta cerrarlo, anula
+cancelando el pedido.

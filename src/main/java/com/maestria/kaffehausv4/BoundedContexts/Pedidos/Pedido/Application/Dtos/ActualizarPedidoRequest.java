@@ -5,29 +5,35 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * Modificacion de un pedido. 'idVenta' no cambia: un pedido es la entrega de una venta
+ * concreta (ventas.md VEN-50). 'idEstado' mueve el pedido por sus transiciones (VEN-51); para
+ * cancelarlo hace falta 'idUsuario', porque la cancelacion anula su venta (VEN-52).
+ */
 public class ActualizarPedidoRequest {
     private LocalDateTime fechaEntrega;
     private BigDecimal latitud;
     private BigDecimal longitud;
     private String descripcion;
-    private String idVenta;
     private String idEstado;
+    private String idUsuario;
 
     private ActualizarPedidoRequest(
         LocalDateTime fechaEntrega,
         BigDecimal latitud,
         BigDecimal longitud,
         String descripcion,
-        String idVenta,
-        String idEstado
+        String idEstado,
+        String idUsuario
     ) {
         this.fechaEntrega = fechaEntrega;
         this.latitud = latitud;
         this.longitud = longitud;
         this.descripcion = descripcion;
-        this.idVenta = idVenta;
         this.idEstado = idEstado;
+        this.idUsuario = idUsuario;
     }
 
     public static ActualizarPedidoRequest createFromRequest(Map<String, Object> request){
@@ -37,16 +43,19 @@ public class ActualizarPedidoRequest {
         Double longitudTmp = Validador.numeroOpcional(request.get("longitud"), "longitud");
         BigDecimal longitud = longitudTmp != null ? BigDecimal.valueOf(longitudTmp) : null;
         String descripcion = Validador.textoOpcional(request.get("descripcion"), "descripcion");
-        String idVenta = Validador.textoOpcional(request.get("idVenta"), "idVenta");
+        if (request.get("idVenta") != null) {
+            throw DomainException.throwException(400, "El campo 'idVenta' de un pedido no se modifica");
+        }
         String idEstado = Validador.textoOpcional(request.get("idEstado"), "idEstado");
+        String idUsuario = Validador.textoOpcional(request.get("idUsuario"), "idUsuario");
 
-        return new ActualizarPedidoRequest(fechaEntrega, latitud, longitud, descripcion, idVenta, idEstado);
+        return new ActualizarPedidoRequest(fechaEntrega, latitud, longitud, descripcion, idEstado, idUsuario);
     }
 
     public LocalDateTime getFechaEntrega() {return fechaEntrega;}
     public BigDecimal getLatitud() {return latitud;}
     public BigDecimal getLongitud() {return longitud;}
     public String getDescripcion() {return descripcion;}
-    public String getIdVenta() {return idVenta;}
     public String getIdEstado() {return idEstado;}
+    public String getIdUsuario() {return idUsuario;}
 }

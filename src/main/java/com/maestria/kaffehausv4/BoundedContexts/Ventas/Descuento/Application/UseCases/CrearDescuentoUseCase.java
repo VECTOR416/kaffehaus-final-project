@@ -45,6 +45,7 @@ public class CrearDescuentoUseCase {
                 crearDescuentoRequest.isEstado(),
                 productoId,
                 tipoDescuentoId);
+        descuento.validarCon(tipoDescuento);
 
         Descuento descuentoCreado = descuentoRepository.crear(descuento);
 

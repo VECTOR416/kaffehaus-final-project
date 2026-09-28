@@ -13,6 +13,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Datas
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Dtos.ObtenerPedidosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.Aggregates.Pedido;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.ValueObjects.PedidoId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Infrastructure.Persistence.Jpa.PedidoJpaMapper;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Infrastructure.Persistence.Jpa.PedidoJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Infrastructure.Persistence.Jpa.PedidoJpaRepository;
@@ -86,6 +87,12 @@ public class PedidoDatasourceImpl implements IPedidoDatasource {
 
         PedidoJpaMapper.copiarCambios(pedido, model);
         pedidoJpaRepository.save(model);
+    }
+
+    @Override
+    public Optional<Pedido> obtenerPorVentaId(VentaId ventaId) {
+        return pedidoJpaRepository.findFirstByIdVentaAndBorradoFalse(aUuid(ventaId.getValue()))
+                .map(PedidoJpaMapper::toDomain);
     }
 
     private static UUID aUuid(String valor) {

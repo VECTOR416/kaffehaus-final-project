@@ -88,6 +88,12 @@ public class EstadoVentaDatasourceImpl implements IEstadoVentaDatasource {
         estadoVentaJpaRepository.save(model);
     }
 
+    @Override
+    public Optional<EstadoVenta> obtenerPorNombre(String nombre) {
+        return estadoVentaJpaRepository.findFirstByNombreIgnoreCaseAndBorradoFalse(nombre)
+                .map(EstadoVentaJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

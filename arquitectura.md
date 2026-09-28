@@ -393,16 +393,19 @@ se retiro al subordinar las lineas a su raiz.
 
 | Operacion | Payload | Efecto |
 |---|---|---|
-| `POST api/v1/venta` | encabezado + `detalles[]` (obligatorio, no vacio) | Crea encabezado y lineas en una transaccion. Devuelve 201 con el agregado completo |
-| `PUT api/v1/venta/{id}` | encabezado opcional + `detalles[]` opcional | **Concilia por id**, no reemplaza: linea con `id` se corrige, linea sin `id` se agrega, linea ausente se da de baja logica |
-| `GET api/v1/venta/{id}` | — | Devuelve la venta con sus lineas |
+| `POST api/v1/venta` | `idUsuario`, `idCliente` opcional, `fechaVenta` opcional, `claveIdempotencia` opcional, `detalles[]` (obligatorio, no vacio) | Crea la venta `Completada` y descuenta su inventario en una transaccion (VEN-21). Devuelve 201; con una clave ya usada devuelve la venta existente (VEN-66) |
+| `PUT api/v1/venta/{id}` | solo `idCliente` | Asocia el cliente (VEN-31). Cualquier otro campo, incluido `detalles`, responde 400; una venta anulada, 409 |
+| `GET api/v1/venta/{id}` | — | Devuelve la venta con sus lineas, costo, estado y datos de anulacion |
 | `GET api/v1/venta` | `skip`/`limit`/`search` | Pagina de ventas con sus lineas, resueltas en una sola consulta por pagina |
-| `DELETE api/v1/venta/{id}` | — | Baja logica del encabezado y de todas sus lineas |
+| `DELETE api/v1/venta/{id}` | — | Responde 409: una venta no se da de baja, se anula (VEN-33) |
+| `POST api/v1/venta/{id}/anulacion` | `idUsuario`, `motivo`, `reintegrar` opcional (falso) | `@RequiereRol("Administrador")`. Anula; con reintegro registra compensatorios `Devolucion venta` (VEN-40..43) |
 
-En el alta cada elemento de `detalles` admite `idProducto`, `precioUnitario`, `cantidad` y
-`descuentoAplicado` (opcional, por defecto 0). **No admite `subtotal`, y la venta no admite
-`total`**: ambos son derivados. En el `PUT` cada elemento admite ademas `id`, y cambiar el
-`idProducto` de una linea existente se rechaza con 400.
+En el alta cada elemento de `detalles` admite **solo** `idProducto` y `cantidad`. El precio
+(`producto.precio`), el descuento (el vigente mas favorable de `descuentos`), el subtotal, el
+costo y el estado los pone el sistema; si llegan `precioUnitario`, `descuentoAplicado`,
+`subtotal`, `costoTotal`, `total` o `idEstadoVenta`, se responde 400 (VEN-02, VEN-13, VEN-14).
+La ruta `/anulacion` es la unica fuera de los cinco verbos en `Venta` (regla 25): deshacer un
+cobro no es una baja logica.
 
 ### 4.7 Contrato del agregado Lote (endpoints)
 
@@ -639,14 +642,16 @@ ocurre exclusivamente en Infrastructure.
   nunca de `I*Datasource` ni de clases de Infrastructure.
 - **Unica excepcion: las operaciones internas de inventario.** Son casos de uso sin
   controller que otros casos de uso inyectan y ejecutan dentro de su propia transaccion, para
-  que una regla de inventario viva en un solo lugar. Hay tres, y no se crean mas sin
-  documentarlas aqui:
+  que una regla de inventario o de venta viva en un solo lugar. Hay cinco, y no se crean mas
+  sin documentarlas aqui:
 
   | Operacion interna | Slice | La usan |
   |---|---|---|
   | `RegistrarSalidaDeInventarioUseCase` (consumo FEFO y backflush) | Movimiento | `CrearProduccionUseCase`, `CrearVentaUseCase` |
   | `RegistrarAperturaUseCase` (abrir una unidad cerrada) | Existencia | `AbrirDetalleLoteUseCase`, `DarDeBajaDetalleVencidoUseCase` |
   | `RecalcularStockUseCase` (proyeccion de `producto.stock`) | Producto | Todas las que cambian `contenido_actual` |
+  | `RegistrarReintegroDeInventarioUseCase` (compensatorios `Devolucion venta`) | Movimiento | `RegistrarAnulacionDeVentaUseCase` |
+  | `RegistrarAnulacionDeVentaUseCase` (anular una venta, con o sin reintegro) | Venta | `AnularVentaUseCase`, `ActualizarPedidoUseCase` (cancelar un pedido) |
 
   Sus requests se arman con `crear(...)`, no con `createFromRequest(Map)`, porque no viajan
   por HTTP. Una operacion interna puede invocar a otra (la apertura recalcula el stock).
@@ -727,7 +732,14 @@ Jerarquia unica: `BaseException` (abstracta) → `DomainException` | `SystemExce
   Si `HttpStatus.resolve(codigo)` es nulo, cae a `500`. Tiene handlers para `DomainException`,
   `SystemException`, `BaseException` (cubre `AutorizacionException`) y `RuntimeException`.
 - Reparto de codigos observado: `400` validacion y UUID malformado, `404` recurso inexistente,
-  `500` fallo tecnico (`SystemException`).
+  `409` conflicto de negocio (stock, estado, inmutabilidad), `500` fallo tecnico
+  (`SystemException`).
+- Dos excepciones de Spring se traducen en el `GlobalExceptionHandler` porque surgen al
+  confirmar la transaccion, fuera del alcance de cualquier caso de uso:
+  `PessimisticLockingFailureException` (interbloqueo o espera de bloqueo abortada) responde
+  409 "reintenta" (ventas.md VEN-65), y una `DataIntegrityViolationException` del indice
+  `uq_venta_clave_idempotencia` responde 409 (VEN-66). Cualquier otra violacion de integridad
+  sigue siendo 500.
 - **Mensajes de error en espanol, sin tildes**, citando el campo o id entre comillas simples:
   `"La categoria con id '...' no existe"`, `"El campo 'nombre' es obligatorio..."`.
 
@@ -950,7 +962,11 @@ publico justo para esto.
   - `IProductoRepository`: `obtenerPresentaciones`, `obtenerPorIdParaActualizar`,
     `actualizarStock`.
   - `IRecetaRepository.obtenerPorProductoObtenido`; `IConversionRepository.obtenerVivas`.
-  - `obtenerPorNombre` en `ITipoMovimientoRepository` e `IEstadoExistenciaRepository`.
+  - `IMovimientoRepository.obtenerPorMotivo` (los movimientos de una venta, para el reintegro).
+  - `obtenerPorNombre` en `ITipoMovimientoRepository`, `IEstadoExistenciaRepository`,
+    `IEstadoVentaRepository` e `IEstadoPedidoRepository`.
+  - `IVentaRepository.obtenerPorClaveIdempotencia`, `IDescuentoRepository.obtenerVigentes`,
+    `IPedidoRepository.obtenerPorVentaId`.
 - Slices de inventario con casos de uso ademas de los cinco:
   - `Movimiento`: `RegistrarSalidaDeInventarioUseCase` (interna). Sus `Actualizar` y
     `Eliminar` existen pero el agregado los rechaza con 409: los movimientos son inmutables.
@@ -960,20 +976,30 @@ publico justo para esto.
     `RegistrarVencimientoUseCase`, `AjustarExistenciaUseCase`. Su `Crear` existe pero responde
     409 (inventario.md INV-12).
   - `Producto`: `ObtenerInventarioProductoUseCase`, `RecalcularStockUseCase` (interna).
+  - `Movimiento`: ademas, `RegistrarReintegroDeInventarioUseCase` (interna).
+  - `Venta`: `AnularVentaUseCase` y `RegistrarAnulacionDeVentaUseCase` (interna). Su
+    `Eliminar` existe pero el agregado lo rechaza con 409 (ventas.md VEN-33).
+- `Pedidos/Pedido` usa una operacion interna de otro contexto (`RegistrarAnulacionDeVentaUseCase`,
+  de Ventas): cancelar un pedido anula su venta en la misma transaccion (ventas.md VEN-52).
+  Es el unico caso en que un contexto invoca un caso de uso de otro.
+- `TipoDescuento` reconoce su propia semantica por nombre (`esPorcentaje`, `esMontoFijo`),
+  como los roles; `Descuento.importeSobre` calcula el importe con esa semantica.
 - Las funciones de dominio sobre colecciones (`Conversion.factorEntre`,
   `Lote.aperturablesEnOrden`, `Lote.dueno`) son `static` en su agregado: son reglas puras que
   operan sobre varios agregados del mismo tipo ya cargados por el caso de uso.
 - `Inventario/Lote` deja la linea `//String search = ...` comentada en su datasource porque la
   entidad no tiene campo de texto buscable.
-- Tests de negocio existentes (126): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio
-  puro, sin Spring, `VentaTest` (10), `LoteTest` (23), `RecetaTest` (18), `ExistenciaTest` (12),
-  `ProduccionTest` (5), `MovimientoTest` (3), `ConversionTest` (6) y `ProductoTest` (5); de
-  integracion contra la BD real, `CrearVentaUseCaseIntegracionTest` (8),
-  `CrearLoteUseCaseIntegracionTest` (8), `CrearRecetaUseCaseIntegracionTest` (9),
-  `FlujoInventarioIntegracionTest` (7, incluida una prueba de concurrencia de dos ventas
-  simultaneas) y `AperturaInventarioIntegracionTest` (11), todos
+- Tests de negocio existentes (144): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio
+  puro, sin Spring, `VentaTest` (12), `DescuentoTest` (5), `LoteTest` (23), `RecetaTest` (18),
+  `ExistenciaTest` (12), `ProduccionTest` (5), `MovimientoTest` (3), `ConversionTest` (6) y
+  `ProductoTest` (5); de integracion contra la BD real, `CrearVentaUseCaseIntegracionTest` (13),
+  `PedidoVentaIntegracionTest` (6), `CrearLoteUseCaseIntegracionTest` (8),
+  `CrearRecetaUseCaseIntegracionTest` (9), `FlujoInventarioIntegracionTest` (7, incluida una
+  prueba de concurrencia de dos ventas simultaneas) y `AperturaInventarioIntegracionTest` (11),
+  todos
   `@SpringBootTest` sin `@Transactional` de clase para poder observar el rollback del caso de
-  uso. Los de integracion de inventario necesitan el catalogo de 4.9 en la base. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
+  uso. Los de integracion de inventario y ventas necesitan el catalogo de la seccion 7 de
+  `databasev4.sql` en la base. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
   paquete de produccion.
 - El test de integracion necesita PostgreSQL levantado (`docker compose up -d`) y limpia en
   `@AfterEach` lo que siembra. Para borrar en el `@AfterEach` usa `deleteAll(...)` y no el

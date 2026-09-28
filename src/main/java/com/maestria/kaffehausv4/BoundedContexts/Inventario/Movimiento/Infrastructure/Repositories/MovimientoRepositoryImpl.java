@@ -46,4 +46,9 @@ public class MovimientoRepositoryImpl implements IMovimientoRepository{
         this.movimientoDatasource.eliminar(movimientoId);
     }
 
+    @Override
+    public List<Movimiento> obtenerPorMotivo(String motivo) {
+        return this.movimientoDatasource.obtenerPorMotivo(motivo);
+    }
+
 }

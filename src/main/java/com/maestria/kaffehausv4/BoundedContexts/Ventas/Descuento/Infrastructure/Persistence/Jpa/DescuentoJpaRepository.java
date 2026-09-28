@@ -1,5 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -11,4 +13,6 @@ public interface DescuentoJpaRepository extends JpaRepository<DescuentoJpaModel,
 
     Optional<DescuentoJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<DescuentoJpaModel> findByBorradoFalse(Pageable pageable);
+    List<DescuentoJpaModel> findByIdProductoAndEstadoTrueAndBorradoFalseAndFechaInicioLessThanEqualAndFechaFinalGreaterThanEqual(
+            UUID idProducto, LocalDateTime inicioHasta, LocalDateTime finalDesde);
 }

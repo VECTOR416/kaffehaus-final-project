@@ -14,4 +14,10 @@ public interface IMovimientoRepository {
     Optional<Movimiento> obtenerPorId(MovimientoId movimientoId);
     PaginatedResponse<List<Movimiento>> obtenerTodos(ObtenerMovimientosRequest obtenerMovimientosRequest);
     void eliminar(MovimientoId movimientoId);
+
+    /**
+     * Movimientos vivos con ese motivo exacto. Es como se reconocen los de una venta, que no
+     * guardan id_detalle_venta y citan la venta en su motivo (inventario.md INV-33).
+     */
+    List<Movimiento> obtenerPorMotivo(String motivo);
 }

@@ -42,6 +42,11 @@ public class VentaRepositoryImpl implements IVentaRepository{
     }
 
     @Override
+    public Optional<Venta> obtenerPorClaveIdempotencia(String claveIdempotencia) {
+        return this.ventaDatasource.obtenerPorClaveIdempotencia(claveIdempotencia);
+    }
+
+    @Override
     public void eliminar(VentaId ventaId) {
         this.ventaDatasource.eliminar(ventaId);
     }

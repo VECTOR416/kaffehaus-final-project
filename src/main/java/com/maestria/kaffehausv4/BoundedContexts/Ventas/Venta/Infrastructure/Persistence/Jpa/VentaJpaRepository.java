@@ -12,4 +12,5 @@ public interface VentaJpaRepository extends JpaRepository<VentaJpaModel, UUID>{
 
     Optional<VentaJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<VentaJpaModel> findByBorradoFalse(Pageable pageable);
+    Optional<VentaJpaModel> findByClaveIdempotenciaAndBorradoFalse(String claveIdempotencia);
 }

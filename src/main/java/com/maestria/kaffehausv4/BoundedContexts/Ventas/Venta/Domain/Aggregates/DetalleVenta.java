@@ -18,13 +18,17 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * coleccion de Venta, y la columna 'detalle_venta.id_venta' la resuelve el mapper a partir
  * de la raiz al persistir.
  *
- * El borrado es logico, como en todo el sistema: una linea dada de baja conserva su fila y su
- * identificador, y solo cambia su campo 'borrado'.
+ * Una linea registrada es inmutable en sus importes (ventas.md VEN-30): precio y descuento se
+ * copian al registrarla (VEN-13, VEN-14) y solo se completa despues su costo, que lo devuelve
+ * el inventario al descontarla (VEN-23).
  */
 public class DetalleVenta {
 
     /** Escala de NUMERIC(12, 2) en 'detalle_venta'. Todo importe se redondea a este valor. */
     static final int ESCALA_MONETARIA = 2;
+
+    /** Escala de NUMERIC(12, 4) de 'detalle_venta.costo_total'. */
+    static final int ESCALA_COSTO = 4;
 
     private DetalleVentaId id;
     private ProductoId productoId;
@@ -32,6 +36,7 @@ public class DetalleVenta {
     private BigDecimal cantidad;
     private BigDecimal subtotal;
     private BigDecimal descuentoAplicado;
+    private BigDecimal costoTotal;
     private boolean estado;
     private boolean borrado;
 
@@ -42,6 +47,7 @@ public class DetalleVenta {
         BigDecimal cantidad,
         BigDecimal subtotal,
         BigDecimal descuentoAplicado,
+        BigDecimal costoTotal,
         boolean estado,
         boolean borrado
     ){
@@ -51,6 +57,7 @@ public class DetalleVenta {
         this.cantidad = cantidad;
         this.subtotal = subtotal;
         this.descuentoAplicado = descuentoAplicado;
+        this.costoTotal = costoTotal;
         this.estado = estado;
         this.borrado = borrado;
     }
@@ -66,6 +73,7 @@ public class DetalleVenta {
         BigDecimal cantidad,
         BigDecimal subtotal,
         BigDecimal descuentoAplicado,
+        BigDecimal costoTotal,
         boolean estado,
         boolean borrado
     ){
@@ -76,13 +84,14 @@ public class DetalleVenta {
                 cantidad,
                 subtotal,
                 descuentoAplicado,
+                costoTotal,
                 estado,
                 borrado);
     }
 
     /**
-     * Crea una linea nueva validando sus invariantes y calculando el subtotal.
-     * Package-private: solo Venta puede llamarla.
+     * Crea una linea nueva validando sus invariantes y calculando el subtotal. El costo nace
+     * en cero hasta que el inventario lo informe. Package-private: solo Venta puede llamarla.
      */
     static DetalleVenta crear(
         ProductoId productoId,
@@ -105,30 +114,17 @@ public class DetalleVenta {
                 cantidad,
                 aEscalaMonetaria(importeBruto.subtract(descuento)),
                 aEscalaMonetaria(descuento),
+                BigDecimal.ZERO.setScale(ESCALA_COSTO),
                 true,
                 false);
     }
 
-    /**
-     * Corrige los importes de una linea viva y recalcula su subtotal. Package-private: la
-     * conciliacion del PUT pasa por la raiz.
-     */
-    void actualizarImportes(BigDecimal precioUnitario, BigDecimal cantidad, BigDecimal descuentoAplicado) {
-        BigDecimal nuevoPrecio = precioUnitario != null ? precioUnitario : this.precioUnitario;
-        BigDecimal nuevaCantidad = cantidad != null ? cantidad : this.cantidad;
-        BigDecimal nuevoDescuento = descuentoAplicado != null ? descuentoAplicado : this.descuentoAplicado;
-
-        exigirImportesValidos(nuevoPrecio, nuevaCantidad, nuevoDescuento);
-
-        this.precioUnitario = aEscalaMonetaria(nuevoPrecio);
-        this.cantidad = nuevaCantidad;
-        this.descuentoAplicado = aEscalaMonetaria(nuevoDescuento);
-        this.subtotal = aEscalaMonetaria(nuevoPrecio.multiply(nuevaCantidad).subtract(nuevoDescuento));
-    }
-
-    /** Baja logica de la linea. Solo la raiz puede invocarla. */
-    void eliminar() {
-        this.borrado = true;
+    /** Costo de lo descontado del inventario por esta linea (VEN-23). Package-private. */
+    void registrarCosto(BigDecimal costo) {
+        if (costo == null || costo.signum() < 0) {
+            throw DomainException.throwException(400, "El costo de la linea de venta no puede ser negativo");
+        }
+        this.costoTotal = costo.setScale(ESCALA_COSTO, RoundingMode.HALF_UP);
     }
 
     private static void exigirImportesValidos(BigDecimal precioUnitario, BigDecimal cantidad, BigDecimal descuento) {
@@ -156,6 +152,7 @@ public class DetalleVenta {
     public BigDecimal getCantidad() {return cantidad;}
     public BigDecimal getSubtotal() {return subtotal;}
     public BigDecimal getDescuentoAplicado() {return descuentoAplicado;}
+    public BigDecimal getCostoTotal() {return costoTotal;}
     public boolean isEstado() {return estado;}
     public boolean isBorrado() {return borrado;}
 }

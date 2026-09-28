@@ -16,19 +16,18 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
- * Raiz del agregado Venta.
+ * Raiz del agregado Venta (ventas.md).
  *
- * Venta contiene sus lineas (DetalleVenta) y es la unica puerta de entrada para crearlas,
- * corregirlas y darlas de baja. La coleccion se expone como vista de solo lectura, de modo que
- * ninguna capa externa puede mutarla sin pasar por agregarDetalle/actualizarDetalle/
- * removerDetalle.
+ * Venta contiene sus lineas (DetalleVenta) y es la unica puerta de entrada para crearlas. La
+ * coleccion se expone como vista de solo lectura.
  *
- * El total NO se recibe desde fuera: es un valor derivado que la raiz recalcula en cada
- * mutacion como la suma de los subtotales de sus lineas vivas. Asi no puede existir una venta
- * cuyo encabezado contradiga a su detalle.
+ * El total NO se recibe desde fuera: es la suma de los subtotales de sus lineas vivas.
  *
- * El borrado es logico en todo el sistema, tambien aqui: las lineas dadas de baja siguen en la
- * coleccion marcadas como borradas, porque esa baja debe llegar a la base como un UPDATE.
+ * Una venta nace 'Completada' con su inventario ya descontado (VEN-01) y es inmutable en todo
+ * lo que movio inventario (VEN-30): no se corrigen lineas, importes, fecha ni usuario, y no se
+ * da de baja (VEN-33). Solo admite asociarle el cliente (VEN-31) y anularse (VEN-40). Como el
+ * dominio no conoce los ids del catalogo 'estado_venta', quien la usa le pasa los de
+ * 'Completada' y 'Anulada' resueltos por nombre.
  */
 public class Venta {
 
@@ -38,6 +37,9 @@ public class Venta {
     private UsuarioId usuarioId;
     private ClienteId clienteId;
     private EstadoVentaId estadoVentaId;
+    private String claveIdempotencia;
+    private String motivoAnulacion;
+    private UsuarioId usuarioAnulacionId;
     private boolean borrado;
     private final List<DetalleVenta> detalles;
 
@@ -48,6 +50,9 @@ public class Venta {
         UsuarioId usuarioId,
         ClienteId clienteId,
         EstadoVentaId estadoVentaId,
+        String claveIdempotencia,
+        String motivoAnulacion,
+        UsuarioId usuarioAnulacionId,
         boolean borrado,
         List<DetalleVenta> detalles
     ){
@@ -57,6 +62,9 @@ public class Venta {
         this.usuarioId = usuarioId;
         this.clienteId = clienteId;
         this.estadoVentaId = estadoVentaId;
+        this.claveIdempotencia = claveIdempotencia;
+        this.motivoAnulacion = motivoAnulacion;
+        this.usuarioAnulacionId = usuarioAnulacionId;
         this.borrado = borrado;
         this.detalles = detalles != null ? new ArrayList<>(detalles) : new ArrayList<>();
     }
@@ -72,39 +80,29 @@ public class Venta {
         UsuarioId usuarioId,
         ClienteId clienteId,
         EstadoVentaId estadoVentaId,
+        String claveIdempotencia,
+        String motivoAnulacion,
+        UsuarioId usuarioAnulacionId,
         boolean borrado,
         List<DetalleVenta> detalles
     ){
-        return new Venta(new VentaId(id), fechaVenta, total, usuarioId, clienteId, estadoVentaId, borrado, detalles);
+        return new Venta(new VentaId(id), fechaVenta, total, usuarioId, clienteId, estadoVentaId,
+                claveIdempotencia, motivoAnulacion, usuarioAnulacionId, borrado, detalles);
     }
 
     /**
-     * Crea una venta sin lineas y con total en cero. Las lineas se incorporan despues con
-     * agregarDetalle(...), que es lo que mantiene el total en sincronia.
+     * Crea una venta 'Completada' sin lineas y con total en cero (VEN-01, VEN-02). Las lineas
+     * se incorporan despues con agregarDetalle(...), que mantiene el total en sincronia.
      */
     public static Venta crear(
         LocalDateTime fechaVenta,
         UsuarioId usuarioId,
         ClienteId clienteId,
-        EstadoVentaId estadoVentaId
+        EstadoVentaId completada,
+        String claveIdempotencia
     ){
-        return new Venta(null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, estadoVentaId, false, null);
-    }
-
-    /**
-     * Actualiza los datos de encabezado. El total no es parametro: solo cambia al mutar las
-     * lineas del agregado.
-     */
-    public void actualizar(
-        LocalDateTime fechaVenta,
-        UsuarioId usuarioId,
-        ClienteId clienteId,
-        EstadoVentaId estadoVentaId
-    ){
-        this.fechaVenta = fechaVenta != null ? fechaVenta : this.fechaVenta;
-        this.usuarioId = usuarioId != null ? usuarioId : this.usuarioId;
-        this.clienteId = clienteId != null ? clienteId : this.clienteId;
-        this.estadoVentaId = estadoVentaId != null ? estadoVentaId : this.estadoVentaId;
+        return new Venta(null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, completada,
+                claveIdempotencia, null, null, false, null);
     }
 
     /** Unica via para incorporar una linea. Valida la linea y recalcula el total. */
@@ -118,37 +116,69 @@ public class Venta {
         recalcularTotal();
     }
 
-    /** Corrige los importes de una linea viva y reajusta el total. */
-    public void actualizarDetalle(
-        String detalleVentaId,
-        BigDecimal precioUnitario,
-        BigDecimal cantidad,
-        BigDecimal descuentoAplicado
-    ){
-        detalleVivo(detalleVentaId).actualizarImportes(precioUnitario, cantidad, descuentoAplicado);
-        recalcularTotal();
+    /** Registra el costo que el inventario informo al descontar una linea (VEN-23). */
+    public void registrarCosto(String detalleVentaId, BigDecimal costo) {
+        detalleVivo(detalleVentaId).registrarCosto(costo);
     }
 
-    /** Da de baja logica una linea y descuenta su subtotal del total. */
-    public void removerDetalle(String detalleVentaId) {
-        detalleVivo(detalleVentaId).eliminar();
-        recalcularTotal();
+    /** Asocia el cliente a una venta ya cobrada (VEN-31). Una venta anulada no cambia (VEN-32). */
+    public void asignarCliente(ClienteId clienteId, EstadoVentaId anulada) {
+        exigirNoAnulada(anulada);
+        this.clienteId = clienteId != null ? clienteId : this.clienteId;
     }
 
-    /** Baja logica del agregado entero: el encabezado y todas sus lineas. */
+    /**
+     * Anula la venta (VEN-40). Solo una venta 'Completada' se anula, y siempre con motivo. Las
+     * lineas, importes y costos se conservan: la anulacion no borra nada.
+     */
+    public void anular(EstadoVentaId completada, EstadoVentaId anulada, UsuarioId usuarioId, String motivo) {
+        exigirNoAnulada(anulada);
+        if (!this.estadoVentaId.getValue().equals(completada.getValue())) {
+            throw DomainException.throwException(409, "Solo se puede anular una venta completada");
+        }
+        if (motivo == null || motivo.isBlank()) {
+            throw DomainException.throwException(400, "La anulacion de una venta requiere un motivo");
+        }
+        this.estadoVentaId = anulada;
+        this.motivoAnulacion = motivo;
+        this.usuarioAnulacionId = usuarioId;
+    }
+
+    /**
+     * Motivo con el que la venta cita sus movimientos de inventario. 'movimientos' no guarda
+     * id_detalle_venta (inventario.md INV-33): este texto es el unico enlace, y lo usan tanto el
+     * alta como el reintegro de la anulacion.
+     */
+    public String motivoDeMovimientos() {
+        return "Venta '" + this.id.getValue() + "'";
+    }
+
+    public boolean estaEn(EstadoVentaId estado) {
+        return this.estadoVentaId.getValue().equals(estado.getValue());
+    }
+
+    /**
+     * Una venta no se da de baja (VEN-33): esconderla dejaria sin explicacion el inventario que
+     * ya descontaron sus movimientos. Se anula.
+     */
     public void eliminar(){
-        this.borrado = true;
-        this.detalles.forEach(DetalleVenta::eliminar);
-        recalcularTotal();
+        throw DomainException.throwException(409,
+                "Una venta no se da de baja; anulala con POST api/v1/venta/{id}/anulacion");
     }
 
     /**
      * Invariante de agregado: una venta registrada tiene al menos una linea viva. La comprueba
-     * el caso de uso antes de persistir, en el alta y tras modificar los detalles.
+     * el caso de uso antes de persistir.
      */
     public void validarRegistrable() {
         if (getDetallesActivos().isEmpty()) {
             throw DomainException.throwException(400, "La venta debe tener al menos un detalle");
+        }
+    }
+
+    private void exigirNoAnulada(EstadoVentaId anulada) {
+        if (estaEn(anulada)) {
+            throw DomainException.throwException(409, "La venta con id '" + this.id.getValue() + "' esta anulada y no admite cambios");
         }
     }
 
@@ -179,7 +209,18 @@ public class Venta {
     public UsuarioId getUsuarioId() {return usuarioId;}
     public ClienteId getClienteId() {return clienteId;}
     public EstadoVentaId getEstadoVentaId() {return estadoVentaId;}
+    public String getClaveIdempotencia() {return claveIdempotencia;}
+    public String getMotivoAnulacion() {return motivoAnulacion;}
+    public UsuarioId getUsuarioAnulacionId() {return usuarioAnulacionId;}
     public boolean isBorrado() {return borrado;}
+
+    /** Costo total de lo vendido: la suma de los costos de las lineas vivas (VEN-23). */
+    public BigDecimal getCostoTotal() {
+        return getDetallesActivos().stream()
+                .map(DetalleVenta::getCostoTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(DetalleVenta.ESCALA_COSTO, RoundingMode.HALF_UP);
+    }
 
     /** Todas las lineas, incluidas las dadas de baja: es lo que la persistencia debe escribir. */
     public List<DetalleVenta> getDetalles() {return Collections.unmodifiableList(detalles);}

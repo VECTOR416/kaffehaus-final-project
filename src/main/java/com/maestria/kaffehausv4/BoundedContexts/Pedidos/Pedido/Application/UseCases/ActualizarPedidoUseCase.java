@@ -1,5 +1,9 @@
 package com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.UseCases;
 
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Set;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,24 +15,41 @@ import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Dtos.
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Repositories.IPedidoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.Aggregates.Pedido;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.ValueObjects.PedidoId;
-import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Repositories.IVentaRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.RegistrarAnulacionDeVentaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.RegistrarAnulacionDeVentaUseCase;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * Modificacion de un pedido (ventas.md VEN-51..VEN-53).
+ *
+ * El estado solo avanza por sus transiciones permitidas; un pedido 'Entregado' o 'Cancelado'
+ * ya no cambia. Cancelarlo anula su venta en la misma transaccion: con reintegro si estaba
+ * 'Recibido' (nada se preparo) y sin reintegro si ya estaba en preparacion o en camino (VEN-52).
+ */
 @Service
 @Transactional
 public class ActualizarPedidoUseCase {
+    // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
+    private static final String RECIBIDO = "recibido";
+    private static final String CANCELADO = "cancelado";
+    private static final Map<String, Set<String>> TRANSICIONES = Map.of(
+            RECIBIDO, Set.of("en preparacion", CANCELADO),
+            "en preparacion", Set.of("en camino", CANCELADO),
+            "en camino", Set.of("entregado", CANCELADO),
+            "entregado", Set.of(),
+            CANCELADO, Set.of());
+
     private final IPedidoRepository pedidoRepository;
-    private final IVentaRepository ventaRepository;
     private final IEstadoPedidoRepository estadoPedidoRepository;
+    private final RegistrarAnulacionDeVentaUseCase registrarAnulacionDeVentaUseCase;
 
     public ActualizarPedidoUseCase(
             IPedidoRepository pedidoRepository,
-            IVentaRepository ventaRepository,
-            IEstadoPedidoRepository estadoPedidoRepository) {
+            IEstadoPedidoRepository estadoPedidoRepository,
+            RegistrarAnulacionDeVentaUseCase registrarAnulacionDeVentaUseCase) {
         this.pedidoRepository = pedidoRepository;
-        this.ventaRepository = ventaRepository;
         this.estadoPedidoRepository = estadoPedidoRepository;
+        this.registrarAnulacionDeVentaUseCase = registrarAnulacionDeVentaUseCase;
     }
 
     public PedidoResponse execute(String pedidoId, ActualizarPedidoRequest actualizarPedidoRequest) {
@@ -37,17 +58,22 @@ public class ActualizarPedidoUseCase {
         Pedido pedido = pedidoRepository.obtenerPorId(id)
                 .orElseThrow(() -> DomainException.throwException(404, "El pedido con id '" + pedidoId + "' no existe"));
 
-        VentaId ventaId = null;
-        if (actualizarPedidoRequest.getIdVenta() != null) {
-            ventaId = new VentaId(actualizarPedidoRequest.getIdVenta());
-            ventaRepository.obtenerPorId(ventaId)
-                    .orElseThrow(() -> DomainException.throwException(404, "La venta con id '" + actualizarPedidoRequest.getIdVenta() + "' no existe"));
+        String actual = nombreDe(pedido.getEstadoId());
+        if (TRANSICIONES.getOrDefault(actual, Set.of()).isEmpty()) {
+            throw DomainException.throwException(409, "El pedido con id '" + pedidoId + "' esta en un estado final y no admite cambios");
         }
+
         EstadoPedidoId estadoId = null;
         if (actualizarPedidoRequest.getIdEstado() != null) {
             estadoId = new EstadoPedidoId(actualizarPedidoRequest.getIdEstado());
-            estadoPedidoRepository.obtenerPorId(estadoId)
-                    .orElseThrow(() -> DomainException.throwException(404, "El estado de pedido con id '" + actualizarPedidoRequest.getIdEstado() + "' no existe"));
+            String destino = nombreDe(estadoId);
+            if (!TRANSICIONES.getOrDefault(actual, Set.of()).contains(destino)) {
+                throw DomainException.throwException(409,
+                        "Un pedido no puede pasar de '" + actual + "' a '" + destino + "'");
+            }
+            if (CANCELADO.equals(destino)) {
+                anularVentaDe(pedido, actual, actualizarPedidoRequest.getIdUsuario());
+            }
         }
 
         pedido.actualizar(
@@ -55,12 +81,31 @@ public class ActualizarPedidoUseCase {
                 actualizarPedidoRequest.getLatitud(),
                 actualizarPedidoRequest.getLongitud(),
                 actualizarPedidoRequest.getDescripcion(),
-                ventaId,
+                null,
                 estadoId);
 
         Pedido pedidoActualizado = pedidoRepository.actualizar(id, pedido);
 
         return toResponse(pedidoActualizado);
+    }
+
+    /** Cancelar un pedido anula su venta; se reintegra solo si nada se preparo (VEN-52). */
+    private void anularVentaDe(Pedido pedido, String estadoActual, String idUsuario) {
+        if (idUsuario == null) {
+            throw DomainException.throwException(400, "Cancelar un pedido requiere 'idUsuario': anula su venta");
+        }
+        registrarAnulacionDeVentaUseCase.execute(RegistrarAnulacionDeVentaRequest.crear(
+                pedido.getVentaId().getValue(),
+                idUsuario,
+                "Cancelacion del pedido '" + pedido.getId().getValue() + "'",
+                RECIBIDO.equals(estadoActual),
+                LocalDateTime.now()));
+    }
+
+    private String nombreDe(EstadoPedidoId estadoId) {
+        return estadoPedidoRepository.obtenerPorId(estadoId)
+                .map(estado -> estado.getNombre().toLowerCase())
+                .orElseThrow(() -> DomainException.throwException(404, "El estado de pedido con id '" + estadoId.getValue() + "' no existe"));
     }
 
     private PedidoResponse toResponse(Pedido pedido) {

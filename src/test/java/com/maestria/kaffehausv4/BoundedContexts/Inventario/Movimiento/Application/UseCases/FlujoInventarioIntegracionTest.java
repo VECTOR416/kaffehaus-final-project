@@ -407,12 +407,11 @@ class FlujoInventarioIntegracionTest {
     }
 
     private VentaResponse vender(UUID idProducto, String cantidad) {
+        // Precio, descuento y estado los pone el sistema (ventas.md VEN-02, VEN-13, VEN-14).
         VentaResponse respuesta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(Map.of(
                 "idUsuario", idUsuario.toString(),
-                "idEstadoVenta", idEstadoVenta.toString(),
                 "detalles", List.of(Map.of(
                         "idProducto", idProducto.toString(),
-                        "precioUnitario", "10.00",
                         "cantidad", cantidad)))));
         ventas.add(UUID.fromString(respuesta.getId()));
         return respuesta;

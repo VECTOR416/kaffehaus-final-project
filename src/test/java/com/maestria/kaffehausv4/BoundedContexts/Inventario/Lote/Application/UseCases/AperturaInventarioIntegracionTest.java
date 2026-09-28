@@ -378,8 +378,7 @@ class AperturaInventarioIntegracionTest {
     private VentaResponse venderHarina(String cantidad) {
         VentaResponse venta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(Map.of(
                 "idUsuario", idUsuario.toString(),
-                "idEstadoVenta", idEstadoVenta.toString(),
-                "detalles", List.of(Map.of("idProducto", idHarina.toString(), "precioUnitario", "1.00", "cantidad", cantidad)))));
+                "detalles", List.of(Map.of("idProducto", idHarina.toString(), "cantidad", cantidad)))));
         ventas.add(UUID.fromString(venta.getId()));
         return venta;
     }

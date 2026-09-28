@@ -309,10 +309,18 @@ CREATE TABLE venta (
     id_cliente UUID REFERENCES cliente(id) ON UPDATE CASCADE ON DELETE SET NULL,
     total NUMERIC(12, 2) NOT NULL DEFAULT 0,
     id_estado_venta UUID NOT NULL REFERENCES estado_venta(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    -- La genera el POS para que un reintento no cobre dos veces (ventas.md VEN-66).
+    clave_idempotencia VARCHAR(100),
+    -- Quien anulo la venta y por que (ventas.md VEN-40). Nulos mientras este 'Completada'.
+    motivo_anulacion TEXT,
+    id_usuario_anulacion UUID REFERENCES usuario(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
-    borrado BOOLEAN NOT NULL DEFAULT FALSE
+    borrado BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT chk_venta_total CHECK (total >= 0)
 );
+
+CREATE UNIQUE INDEX uq_venta_clave_idempotencia ON venta (clave_idempotencia) WHERE clave_idempotencia IS NOT NULL;
 
 CREATE TABLE detalle_venta (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -322,10 +330,14 @@ CREATE TABLE detalle_venta (
     cantidad NUMERIC(12, 2) NOT NULL,
     subtotal NUMERIC(12, 2) NOT NULL,
     descuento_aplicado NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    -- Costo de lo que el inventario desconto por esta linea (ventas.md VEN-23). Derivado.
+    costo_total NUMERIC(12, 4) NOT NULL DEFAULT 0,
     estado BOOLEAN NOT NULL DEFAULT TRUE,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
-    borrado BOOLEAN NOT NULL DEFAULT FALSE
+    borrado BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT chk_detalle_venta_importes CHECK (
+        precio_unitario >= 0 AND cantidad > 0 AND descuento_aplicado >= 0 AND subtotal >= 0 AND costo_total >= 0)
 );
 
 CREATE TABLE estado_pedido (
@@ -396,8 +408,32 @@ INSERT INTO tipo_movimiento (nombre) VALUES
     ('Merma'),
     ('Vencimiento'),
     ('Ajuste positivo'),
-    ('Ajuste negativo');
+    ('Ajuste negativo'),
+    ('Devolucion venta');
 
 INSERT INTO estado_existencia (nombre) VALUES
     ('Abierta'),
     ('Agotada');
+
+-- Ventas y pedidos (ventas.md): tambien se resuelven por nombre.
+--   Devolucion venta  entrada que compensa una salida al anular con reintegro (VEN-42)
+--   Completada        venta cobrada con su inventario descontado (VEN-01)
+--   Anulada           venta sin efecto comercial (VEN-40)
+--   Porcentaje        'descuentos.descuento' es un porcentaje en (0, 100] (VEN-14)
+--   Monto fijo        'descuentos.descuento' es un importe por unidad (VEN-14)
+
+INSERT INTO estado_venta (nombre) VALUES
+    ('Completada'),
+    ('Anulada');
+
+INSERT INTO tipo_descuento (nombre) VALUES
+    ('Porcentaje'),
+    ('Monto fijo');
+
+-- Transiciones en ventas.md VEN-51.
+INSERT INTO estado_pedido (nombre) VALUES
+    ('Recibido'),
+    ('En preparacion'),
+    ('En camino'),
+    ('Entregado'),
+    ('Cancelado');

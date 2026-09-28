@@ -14,4 +14,7 @@ public interface IVentaDatasource {
     Optional<Venta> obtenerPorId(VentaId ventaId);
     PaginatedResponse<List<Venta>> obtenerTodos(ObtenerVentasRequest obtenerVentasRequest);
     void eliminar(VentaId ventaId);
+
+    /** Venta registrada con esa clave de idempotencia, si la hay (ventas.md VEN-66). */
+    Optional<Venta> obtenerPorClaveIdempotencia(String claveIdempotencia);
 }

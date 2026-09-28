@@ -46,4 +46,9 @@ public class EstadoPedidoRepositoryImpl implements IEstadoPedidoRepository{
         this.estadoPedidoDatasource.eliminar(estadoPedidoId);
     }
 
+    @Override
+    public Optional<EstadoPedido> obtenerPorNombre(String nombre) {
+        return this.estadoPedidoDatasource.obtenerPorNombre(nombre);
+    }
+
 }

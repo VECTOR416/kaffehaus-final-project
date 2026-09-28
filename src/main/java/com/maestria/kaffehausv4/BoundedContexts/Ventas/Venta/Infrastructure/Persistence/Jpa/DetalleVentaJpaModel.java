@@ -29,6 +29,9 @@ public class DetalleVentaJpaModel {
     @Column(name = "descuento_aplicado", nullable = false)
     private BigDecimal descuentoAplicado;
 
+    @Column(name = "costo_total", nullable = false)
+    private BigDecimal costoTotal;
+
     @Column(name = "estado", nullable = false)
     private Boolean estado;
 
@@ -59,6 +62,8 @@ public class DetalleVentaJpaModel {
     public void setSubtotal(BigDecimal subtotal) {this.subtotal = subtotal;}
     public BigDecimal getDescuentoAplicado() {return descuentoAplicado;}
     public void setDescuentoAplicado(BigDecimal descuentoAplicado) {this.descuentoAplicado = descuentoAplicado;}
+    public BigDecimal getCostoTotal() {return costoTotal;}
+    public void setCostoTotal(BigDecimal costoTotal) {this.costoTotal = costoTotal;}
     public Boolean getEstado() {return estado;}
     public void setEstado(Boolean estado) {this.estado = estado;}
     public UUID getIdVenta() {return idVenta;}

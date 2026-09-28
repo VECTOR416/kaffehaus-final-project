@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Infrastructure.Persistence.Jpa.CategoriaJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Infrastructure.Persistence.Jpa.CategoriaJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Infrastructure.Persistence.Jpa.EstadoExistenciaJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Infrastructure.Persistence.Jpa.EstadoExistenciaJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Infrastructure.Persistence.Jpa.ExistenciaJpaModel;
@@ -28,14 +29,17 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.P
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.DetalleLoteJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.LoteJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.LoteJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Infrastructure.Persistence.Jpa.MovimientoJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Infrastructure.Persistence.Jpa.MovimientoJpaRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Infrastructure.Persistence.Jpa.CategoriaJpaRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaModel;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Infrastructure.Persistence.Jpa.ProductoJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Infrastructure.Persistence.Jpa.ProductoJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Infrastructure.Persistence.Jpa.TipoMovimientoJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Infrastructure.Persistence.Jpa.UnidadJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Infrastructure.Persistence.Jpa.UnidadJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Infrastructure.Persistence.Jpa.ClienteJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Infrastructure.Persistence.Jpa.ClienteJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Infrastructure.Persistence.Jpa.PersonaJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Infrastructure.Persistence.Jpa.PersonaJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Infrastructure.Persistence.Jpa.ProveedorJpaModel;
@@ -44,9 +48,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Infrastructure.Pers
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Infrastructure.Persistence.Jpa.RolJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.Persistence.Jpa.UsuarioJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.Persistence.Jpa.UsuarioJpaRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Infrastructure.Persistence.Jpa.EstadoVentaJpaModel;
-import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Infrastructure.Persistence.Jpa.EstadoVentaJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Infrastructure.Persistence.Jpa.TipoDescuentoJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ActualizarVentaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.AnularVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.CrearVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.DetalleVentaJpaRepository;
@@ -54,16 +60,16 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Pers
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
- * Pruebas de integracion del alta de ventas contra la base real.
+ * Pruebas de integracion de la venta y su integracion con el inventario (ventas.md) contra la
+ * base real.
+ *
+ * Escenario: cafe (12.50) y te (8.00), de stock directo, cada uno con una existencia abierta de
+ * 10 unidades compradas a 50.00 la caja de 10 (costo 5.00 por unidad). Requiere el catalogo de
+ * la seccion 7 de databasev4.sql ('Completada', 'Anulada', 'Porcentaje', 'Monto fijo', tipos
+ * de movimiento y estados de existencia).
  *
  * No se anota @Transactional a proposito: cada caso de uso abre y cierra su propia
- * transaccion, que es justo lo que se quiere observar. Envolver la prueba en una
- * transaccion externa haria que el rollback del caso de uso fuera indistinguible del
- * rollback de la prueba.
- *
- * Los productos de la prueba son de stock directo, asi que cada uno recibe una existencia
- * abierta: la venta descuenta de ahi y registra el movimiento 'Venta'. El descuento de
- * insumos de un producto bajo demanda (MTO) se prueba en FlujoInventarioIntegracionTest.
+ * transaccion, que es justo lo que se quiere observar.
  */
 @SpringBootTest
 class CrearVentaUseCaseIntegracionTest {
@@ -72,6 +78,7 @@ class CrearVentaUseCaseIntegracionTest {
     @Autowired private ActualizarVentaUseCase actualizarVentaUseCase;
     @Autowired private ObtenerVentaPorIdUseCase obtenerVentaPorIdUseCase;
     @Autowired private EliminarVentaUseCase eliminarVentaUseCase;
+    @Autowired private AnularVentaUseCase anularVentaUseCase;
 
     @Autowired private VentaJpaRepository ventaJpaRepository;
     @Autowired private DetalleVentaJpaRepository detalleVentaJpaRepository;
@@ -82,20 +89,23 @@ class CrearVentaUseCaseIntegracionTest {
     @Autowired private UsuarioJpaRepository usuarioJpaRepository;
     @Autowired private PersonaJpaRepository personaJpaRepository;
     @Autowired private RolJpaRepository rolJpaRepository;
-    @Autowired private EstadoVentaJpaRepository estadoVentaJpaRepository;
+    @Autowired private ClienteJpaRepository clienteJpaRepository;
     @Autowired private ProveedorJpaRepository proveedorJpaRepository;
     @Autowired private LoteJpaRepository loteJpaRepository;
     @Autowired private DetalleLoteJpaRepository detalleLoteJpaRepository;
     @Autowired private EstadoExistenciaJpaRepository estadoExistenciaJpaRepository;
     @Autowired private ExistenciaJpaRepository existenciaJpaRepository;
     @Autowired private MovimientoJpaRepository movimientoJpaRepository;
+    @Autowired private TipoMovimientoJpaRepository tipoMovimientoJpaRepository;
+    @Autowired private DescuentoJpaRepository descuentoJpaRepository;
+    @Autowired private TipoDescuentoJpaRepository tipoDescuentoJpaRepository;
 
     private static final String PRODUCTO_INEXISTENTE = "00000000-0000-0000-0000-0000000000ff";
 
     private UUID idRol;
     private UUID idPersona;
     private UUID idUsuario;
-    private UUID idEstadoVenta;
+    private UUID idCliente;
     private UUID idUnidad;
     private UUID idTipo;
     private UUID idCategoria;
@@ -106,8 +116,10 @@ class CrearVentaUseCaseIntegracionTest {
     private UUID idEstadoExistencia;
     private UUID idExistenciaCafe;
     private UUID idExistenciaTe;
-    private final List<UUID> detallesLote = new ArrayList<>();
 
+    private final List<UUID> productos = new ArrayList<>();
+    private final List<UUID> detallesLote = new ArrayList<>();
+    private final List<UUID> descuentos = new ArrayList<>();
     private final List<UUID> ventasCreadas = new ArrayList<>();
 
     @BeforeEach
@@ -142,13 +154,13 @@ class CrearVentaUseCaseIntegracionTest {
         usuario.setBorrado(false);
         usuarioJpaRepository.save(usuario);
 
-        idEstadoVenta = UUID.randomUUID();
-        EstadoVentaJpaModel estadoVenta = new EstadoVentaJpaModel();
-        estadoVenta.setId(idEstadoVenta);
-        estadoVenta.setNombre("ESTADO_TEST_" + idEstadoVenta);
-        estadoVenta.setFecC(OffsetDateTime.now());
-        estadoVenta.setBorrado(false);
-        estadoVentaJpaRepository.save(estadoVenta);
+        idCliente = UUID.randomUUID();
+        ClienteJpaModel cliente = new ClienteJpaModel();
+        cliente.setId(idCliente);
+        cliente.setIdPersona(idPersona);
+        cliente.setFecC(OffsetDateTime.now());
+        cliente.setBorrado(false);
+        clienteJpaRepository.save(cliente);
 
         idUnidad = UUID.randomUUID();
         UnidadJpaModel unidad = new UnidadJpaModel();
@@ -177,10 +189,31 @@ class CrearVentaUseCaseIntegracionTest {
         categoria.setBorrado(false);
         categoriaJpaRepository.save(categoria);
 
-        idProductoCafe = guardarProducto("cafe-test", new BigDecimal("12.50"));
-        idProductoTe = guardarProducto("te-test", new BigDecimal("8.00"));
+        idProductoCafe = guardarProducto("cafe-test", "12.50", true, null);
+        idProductoTe = guardarProducto("te-test", "8.00", true, null);
 
         sembrarStock();
+    }
+
+    private UUID guardarProducto(String nombre, String precio, boolean vendible, UUID padre) {
+        UUID id = UUID.randomUUID();
+        ProductoJpaModel producto = new ProductoJpaModel();
+        producto.setId(id);
+        producto.setNombre(nombre);
+        producto.setStock(new BigDecimal("10.00"));
+        producto.setPrecio(new BigDecimal(precio));
+        producto.setStockMinimo(new BigDecimal("1.00"));
+        producto.setVendible(vendible);
+        producto.setEsStockDirecto(true);
+        producto.setUnidadActual(idUnidad);
+        producto.setIdTipo(idTipo);
+        producto.setIdCategoria(idCategoria);
+        producto.setIdProductoPadre(padre);
+        producto.setFecC(OffsetDateTime.now());
+        producto.setBorrado(false);
+        productoJpaRepository.save(producto);
+        productos.add(id);
+        return id;
     }
 
     /** Un lote de compra con una existencia abierta de 10 unidades por producto. */
@@ -247,207 +280,305 @@ class CrearVentaUseCaseIntegracionTest {
         return idExistencia;
     }
 
-    private UUID guardarProducto(String nombre, BigDecimal precio) {
+    private UUID tipoDescuento(String nombre) {
+        return tipoDescuentoJpaRepository.findAll().stream()
+                .filter(tipo -> nombre.equalsIgnoreCase(tipo.getNombre()) && !tipo.getBorrado())
+                .findFirst()
+                .orElseThrow()
+                .getId();
+    }
+
+    private void guardarDescuento(UUID idProducto, String tipo, String valor, LocalDateTime inicio, LocalDateTime fin, boolean activo) {
         UUID id = UUID.randomUUID();
-        ProductoJpaModel producto = new ProductoJpaModel();
-        producto.setId(id);
-        producto.setNombre(nombre);
-        producto.setStock(new BigDecimal("100.00"));
-        producto.setPrecio(precio);
-        producto.setStockMinimo(new BigDecimal("1.00"));
-        producto.setVendible(true);
-        producto.setEsStockDirecto(true);
-        producto.setUnidadActual(idUnidad);
-        producto.setIdTipo(idTipo);
-        producto.setIdCategoria(idCategoria);
-        producto.setFecC(OffsetDateTime.now());
-        producto.setBorrado(false);
-        productoJpaRepository.save(producto);
-        return id;
+        DescuentoJpaModel descuento = new DescuentoJpaModel();
+        descuento.setId(id);
+        descuento.setIdProducto(idProducto);
+        descuento.setIdTipoDescuento(tipoDescuento(tipo));
+        descuento.setDescuento(new BigDecimal(valor));
+        descuento.setFechaInicio(inicio);
+        descuento.setFechaFinal(fin);
+        descuento.setEstado(activo);
+        descuento.setFecC(OffsetDateTime.now());
+        descuento.setBorrado(false);
+        descuentoJpaRepository.save(descuento);
+        descuentos.add(id);
     }
 
     @AfterEach
     void limpiarDatos() {
         // La limpieza de la prueba si borra fisicamente: es basura de test, no datos de negocio.
-        for (UUID idVenta : ventasCreadas) {
-            detalleVentaJpaRepository.deleteAll(detalleVentaJpaRepository.findAll().stream()
-                    .filter(detalle -> idVenta.equals(detalle.getIdVenta()))
-                    .toList());
-            ventaJpaRepository.deleteById(idVenta);
-        }
-        ventasCreadas.clear();
-
-        List<UUID> existencias = List.of(idExistenciaCafe, idExistenciaTe);
+        List<UUID> existencias = existenciaJpaRepository.findAll().stream()
+                .filter(existencia -> detallesLote.contains(existencia.getIdDetalleLote()))
+                .map(ExistenciaJpaModel::getId)
+                .toList();
         movimientoJpaRepository.deleteAll(movimientoJpaRepository.findAll().stream()
                 .filter(movimiento -> existencias.contains(movimiento.getIdExistencia()))
                 .toList());
         existenciaJpaRepository.deleteAllById(existencias);
         detalleLoteJpaRepository.deleteAllById(detallesLote);
-        detallesLote.clear();
         loteJpaRepository.deleteById(idLote);
         proveedorJpaRepository.deleteById(idProveedor);
         estadoExistenciaJpaRepository.deleteById(idEstadoExistencia);
 
-        productoJpaRepository.deleteById(idProductoCafe);
-        productoJpaRepository.deleteById(idProductoTe);
+        for (UUID idVenta : ventasCreadas) {
+            detalleVentaJpaRepository.deleteAll(detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(idVenta));
+            ventaJpaRepository.deleteById(idVenta);
+        }
+        descuentoJpaRepository.deleteAllById(descuentos);
+
+        List<UUID> enOrden = new ArrayList<>(productos);
+        java.util.Collections.reverse(enOrden);
+        productoJpaRepository.deleteAllById(enOrden);
         tipoJpaRepository.deleteById(idTipo);
         categoriaJpaRepository.deleteById(idCategoria);
         unidadJpaRepository.deleteById(idUnidad);
-        estadoVentaJpaRepository.deleteById(idEstadoVenta);
+        clienteJpaRepository.deleteById(idCliente);
         usuarioJpaRepository.deleteById(idUsuario);
         personaJpaRepository.deleteById(idPersona);
         rolJpaRepository.deleteById(idRol);
+
+        productos.clear();
+        detallesLote.clear();
+        descuentos.clear();
+        ventasCreadas.clear();
     }
 
-    private Map<String, Object> detalle(UUID idProducto, String precio, String cantidad, String descuento) {
-        return Map.of(
-                "idProducto", idProducto.toString(),
-                "precioUnitario", precio,
-                "cantidad", cantidad,
-                "descuentoAplicado", descuento);
+    private Map<String, Object> linea(UUID idProducto, String cantidad) {
+        return Map.of("idProducto", idProducto.toString(), "cantidad", cantidad);
     }
 
     private Map<String, Object> payloadCon(List<Object> detalles) {
-        return Map.of(
-                "idUsuario", idUsuario.toString(),
-                "idEstadoVenta", idEstadoVenta.toString(),
-                "detalles", detalles);
+        return Map.of("idUsuario", idUsuario.toString(), "detalles", detalles);
     }
 
-    @Test
-    void persisteLaVentaConTodosSusDetallesEnUnaSolaOperacion() {
-        VentaResponse respuesta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                detalle(idProductoCafe, "12.50", "2", "0"),
-                detalle(idProductoTe, "8.00", "3", "4.00")))));
-
+    private VentaResponse vender(List<Object> detalles) {
+        VentaResponse respuesta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(detalles)));
         ventasCreadas.add(UUID.fromString(respuesta.getId()));
+        return respuesta;
+    }
 
-        assertEquals(2, respuesta.getDetalles().size());
-        assertEquals(new BigDecimal("45.00"), respuesta.getTotal());
+    private VentaResponse anular(String idVenta, boolean reintegrar) {
+        return anularVentaUseCase.execute(idVenta, AnularVentaRequest.createFromRequest(Map.of(
+                "idUsuario", idUsuario.toString(), "motivo", "Prueba de anulacion", "reintegrar", reintegrar)));
+    }
 
-        // Se relee desde la base para comprobar que el agregado quedo completo, no solo en memoria.
-        VentaResponse releida = obtenerVentaPorIdUseCase.execute(respuesta.getId());
+    private BigDecimal contenido(UUID idExistencia) {
+        return existenciaJpaRepository.findById(idExistencia).orElseThrow().getContenidoActual();
+    }
+
+    private long movimientosDeTipo(String nombreTipo) {
+        UUID idTipoMovimiento = tipoMovimientoJpaRepository.findAll().stream()
+                .filter(tipo -> nombreTipo.equals(tipo.getNombre()))
+                .findFirst().orElseThrow().getId();
+        List<UUID> existencias = existenciaJpaRepository.findAll().stream()
+                .filter(existencia -> detallesLote.contains(existencia.getIdDetalleLote()))
+                .map(ExistenciaJpaModel::getId)
+                .toList();
+        return movimientoJpaRepository.findAll().stream()
+                .filter(movimiento -> existencias.contains(movimiento.getIdExistencia()))
+                .filter(movimiento -> idTipoMovimiento.equals(movimiento.getIdTipoMovimiento()))
+                .count();
+    }
+
+    // ------------------------------------------------------------------ VEN-01, VEN-13, VEN-21, VEN-23
+
+    @Test
+    void registraLaVentaCompletadaConPrecioDeListaYDescuentaSuInventario() {
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2"), linea(idProductoTe, "3")));
+
+        assertEquals("Completada", venta.getEstadoVenta().getNombre());
+        // 2 x 12.50 + 3 x 8.00, sin descuentos vigentes.
+        assertEquals(new BigDecimal("49.00"), venta.getTotal());
+        // Costo: 5.00 por unidad (50.00 / 10) x 5 unidades.
+        assertEquals(0, new BigDecimal("25").compareTo(venta.getCostoTotal()));
+        assertEquals(0, new BigDecimal("8").compareTo(contenido(idExistenciaCafe)));
+        assertEquals(0, new BigDecimal("7").compareTo(contenido(idExistenciaTe)));
+        assertEquals(0, new BigDecimal("8").compareTo(productoJpaRepository.findById(idProductoCafe).orElseThrow().getStock()));
+
+        VentaResponse releida = obtenerVentaPorIdUseCase.execute(venta.getId());
         assertEquals(2, releida.getDetalles().size());
-        assertEquals(new BigDecimal("45.00"), releida.getTotal());
-        assertEquals(2, detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(UUID.fromString(respuesta.getId())).size());
+        assertEquals(0, new BigDecimal("25").compareTo(releida.getCostoTotal()));
+    }
+
+    // ------------------------------------------------------------------ VEN-14
+
+    @Test
+    void aplicaSoloElDescuentoVigenteMasFavorable() {
+        LocalDateTime ahora = LocalDateTime.now();
+        guardarDescuento(idProductoCafe, "Porcentaje", "10", ahora.minusDays(1), ahora.plusDays(1), true);
+        guardarDescuento(idProductoCafe, "Monto fijo", "2.00", ahora.minusDays(1), ahora.plusDays(1), true);
+        guardarDescuento(idProductoCafe, "Porcentaje", "50", ahora.minusDays(10), ahora.minusDays(5), true);
+        guardarDescuento(idProductoCafe, "Porcentaje", "80", ahora.minusDays(1), ahora.plusDays(1), false);
+
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")));
+
+        // 10 % de 25.00 = 2.50; 2.00 por unidad = 4.00. El vencido y el inactivo no cuentan.
+        assertEquals(new BigDecimal("4.00"), venta.getDetalles().get(0).getDescuentoAplicado());
+        assertEquals(new BigDecimal("21.00"), venta.getTotal());
+    }
+
+    // ------------------------------------------------------------------ VEN-02, VEN-10..13
+
+    @Test
+    void rechazaQueElPuntoDeVentaEnviePrecioDescuentoOEstado() {
+        DomainException conPrecio = assertThrows(DomainException.class, () -> CrearVentaRequest.createFromRequest(payloadCon(List.of(
+                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "precioUnitario", "1.00")))));
+        DomainException conDescuento = assertThrows(DomainException.class, () -> CrearVentaRequest.createFromRequest(payloadCon(List.of(
+                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "descuentoAplicado", "1.00")))));
+        DomainException conEstado = assertThrows(DomainException.class, () -> CrearVentaRequest.createFromRequest(Map.of(
+                "idUsuario", idUsuario.toString(), "idEstadoVenta", UUID.randomUUID().toString(),
+                "detalles", List.of(linea(idProductoCafe, "1")))));
+
+        assertEquals(400, conPrecio.getCodigo());
+        assertEquals(400, conDescuento.getCodigo());
+        assertEquals(400, conEstado.getCodigo());
     }
 
     @Test
-    void laVentaDescuentaLasExistenciasDeLosProductosDeStockDirecto() {
-        VentaResponse respuesta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                detalle(idProductoCafe, "12.50", "2", "0"),
-                detalle(idProductoTe, "8.00", "3", "0")))));
-
-        ventasCreadas.add(UUID.fromString(respuesta.getId()));
-
-        assertEquals(0, new BigDecimal("8").compareTo(existenciaJpaRepository.findById(idExistenciaCafe).orElseThrow().getContenidoActual()));
-        assertEquals(0, new BigDecimal("7").compareTo(existenciaJpaRepository.findById(idExistenciaTe).orElseThrow().getContenidoActual()));
-        assertEquals(2, movimientoJpaRepository.findAll().stream()
-                .filter(movimiento -> movimiento.getIdExistencia().equals(idExistenciaCafe) || movimiento.getIdExistencia().equals(idExistenciaTe))
-                .filter(movimiento -> movimiento.getMotivo().contains(respuesta.getId()))
-                .count());
-    }
-
-    @Test
-    void revierteLaVentaCompletaSiNoHayStockSuficiente() {
+    void noSeVendeUnProductoNoVendibleNiUnaPresentacion() {
+        UUID noVendible = guardarProducto("insumo-test", "1.00", false, null);
+        UUID presentacion = guardarProducto("cafe-caja-test", "100.00", true, idProductoCafe);
         long ventasAntes = ventaJpaRepository.count();
 
-        CrearVentaRequest request = CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                detalle(idProductoCafe, "12.50", "2", "0"),
-                detalle(idProductoTe, "8.00", "11", "0"))));
+        DomainException alNoVendible = assertThrows(DomainException.class, () -> vender(List.of(linea(noVendible, "1"))));
+        DomainException alaPresentacion = assertThrows(DomainException.class, () -> vender(List.of(linea(presentacion, "1"))));
 
-        DomainException error = assertThrows(DomainException.class, () -> crearVentaUseCase.execute(request));
-
-        assertEquals(409, error.getCodigo());
+        assertEquals(400, alNoVendible.getCodigo());
+        assertEquals(400, alaPresentacion.getCodigo());
         assertEquals(ventasAntes, ventaJpaRepository.count());
-        // El cafe se habia descontado antes de fallar el te: el rollback lo devuelve.
-        assertEquals(0, new BigDecimal("10").compareTo(existenciaJpaRepository.findById(idExistenciaCafe).orElseThrow().getContenidoActual()));
     }
 
     @Test
     void revierteLaVentaCompletaSiUnProductoDelDetalleNoExiste() {
         long ventasAntes = ventaJpaRepository.count();
-        long detallesAntes = detalleVentaJpaRepository.count();
 
-        CrearVentaRequest request = CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                detalle(idProductoCafe, "12.50", "2", "0"),
-                Map.of("idProducto", PRODUCTO_INEXISTENTE, "precioUnitario", "5.00", "cantidad", "1"))));
-
-        DomainException error = assertThrows(DomainException.class, () -> crearVentaUseCase.execute(request));
+        DomainException error = assertThrows(DomainException.class, () -> vender(List.of(
+                linea(idProductoCafe, "2"),
+                Map.of("idProducto", PRODUCTO_INEXISTENTE, "cantidad", "1"))));
 
         assertEquals(404, error.getCodigo());
         assertEquals(ventasAntes, ventaJpaRepository.count());
-        assertEquals(detallesAntes, detalleVentaJpaRepository.count());
+        assertEquals(0, new BigDecimal("10").compareTo(contenido(idExistenciaCafe)));
     }
 
+    // ------------------------------------------------------------------ VEN-22
+
     @Test
-    void revierteLaVentaCompletaSiUnDetalleViolaUnaInvarianteDelAgregado() {
+    void revierteLaVentaCompletaSiNoHayStockSuficiente() {
         long ventasAntes = ventaJpaRepository.count();
-        long detallesAntes = detalleVentaJpaRepository.count();
 
-        CrearVentaRequest request = CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                detalle(idProductoCafe, "12.50", "2", "0"),
-                detalle(idProductoTe, "8.00", "0", "0"))));
+        DomainException error = assertThrows(DomainException.class, () -> vender(List.of(
+                linea(idProductoCafe, "2"),
+                linea(idProductoTe, "11"))));
 
-        DomainException error = assertThrows(DomainException.class, () -> crearVentaUseCase.execute(request));
-
-        assertEquals(400, error.getCodigo());
+        assertEquals(409, error.getCodigo());
         assertEquals(ventasAntes, ventaJpaRepository.count());
-        assertEquals(detallesAntes, detalleVentaJpaRepository.count());
+        // El cafe se habia descontado antes de fallar el te: el rollback lo devuelve.
+        assertEquals(0, new BigDecimal("10").compareTo(contenido(idExistenciaCafe)));
     }
 
     @Test
     void rechazaUnaVentaSinDetalles() {
-        Map<String, Object> payload = Map.of(
-                "idUsuario", idUsuario.toString(),
-                "idEstadoVenta", idEstadoVenta.toString(),
-                "detalles", List.of());
-
         DomainException error = assertThrows(DomainException.class,
-                () -> CrearVentaRequest.createFromRequest(payload));
+                () -> CrearVentaRequest.createFromRequest(payloadCon(List.of())));
 
         assertEquals(400, error.getCodigo());
         assertTrue(error.getMensaje().contains("detalles"));
     }
 
+    // ------------------------------------------------------------------ VEN-30..33
+
     @Test
-    void actualizarConservaLosIdentificadoresDeLasLineasQueSiguenVivas() {
-        VentaResponse creada = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                detalle(idProductoCafe, "12.50", "2", "0"),
-                detalle(idProductoTe, "8.00", "3", "4.00")))));
+    void unaVentaRegistradaSoloAdmiteAsociarleElCliente() {
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")));
 
-        UUID idVenta = UUID.fromString(creada.getId());
-        ventasCreadas.add(idVenta);
-        String idDetalleCafe = creada.getDetalles().get(0).getId();
+        DomainException conLineas = assertThrows(DomainException.class,
+                () -> ActualizarVentaRequest.createFromRequest(Map.of("detalles", List.of(linea(idProductoCafe, "5")))));
+        assertEquals(400, conLineas.getCodigo());
 
-        Map<String, Object> correccion = new HashMap<>();
-        correccion.put("id", idDetalleCafe);
-        correccion.put("cantidad", "3");
+        VentaResponse conCliente = actualizarVentaUseCase.execute(venta.getId(),
+                ActualizarVentaRequest.createFromRequest(Map.of("idCliente", idCliente.toString())));
 
-        VentaResponse actualizada = actualizarVentaUseCase.execute(
-                creada.getId(),
-                ActualizarVentaRequest.createFromRequest(Map.of("detalles", List.of(correccion))));
-
-        // La linea de te no vino en el payload: baja logica. La de cafe conserva su id.
-        assertEquals(1, actualizada.getDetalles().size());
-        assertEquals(idDetalleCafe, actualizada.getDetalles().get(0).getId());
-        assertEquals(new BigDecimal("37.50"), actualizada.getTotal());
-        assertEquals(1, detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(idVenta).size());
+        assertEquals(idCliente.toString(), conCliente.getIdCliente());
+        assertEquals(new BigDecimal("25.00"), conCliente.getTotal());
     }
 
     @Test
-    void eliminarLaVentaEsBajaLogicaYArrastraSusLineas() {
-        VentaResponse creada = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                detalle(idProductoCafe, "12.50", "2", "0")))));
+    void unaVentaNoSeDaDeBaja() {
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")));
 
-        UUID idVenta = UUID.fromString(creada.getId());
-        ventasCreadas.add(idVenta);
+        DomainException error = assertThrows(DomainException.class, () -> eliminarVentaUseCase.execute(venta.getId()));
 
-        eliminarVentaUseCase.execute(creada.getId());
+        assertEquals(409, error.getCodigo());
+        assertTrue(ventaJpaRepository.findByIdAndBorradoFalse(UUID.fromString(venta.getId())).isPresent());
+    }
 
-        assertTrue(ventaJpaRepository.findByIdAndBorradoFalse(idVenta).isEmpty());
-        assertTrue(detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(idVenta).isEmpty());
-        // Baja logica: las filas siguen existiendo.
-        assertTrue(ventaJpaRepository.findById(idVenta).isPresent());
+    // ------------------------------------------------------------------ VEN-40..43
+
+    @Test
+    void anularSinReintegroNoTocaElInventario() {
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")));
+
+        VentaResponse anulada = anular(venta.getId(), false);
+
+        assertEquals("Anulada", anulada.getEstadoVenta().getNombre());
+        assertEquals("Prueba de anulacion", anulada.getMotivoAnulacion());
+        assertEquals(idUsuario.toString(), anulada.getIdUsuarioAnulacion());
+        assertEquals(0, new BigDecimal("8").compareTo(contenido(idExistenciaCafe)));
+        assertEquals(0, movimientosDeTipo("Devolucion venta"));
+    }
+
+    @Test
+    void anularConReintegroDevuelveLoDescontadoConCompensatorios() {
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2"), linea(idProductoTe, "3")));
+
+        anular(venta.getId(), true);
+
+        assertEquals(0, new BigDecimal("10").compareTo(contenido(idExistenciaCafe)));
+        assertEquals(0, new BigDecimal("10").compareTo(contenido(idExistenciaTe)));
+        assertEquals(2, movimientosDeTipo("Venta"));
+        assertEquals(2, movimientosDeTipo("Devolucion venta"));
+        assertEquals(0, new BigDecimal("10").compareTo(productoJpaRepository.findById(idProductoTe).orElseThrow().getStock()));
+
+        DomainException otraVez = assertThrows(DomainException.class, () -> anular(venta.getId(), true));
+        assertEquals(409, otraVez.getCodigo());
+    }
+
+    @Test
+    void elReintegroDeUnaExistenciaAgotadaAbreUnaNueva() {
+        VentaResponse venta = vender(List.of(linea(idProductoTe, "10")));
+        assertEquals(0, contenido(idExistenciaTe).signum());
+
+        anular(venta.getId(), true);
+
+        // La agotada no se revive (INV-05): el reintegro abre otra sobre el mismo detalle.
+        assertEquals(0, contenido(idExistenciaTe).signum());
+        UUID idDetalleTe = existenciaJpaRepository.findById(idExistenciaTe).orElseThrow().getIdDetalleLote();
+        List<ExistenciaJpaModel> nuevas = existenciaJpaRepository.findAll().stream()
+                .filter(existencia -> idDetalleTe.equals(existencia.getIdDetalleLote()))
+                .filter(existencia -> !existencia.getId().equals(idExistenciaTe))
+                .toList();
+        assertEquals(1, nuevas.size());
+        assertEquals(0, new BigDecimal("10").compareTo(nuevas.get(0).getContenidoActual()));
+        assertEquals(0, new BigDecimal("10").compareTo(productoJpaRepository.findById(idProductoTe).orElseThrow().getStock()));
+    }
+
+    // ------------------------------------------------------------------ VEN-66
+
+    @Test
+    void unReintentoConLaMismaClaveNoCobraDosVeces() {
+        Map<String, Object> payload = new HashMap<>(payloadCon(List.of(linea(idProductoCafe, "2"))));
+        payload.put("claveIdempotencia", "pos-1-" + UUID.randomUUID());
+
+        VentaResponse primera = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payload));
+        ventasCreadas.add(UUID.fromString(primera.getId()));
+        VentaResponse reintento = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payload));
+
+        assertEquals(primera.getId(), reintento.getId());
+        assertEquals(0, new BigDecimal("8").compareTo(contenido(idExistenciaCafe)));
+        List<MovimientoJpaModel> movimientos = movimientoJpaRepository.findAll().stream()
+                .filter(movimiento -> movimiento.getIdExistencia().equals(idExistenciaCafe))
+                .toList();
+        assertEquals(1, movimientos.size());
     }
 }

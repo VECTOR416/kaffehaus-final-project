@@ -169,6 +169,27 @@ public class Existencia {
         return cantidad;
     }
 
+    /**
+     * Devuelve contenido a una existencia viva por la anulacion con reintegro de una venta
+     * (ventas.md VEN-42). No revive una agotada (INV-05): para esa parte se abre una existencia
+     * nueva. Nunca supera lo que cabia al abrirla.
+     */
+    public void reintegrar(BigDecimal cantidad) {
+        if (cantidad == null || cantidad.signum() <= 0) {
+            throw DomainException.throwException(400, "La cantidad a reintegrar debe ser mayor a cero");
+        }
+        if (isAgotada()) {
+            throw DomainException.throwException(409,
+                    "La existencia con id '" + this.id.getValue() + "' esta agotada; el reintegro va a una existencia nueva");
+        }
+        BigDecimal nuevo = this.contenidoActual.add(cantidad).setScale(ESCALA, RoundingMode.HALF_UP);
+        if (nuevo.compareTo(this.contenidoInicial) > 0) {
+            throw DomainException.throwException(409,
+                    "El reintegro supera el contenido inicial de la existencia con id '" + this.id.getValue() + "'");
+        }
+        this.contenidoActual = nuevo;
+    }
+
     public boolean isAgotada() {
         return this.contenidoActual.signum() == 0;
     }

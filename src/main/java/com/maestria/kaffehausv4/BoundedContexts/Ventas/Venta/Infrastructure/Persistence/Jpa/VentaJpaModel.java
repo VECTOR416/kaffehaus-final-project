@@ -33,6 +33,15 @@ public class VentaJpaModel {
     @Column(name = "id_estado_venta", nullable = false)
     private UUID idEstadoVenta;
 
+    @Column(name = "clave_idempotencia")
+    private String claveIdempotencia;
+
+    @Column(name = "motivo_anulacion")
+    private String motivoAnulacion;
+
+    @Column(name = "id_usuario_anulacion")
+    private UUID idUsuarioAnulacion;
+
     @Column(name = "fec_c", nullable = false)
     private OffsetDateTime fecC;
 
@@ -56,6 +65,12 @@ public class VentaJpaModel {
     public void setIdCliente(UUID idCliente) {this.idCliente = idCliente;}
     public UUID getIdEstadoVenta() {return idEstadoVenta;}
     public void setIdEstadoVenta(UUID idEstadoVenta) {this.idEstadoVenta = idEstadoVenta;}
+    public String getClaveIdempotencia() {return claveIdempotencia;}
+    public void setClaveIdempotencia(String claveIdempotencia) {this.claveIdempotencia = claveIdempotencia;}
+    public String getMotivoAnulacion() {return motivoAnulacion;}
+    public void setMotivoAnulacion(String motivoAnulacion) {this.motivoAnulacion = motivoAnulacion;}
+    public UUID getIdUsuarioAnulacion() {return idUsuarioAnulacion;}
+    public void setIdUsuarioAnulacion(UUID idUsuarioAnulacion) {this.idUsuarioAnulacion = idUsuarioAnulacion;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}

@@ -57,6 +57,9 @@ public class ActualizarDescuentoUseCase {
                 actualizarDescuentoRequest.getEstado(),
                 productoId,
                 tipoDescuentoId);
+        TipoDescuento tipoVigente = tipoDescuentoRepository.obtenerPorId(descuento.getTipoDescuentoId())
+                .orElseThrow(() -> DomainException.throwException(404, "El tipo de descuento asociado al descuento no existe"));
+        descuento.validarCon(tipoVigente);
 
         Descuento descuentoActualizado = descuentoRepository.actualizar(id, descuento);
 

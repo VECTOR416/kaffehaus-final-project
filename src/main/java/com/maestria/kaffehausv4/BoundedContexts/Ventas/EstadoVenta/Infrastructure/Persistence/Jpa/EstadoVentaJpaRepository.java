@@ -12,4 +12,5 @@ public interface EstadoVentaJpaRepository extends JpaRepository<EstadoVentaJpaMo
     Optional<EstadoVentaJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<EstadoVentaJpaModel> findByBorradoFalse(Pageable pageable);
     Page<EstadoVentaJpaModel> findByBorradoFalseAndNombreContainingIgnoreCase(String nombre, Pageable pageable);
+    Optional<EstadoVentaJpaModel> findFirstByNombreIgnoreCaseAndBorradoFalse(String nombre);
 }

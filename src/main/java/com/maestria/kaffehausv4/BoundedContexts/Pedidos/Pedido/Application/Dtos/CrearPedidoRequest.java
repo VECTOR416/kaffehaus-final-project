@@ -5,29 +5,31 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * Alta de un pedido a domicilio de una venta ya completada (ventas.md VEN-50). No admite
+ * 'idEstado': todo pedido nace 'Recibido' (VEN-51).
+ */
 public class CrearPedidoRequest {
     private LocalDateTime fechaEntrega;
     private BigDecimal latitud;
     private BigDecimal longitud;
     private String descripcion;
     private String idVenta;
-    private String idEstado;
 
     private CrearPedidoRequest(
         LocalDateTime fechaEntrega,
         BigDecimal latitud,
         BigDecimal longitud,
         String descripcion,
-        String idVenta,
-        String idEstado
+        String idVenta
     ) {
         this.fechaEntrega = fechaEntrega;
         this.latitud = latitud;
         this.longitud = longitud;
         this.descripcion = descripcion;
         this.idVenta = idVenta;
-        this.idEstado = idEstado;
     }
 
     public static CrearPedidoRequest createFromRequest(Map<String, Object> request){
@@ -36,9 +38,11 @@ public class CrearPedidoRequest {
         BigDecimal longitud = BigDecimal.valueOf(Validador.numeroRequerido(request.get("longitud"), "longitud"));
         String descripcion = Validador.textoOpcional(request.get("descripcion"), "descripcion");
         String idVenta = Validador.textoRequerido(request.get("idVenta"), "idVenta");
-        String idEstado = Validador.textoRequerido(request.get("idEstado"), "idEstado");
+        if (request.get("idEstado") != null) {
+            throw DomainException.throwException(400, "El campo 'idEstado' de un pedido nuevo lo asigna el sistema; no se envia");
+        }
 
-        return new CrearPedidoRequest(fechaEntrega, latitud, longitud, descripcion, idVenta, idEstado);
+        return new CrearPedidoRequest(fechaEntrega, latitud, longitud, descripcion, idVenta);
     }
 
     public LocalDateTime getFechaEntrega() {return fechaEntrega;}
@@ -46,5 +50,4 @@ public class CrearPedidoRequest {
     public BigDecimal getLongitud() {return longitud;}
     public String getDescripcion() {return descripcion;}
     public String getIdVenta() {return idVenta;}
-    public String getIdEstado() {return idEstado;}
 }

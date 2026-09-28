@@ -20,6 +20,10 @@ public class VentaResponse {
     private String idUsuario;
     private String idCliente;
     private EstadoVentaResponse estadoVenta;
+    private BigDecimal costoTotal;
+    private String claveIdempotencia;
+    private String motivoAnulacion;
+    private String idUsuarioAnulacion;
     private boolean borrado;
     private List<DetalleVentaResponse> detalles;
 
@@ -30,6 +34,10 @@ public class VentaResponse {
         String idUsuario,
         String idCliente,
         EstadoVentaResponse estadoVenta,
+        BigDecimal costoTotal,
+        String claveIdempotencia,
+        String motivoAnulacion,
+        String idUsuarioAnulacion,
         boolean borrado,
         List<DetalleVentaResponse> detalles
     ) {
@@ -39,6 +47,10 @@ public class VentaResponse {
         this.idUsuario = idUsuario;
         this.idCliente = idCliente;
         this.estadoVenta = estadoVenta;
+        this.costoTotal = costoTotal;
+        this.claveIdempotencia = claveIdempotencia;
+        this.motivoAnulacion = motivoAnulacion;
+        this.idUsuarioAnulacion = idUsuarioAnulacion;
         this.borrado = borrado;
         this.detalles = detalles;
     }
@@ -57,6 +69,10 @@ public class VentaResponse {
             venta.getUsuarioId() != null ? venta.getUsuarioId().getValue() : null,
             venta.getClienteId() != null ? venta.getClienteId().getValue() : null,
             estadoVentaResponse,
+            venta.getCostoTotal(),
+            venta.getClaveIdempotencia(),
+            venta.getMotivoAnulacion(),
+            venta.getUsuarioAnulacionId() != null ? venta.getUsuarioAnulacionId().getValue() : null,
             venta.isBorrado(),
             detalles
         );
@@ -68,6 +84,10 @@ public class VentaResponse {
     public String getIdUsuario() {return idUsuario;}
     public String getIdCliente() {return idCliente;}
     public EstadoVentaResponse getEstadoVenta() {return estadoVenta;}
+    public BigDecimal getCostoTotal() {return costoTotal;}
+    public String getClaveIdempotencia() {return claveIdempotencia;}
+    public String getMotivoAnulacion() {return motivoAnulacion;}
+    public String getIdUsuarioAnulacion() {return idUsuarioAnulacion;}
     public boolean isBorrado() {return borrado;}
     public List<DetalleVentaResponse> getDetalles() {return detalles;}
 }

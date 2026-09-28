@@ -1,10 +1,12 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Repositories;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Datasources.IDescuentoDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dtos.ObtenerDescuentosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Repositories.IDescuentoRepository;
@@ -44,6 +46,11 @@ public class DescuentoRepositoryImpl implements IDescuentoRepository{
     @Override
     public void eliminar(DescuentoId descuentoId) {
         this.descuentoDatasource.eliminar(descuentoId);
+    }
+
+    @Override
+    public List<Descuento> obtenerVigentes(ProductoId productoId, LocalDateTime fecha) {
+        return this.descuentoDatasource.obtenerVigentes(productoId, fecha);
     }
 
 }

@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Infrastructure.Persistence.Jpa;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -12,4 +13,5 @@ public interface MovimientoJpaRepository extends JpaRepository<MovimientoJpaMode
     Optional<MovimientoJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<MovimientoJpaModel> findByBorradoFalse(Pageable pageable);
     Page<MovimientoJpaModel> findByBorradoFalseAndMotivoContainingIgnoreCase(String motivo, Pageable pageable);
+    List<MovimientoJpaModel> findByMotivoAndBorradoFalseOrderByFechaMovimientoAsc(String motivo);
 }

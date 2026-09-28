@@ -17,15 +17,18 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ActualizarVentaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.AnularVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.CrearVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ObtenerVentasRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ActualizarVentaUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.AnularVentaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.CrearVentaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.EliminarVentaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ObtenerVentaPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ObtenerVentasUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
 
 @RestController
 @RequestMapping("api/v1/venta")
@@ -36,18 +39,21 @@ public class VentaControllerV1 {
     private final ObtenerVentaPorIdUseCase obtenerVentaPorIdUseCase;
     private final ObtenerVentasUseCase obtenerVentasUseCase;
     private final EliminarVentaUseCase eliminarVentaUseCase;
+    private final AnularVentaUseCase anularVentaUseCase;
 
     public VentaControllerV1(
             CrearVentaUseCase crearVentaUseCase,
             ActualizarVentaUseCase actualizarVentaUseCase,
             ObtenerVentaPorIdUseCase obtenerVentaPorIdUseCase,
             ObtenerVentasUseCase obtenerVentasUseCase,
-            EliminarVentaUseCase eliminarVentaUseCase) {
+            EliminarVentaUseCase eliminarVentaUseCase,
+            AnularVentaUseCase anularVentaUseCase) {
         this.crearVentaUseCase = crearVentaUseCase;
         this.actualizarVentaUseCase = actualizarVentaUseCase;
         this.obtenerVentaPorIdUseCase = obtenerVentaPorIdUseCase;
         this.obtenerVentasUseCase = obtenerVentasUseCase;
         this.eliminarVentaUseCase = eliminarVentaUseCase;
+        this.anularVentaUseCase = anularVentaUseCase;
     }
 
     @PostMapping
@@ -89,5 +95,13 @@ public class VentaControllerV1 {
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarVentaUseCase.execute(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Unico modo de deshacer una venta (ventas.md VEN-40): deshace un cobro, asi que exige rol.
+    @RequiereRol("Administrador")
+    @PostMapping("/{id}/anulacion")
+    public ResponseEntity<VentaResponse> anular(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        AnularVentaRequest request = AnularVentaRequest.createFromRequest(body);
+        return ResponseEntity.ok(anularVentaUseCase.execute(id, request));
     }
 }

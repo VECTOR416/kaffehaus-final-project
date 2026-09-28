@@ -421,7 +421,7 @@ Las filas se resuelven **por nombre** (igual que los roles): son datos, no un en
 | `Vencimiento` | Salida | INV-42 | — | Sembrado |
 | `Ajuste positivo` | **Entrada** | INV-43 | — | Sembrado |
 | `Ajuste negativo` | Salida | INV-43 | — | Sembrado |
-| `Devolucion venta` | **Entrada** | `ventas.md` VEN-42, anulación con reintegro | — | **Por sembrar** |
+| `Devolucion venta` | **Entrada** | `ventas.md` VEN-42, anulación con reintegro | — | Sembrado |
 
 La dirección de cada tipo la fija este documento y la aplica el caso de uso que crea el
 movimiento. No se infiere del nombre en tiempo de ejecución.

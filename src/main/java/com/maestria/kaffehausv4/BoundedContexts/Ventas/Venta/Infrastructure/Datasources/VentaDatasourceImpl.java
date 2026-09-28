@@ -157,6 +157,12 @@ public class VentaDatasourceImpl implements IVentaDatasource {
                         .collect(Collectors.toList()));
     }
 
+    @Override
+    public Optional<Venta> obtenerPorClaveIdempotencia(String claveIdempotencia) {
+        return ventaJpaRepository.findByClaveIdempotenciaAndBorradoFalse(claveIdempotencia)
+                .map(model -> VentaJpaMapper.toDomain(model, detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(model.getId())));
+    }
+
     /** Resuelve los detalles de una pagina completa en una sola consulta, no una por venta. */
     private Map<UUID, List<DetalleVentaJpaModel>> detallesDe(List<VentaJpaModel> ventas) {
         if (ventas.isEmpty()) {
