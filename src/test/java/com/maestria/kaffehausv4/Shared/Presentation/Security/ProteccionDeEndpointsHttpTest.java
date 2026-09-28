@@ -47,7 +47,7 @@ class ProteccionDeEndpointsHttpTest {
     @Test
     void todoControllerDeUnAgregadoExigeOperadorOAdministrador() {
         List<Class<?>> controllers = contexto.getBeansWithAnnotation(RestController.class).values().stream()
-                .map(AopUtils::getTargetClass)
+                .<Class<?>>map(AopUtils::getTargetClass)
                 .filter(clase -> clase.getPackageName().startsWith("com.maestria.kaffehausv4.BoundedContexts"))
                 .toList();
 
