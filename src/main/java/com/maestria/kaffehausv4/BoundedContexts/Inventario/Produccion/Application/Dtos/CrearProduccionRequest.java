@@ -41,7 +41,11 @@ public class CrearProduccionRequest {
         this.idUsuario = idUsuario;
     }
 
-    public static CrearProduccionRequest createFromRequest(Map<String, Object> request){
+    /**
+     * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
+     * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     */
+    public static CrearProduccionRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion){
         BigDecimal cantidadEsperada = BigDecimal.valueOf(Validador.numeroRequerido(request.get("cantidadEsperada"), "cantidadEsperada"));
         BigDecimal cantidadReal = BigDecimal.valueOf(Validador.numeroRequerido(request.get("cantidadReal"), "cantidadReal"));
         String motivoDiferencia = Validador.textoOpcional(request.get("motivoDiferencia"), "motivoDiferencia");
@@ -49,7 +53,7 @@ public class CrearProduccionRequest {
         fechaProduccion = fechaProduccion != null ? fechaProduccion : LocalDateTime.now();
         LocalDate fechaVencimiento = Validador.fechaRequerida(request.get("fechaVencimiento"), "fechaVencimiento").toLocalDate();
         String idReceta = Validador.textoRequerido(request.get("idReceta"), "idReceta");
-        String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+        String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
 
         return new CrearProduccionRequest(cantidadEsperada, cantidadReal, motivoDiferencia, fechaProduccion, fechaVencimiento, idReceta, idUsuario);
     }

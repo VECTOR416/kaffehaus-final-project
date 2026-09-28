@@ -272,7 +272,7 @@ class PedidoVentaIntegracionTest {
     private VentaResponse venderSandwiches(String cantidad) {
         VentaResponse venta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(Map.of(
                 "idUsuario", idUsuario.toString(),
-                "detalles", List.of(Map.of("idProducto", idSandwich.toString(), "cantidad", cantidad)))));
+                "detalles", List.of(Map.of("idProducto", idSandwich.toString(), "cantidad", cantidad))), idUsuario.toString()));
         ventas.add(UUID.fromString(venta.getId()));
         return venta;
     }
@@ -293,13 +293,12 @@ class PedidoVentaIntegracionTest {
                 .findFirst().orElseThrow().getId().toString();
     }
 
-    private PedidoResponse pasarA(String idPedido, String nombreEstado, boolean conUsuario) {
+    /** 'conSesion' simula si el controller resolvio el usuario del token (@UsuarioEnSesion). */
+    private PedidoResponse pasarA(String idPedido, String nombreEstado, boolean conSesion) {
         Map<String, Object> cambio = new HashMap<>();
         cambio.put("idEstado", estado(nombreEstado));
-        if (conUsuario) {
-            cambio.put("idUsuario", idUsuario.toString());
-        }
-        return actualizarPedidoUseCase.execute(idPedido, ActualizarPedidoRequest.createFromRequest(cambio));
+        String idUsuarioEnSesion = conSesion ? idUsuario.toString() : null;
+        return actualizarPedidoUseCase.execute(idPedido, ActualizarPedidoRequest.createFromRequest(cambio, idUsuarioEnSesion));
     }
 
     private BigDecimal sandwichesEnStock() {
@@ -323,12 +322,12 @@ class PedidoVentaIntegracionTest {
     void elEstadoSoloAvanzaPorSusTransiciones() {
         PedidoResponse pedido = pedirDomicilio(venderSandwiches("1").getId());
 
-        DomainException salto = assertThrows(DomainException.class, () -> pasarA(pedido.getId(), "Entregado", false));
+        DomainException salto = assertThrows(DomainException.class, () -> pasarA(pedido.getId(), "Entregado", true));
         assertEquals(409, salto.getCodigo());
 
-        pasarA(pedido.getId(), "En preparacion", false);
-        pasarA(pedido.getId(), "En camino", false);
-        PedidoResponse entregado = pasarA(pedido.getId(), "Entregado", false);
+        pasarA(pedido.getId(), "En preparacion", true);
+        pasarA(pedido.getId(), "En camino", true);
+        PedidoResponse entregado = pasarA(pedido.getId(), "Entregado", true);
         assertEquals("Entregado", entregado.getEstado().getNombre());
 
         DomainException final_ = assertThrows(DomainException.class, () -> pasarA(pedido.getId(), "Cancelado", true));
@@ -350,7 +349,7 @@ class PedidoVentaIntegracionTest {
     void cancelarUnPedidoEnPreparacionAnulaSuVentaSinReintegro() {
         VentaResponse venta = venderSandwiches("3");
         PedidoResponse pedido = pedirDomicilio(venta.getId());
-        pasarA(pedido.getId(), "En preparacion", false);
+        pasarA(pedido.getId(), "En preparacion", true);
 
         pasarA(pedido.getId(), "Cancelado", true);
 
@@ -359,7 +358,7 @@ class PedidoVentaIntegracionTest {
     }
 
     @Test
-    void cancelarExigeElUsuarioQueAnulaLaVenta() {
+    void sinUsuarioEnSesionNoSeModificaElPedido() {
         PedidoResponse pedido = pedirDomicilio(venderSandwiches("1").getId());
 
         DomainException error = assertThrows(DomainException.class, () -> pasarA(pedido.getId(), "Cancelado", false));
@@ -377,7 +376,7 @@ class PedidoVentaIntegracionTest {
 
         VentaResponse otra = venderSandwiches("1");
         anularVentaUseCase.execute(otra.getId(), AnularVentaRequest.createFromRequest(Map.of(
-                "idUsuario", idUsuario.toString(), "motivo", "Error de cobro")));
+                "idUsuario", idUsuario.toString(), "motivo", "Error de cobro"), idUsuario.toString()));
         DomainException sobreAnulada = assertThrows(DomainException.class, () -> pedirDomicilio(otra.getId()));
         assertEquals(409, sobreAnulada.getCodigo());
     }

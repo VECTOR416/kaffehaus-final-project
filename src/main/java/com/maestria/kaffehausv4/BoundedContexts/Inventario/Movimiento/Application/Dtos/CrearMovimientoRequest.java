@@ -33,14 +33,18 @@ public class CrearMovimientoRequest {
         this.idProduccion = idProduccion;
     }
 
-    public static CrearMovimientoRequest createFromRequest(Map<String, Object> request){
+    /**
+     * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
+     * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     */
+    public static CrearMovimientoRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion){
         BigDecimal cantidad = BigDecimal.valueOf(Validador.numeroRequerido(request.get("cantidad"), "cantidad"));
         LocalDateTime fechaMovimiento = Validador.fechaOpcional(request.get("fechaMovimiento"), "fechaMovimiento");
         fechaMovimiento = fechaMovimiento != null ? fechaMovimiento : LocalDateTime.now();
         String motivo = Validador.textoOpcional(request.get("motivo"), "motivo");
         String idExistencia = Validador.textoRequerido(request.get("idExistencia"), "idExistencia");
         String idTipoMovimiento = Validador.textoRequerido(request.get("idTipoMovimiento"), "idTipoMovimiento");
-        String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+        String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
         String idProduccion = Validador.textoOpcional(request.get("idProduccion"), "idProduccion");
 
         return new CrearMovimientoRequest(cantidad, fechaMovimiento, motivo, idExistencia, idTipoMovimiento, idUsuario, idProduccion);

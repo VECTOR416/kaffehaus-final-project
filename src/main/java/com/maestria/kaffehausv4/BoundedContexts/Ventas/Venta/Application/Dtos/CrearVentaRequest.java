@@ -38,7 +38,11 @@ public class CrearVentaRequest {
         this.detalles = detalles;
     }
 
-    public static CrearVentaRequest createFromRequest(Map<String, Object> request){
+    /**
+     * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
+     * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     */
+    public static CrearVentaRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion){
         for (String campo : CAMPOS_DERIVADOS) {
             if (request.get(campo) != null) {
                 throw DomainException.throwException(400, "El campo '" + campo + "' de una venta lo asigna el sistema; no se envia");
@@ -46,7 +50,7 @@ public class CrearVentaRequest {
         }
         LocalDateTime fechaVenta = Validador.fechaOpcional(request.get("fechaVenta"), "fechaVenta");
         fechaVenta = fechaVenta != null ? fechaVenta : LocalDateTime.now();
-        String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+        String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
         String idCliente = Validador.textoOpcional(request.get("idCliente"), "idCliente");
         String claveIdempotencia = Validador.textoOpcional(request.get("claveIdempotencia"), "claveIdempotencia");
 

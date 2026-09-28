@@ -26,7 +26,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.U
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.UseCases.ObtenerProveedorPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.UseCases.ObtenerProveedoresUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/proveedor")
 public class ProveedorControllerV1 {

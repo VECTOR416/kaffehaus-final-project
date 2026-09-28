@@ -34,7 +34,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseC
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.DarDeBajaDetalleVencidoUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerDetallesAperturablesUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/lote")
 public class LoteControllerV1 {
@@ -68,8 +73,8 @@ public class LoteControllerV1 {
     }
 
     @PostMapping
-    public ResponseEntity<LoteResponse> crear(@RequestBody Map<String, Object> body) {
-        CrearLoteRequest request = CrearLoteRequest.createFromRequest(body);
+    public ResponseEntity<LoteResponse> crear(@RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        CrearLoteRequest request = CrearLoteRequest.createFromRequest(body, idUsuario);
         LoteResponse response = crearLoteUseCase.execute(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -122,15 +127,15 @@ public class LoteControllerV1 {
     }
 
     @PostMapping("/detalles/{idDetalleLote}/apertura")
-    public ResponseEntity<ExistenciaResponse> abrirDetalle(@PathVariable String idDetalleLote, @RequestBody Map<String, Object> body) {
-        AbrirDetalleLoteRequest request = AbrirDetalleLoteRequest.createFromRequest(body);
+    public ResponseEntity<ExistenciaResponse> abrirDetalle(@PathVariable String idDetalleLote, @RequestBody(required = false) Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        AbrirDetalleLoteRequest request = AbrirDetalleLoteRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
         ExistenciaResponse response = abrirDetalleLoteUseCase.execute(idDetalleLote, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/detalles/{idDetalleLote}/vencimiento")
-    public ResponseEntity<List<ExistenciaResponse>> darDeBajaDetalleVencido(@PathVariable String idDetalleLote, @RequestBody Map<String, Object> body) {
-        DarDeBajaDetalleVencidoRequest request = DarDeBajaDetalleVencidoRequest.createFromRequest(body);
+    public ResponseEntity<List<ExistenciaResponse>> darDeBajaDetalleVencido(@PathVariable String idDetalleLote, @RequestBody(required = false) Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        DarDeBajaDetalleVencidoRequest request = DarDeBajaDetalleVencidoRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
         return ResponseEntity.ok(darDeBajaDetalleVencidoUseCase.execute(idDetalleLote, request));
     }
 }

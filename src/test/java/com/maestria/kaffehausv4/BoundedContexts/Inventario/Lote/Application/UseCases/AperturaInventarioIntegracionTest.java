@@ -372,13 +372,13 @@ class AperturaInventarioIntegracionTest {
 
     private ExistenciaResponse abrir(UUID idDetalle) {
         return abrirDetalleLoteUseCase.execute(idDetalle.toString(),
-                AbrirDetalleLoteRequest.createFromRequest(Map.of("idUsuario", idUsuario.toString())));
+                AbrirDetalleLoteRequest.createFromRequest(Map.of("idUsuario", idUsuario.toString()), idUsuario.toString()));
     }
 
     private VentaResponse venderHarina(String cantidad) {
         VentaResponse venta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(Map.of(
                 "idUsuario", idUsuario.toString(),
-                "detalles", List.of(Map.of("idProducto", idHarina.toString(), "cantidad", cantidad)))));
+                "detalles", List.of(Map.of("idProducto", idHarina.toString(), "cantidad", cantidad))), idUsuario.toString()));
         ventas.add(UUID.fromString(venta.getId()));
         return venta;
     }
@@ -474,11 +474,11 @@ class AperturaInventarioIntegracionTest {
         String id = abierta.getId();
 
         registrarMermaUseCase.execute(id, RegistrarMermaRequest.createFromRequest(Map.of(
-                "cantidad", "100", "motivo", "Se derramo", "idUsuario", idUsuario.toString())));
+                "cantidad", "100", "motivo", "Se derramo", "idUsuario", idUsuario.toString()), idUsuario.toString()));
         ajustarExistenciaUseCase.execute(id, AjustarExistenciaRequest.createFromRequest(Map.of(
-                "contenidoContado", "1500", "motivo", "Conteo semanal", "idUsuario", idUsuario.toString())));
+                "contenidoContado", "1500", "motivo", "Conteo semanal", "idUsuario", idUsuario.toString()), idUsuario.toString()));
         ExistenciaResponse ajustada = ajustarExistenciaUseCase.execute(id, AjustarExistenciaRequest.createFromRequest(Map.of(
-                "contenidoContado", "1800", "motivo", "Recuento", "idUsuario", idUsuario.toString())));
+                "contenidoContado", "1800", "motivo", "Recuento", "idUsuario", idUsuario.toString()), idUsuario.toString()));
 
         assertEquals(0, new BigDecimal("1800").compareTo(ajustada.getContenidoActual()));
         assertEquals(0, new BigDecimal("1800").compareTo(stockDeHarina()));
@@ -500,7 +500,7 @@ class AperturaInventarioIntegracionTest {
     @Test
     void laBajaDeUnDetalleVencidoAbreSusUnidadesYLasDejaAgotadas() {
         List<ExistenciaResponse> bajas = darDeBajaDetalleVencidoUseCase.execute(d4.toString(),
-                DarDeBajaDetalleVencidoRequest.createFromRequest(Map.of("idUsuario", idUsuario.toString())));
+                DarDeBajaDetalleVencidoRequest.createFromRequest(Map.of("idUsuario", idUsuario.toString()), idUsuario.toString()));
 
         assertEquals(1, bajas.size());
         assertEquals("Agotada", bajas.get(0).getEstadoExistencia().getNombre());

@@ -401,7 +401,7 @@ class FlujoInventarioIntegracionTest {
                 "cantidadEsperada", esperada,
                 "cantidadReal", real,
                 "fechaVencimiento", "2026-09-29",
-                "idUsuario", idUsuario.toString())));
+                "idUsuario", idUsuario.toString()), idUsuario.toString()));
         producciones.add(UUID.fromString(respuesta.getId()));
         return respuesta;
     }
@@ -412,7 +412,7 @@ class FlujoInventarioIntegracionTest {
                 "idUsuario", idUsuario.toString(),
                 "detalles", List.of(Map.of(
                         "idProducto", idProducto.toString(),
-                        "cantidad", cantidad)))));
+                        "cantidad", cantidad))), idUsuario.toString()));
         ventas.add(UUID.fromString(respuesta.getId()));
         return respuesta;
     }

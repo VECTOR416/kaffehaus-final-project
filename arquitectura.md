@@ -48,14 +48,22 @@ Spring Security 7 + JWT propios. Keycloak sigue descartado. Dos reglas gobiernan
 2. **Es la capa mas externa.** Los tokens se validan unicamente en presentacion, en un filtro.
    Ninguna capa de Domain, Application o Infrastructure de un agregado conoce Spring Security.
 
-El esquema completo son dos piezas:
+El esquema completo son tres piezas:
 
 - **`JwtAuthenticationFilter`** valida el Bearer token de cada peticion y deja al usuario en el
-  `SecurityContext`. `SecurityConfig` cierra el API: solo `/api/v1/auth/**` queda abierto, todo
-  lo demas exige token (`anyRequest().authenticated()`).
-- **`@RequiereRol("Administrador")`** protege endpoints concretos por rol. Lo aplica
-  `GuardiaDeRoles`, un `HandlerInterceptor` que lee la anotacion del controller. No hay tabla de
-  rutas que mantener en paralelo.
+  `SecurityContext`. `SecurityConfig` cierra el API: solo `/api/v1/auth/**` (login, Google y
+  refresh) queda abierto, todo lo demas exige token (`anyRequest().authenticated()`).
+- **`@RequiereRol`** protege por rol. **Todo controller de un agregado lleva
+  `@RequiereRol({"Operador", "Administrador"})` a nivel de clase**; un metodo puede restringirse
+  mas con su propia anotacion, que manda sobre la de la clase (p. ej. `@RequiereRol("Administrador")`).
+  Lo aplica `GuardiaDeRoles`, un `HandlerInterceptor` que lee la anotacion del controller. No hay
+  tabla de rutas que mantener en paralelo. `ProteccionDeEndpointsHttpTest` falla si un
+  controller nuevo no la declara.
+- **`@UsuarioEnSesion String idUsuario`** inyecta en el controller el id del usuario del token
+  (lo resuelve `ResolvedorDeUsuarioEnSesion`). **El frontend nunca envia `idUsuario`**: los
+  requests que lo necesitan lo reciben como segundo argumento de
+  `createFromRequest(body, idUsuarioEnSesion)` y, si llegara en el cuerpo, se ignora. Asi nadie
+  opera a nombre de otro.
 
 Puntos que conviene no perder de vista:
 
@@ -254,9 +262,11 @@ que importa `org.springframework.security` o `io.jsonwebtoken`:
 
 | Ruta (`Shared/Presentation/Security/`) | Responsabilidad |
 |---|---|
-| `SecurityConfig` | `@EnableWebSecurity`. Cadena stateless, sin CSRF, `/api/v1/auth/**` abierto y el resto autenticado, CORS, y el registro del interceptor |
+| `SecurityConfig` | `@EnableWebSecurity`. Cadena stateless, sin CSRF, `/api/v1/auth/**` abierto y el resto autenticado, CORS, y el registro del interceptor y del resolvedor de `@UsuarioEnSesion` |
 | `JwtAuthenticationFilter` | `OncePerRequestFilter`. **Unico sitio donde se valida un token entrante**. Deja al usuario en el `SecurityContext` |
 | `RequiereRol` | El decorador. Nombres de rol tal como estan en la tabla `rol` |
+| `UsuarioEnSesion` | Anotacion de parametro: el id del usuario del token. Evita que los controllers de los agregados importen `org.springframework.security` |
+| `ResolvedorDeUsuarioEnSesion` | `HandlerMethodArgumentResolver` que resuelve `@UsuarioEnSesion` desde el `SecurityContext`; 401 si no hay sesion |
 | `GuardiaDeRoles` | `HandlerInterceptor` que aplica `@RequiereRol`: 401 sin token, 403 si el rol no figura |
 | `JwtService` | `@Component`. Unico punto que conoce jjwt: firma, lectura de claims y vigencia |
 | `UsuarioAutenticado` | `record` con los cuatro datos que viajan en el token y que devuelve el login |
@@ -285,8 +295,9 @@ y rechaza la lista vacia.
 | Consulta a base de datos | `Infrastructure/Persistence/Jpa/<Agregado>JpaRepository.java` |
 | Traduccion agregado ↔ fila | `Infrastructure/Persistence/Jpa/<Agregado>JpaMapper.java` |
 | Endpoint HTTP | `Presentation/<Agregado>ControllerV1.java` |
-| Restringir un endpoint a ciertos roles | `@RequiereRol("Administrador")` sobre el metodo (o la clase) del controller |
-| Saber quien firma la peticion | `@AuthenticationPrincipal SecurityUser` en el controller |
+| Proteger un controller nuevo | `@RequiereRol({"Operador", "Administrador"})` sobre la clase (obligatorio) |
+| Restringir un endpoint a menos roles | `@RequiereRol("Administrador")` sobre el metodo, que manda sobre la clase |
+| Saber quien firma la peticion | `@UsuarioEnSesion String idUsuario` en el controller, pasado al `createFromRequest` del request |
 | Utilidad usada por 2+ contextos | `Shared/` en la capa que le corresponda |
 | Tests | `src/test/java/...` espejando el paquete de produccion |
 
@@ -390,15 +401,16 @@ se retiro al subordinar las lineas a su raiz.
 > Las reglas de negocio de la venta y su integracion con el inventario (precio y descuento
 > derivados, inmutabilidad, anulacion con reintegro, pedidos) estan en `ventas.md`, con su
 > estado de implementacion. Esta seccion describe el contrato que el codigo expone hoy.
+> En ningun payload viaja `idUsuario`: el usuario que registra o anula es el de la sesion.
 
 | Operacion | Payload | Efecto |
 |---|---|---|
-| `POST api/v1/venta` | `idUsuario`, `idCliente` opcional, `fechaVenta` opcional, `claveIdempotencia` opcional, `detalles[]` (obligatorio, no vacio) | Crea la venta `Completada` y descuenta su inventario en una transaccion (VEN-21). Devuelve 201; con una clave ya usada devuelve la venta existente (VEN-66) |
+| `POST api/v1/venta` | `idCliente` opcional, `fechaVenta` opcional, `claveIdempotencia` opcional, `detalles[]` (obligatorio, no vacio) | Crea la venta `Completada` y descuenta su inventario en una transaccion (VEN-21). Devuelve 201; con una clave ya usada devuelve la venta existente (VEN-66) |
 | `PUT api/v1/venta/{id}` | solo `idCliente` | Asocia el cliente (VEN-31). Cualquier otro campo, incluido `detalles`, responde 400; una venta anulada, 409 |
 | `GET api/v1/venta/{id}` | — | Devuelve la venta con sus lineas, costo, estado y datos de anulacion |
 | `GET api/v1/venta` | `skip`/`limit`/`search` | Pagina de ventas con sus lineas, resueltas en una sola consulta por pagina |
 | `DELETE api/v1/venta/{id}` | — | Responde 409: una venta no se da de baja, se anula (VEN-33) |
-| `POST api/v1/venta/{id}/anulacion` | `idUsuario`, `motivo`, `reintegrar` opcional (falso) | `@RequiereRol("Administrador")`. Anula; con reintegro registra compensatorios `Devolucion venta` (VEN-40..43) |
+| `POST api/v1/venta/{id}/anulacion` | `motivo`, `reintegrar` opcional (falso) | Hoy abierta a Operador y Administrador como el resto; candidata a quedar solo en Administrador (VEN-40). Anula; con reintegro registra compensatorios `Devolucion venta` (VEN-40..43) |
 
 En el alta cada elemento de `detalles` admite **solo** `idProducto` y `cantidad`. El precio
 (`producto.precio`), el descuento (el vigente mas favorable de `descuentos`), el subtotal, el
@@ -420,8 +432,8 @@ se retiro al subordinar las lineas a su raiz.
 | `GET api/v1/lote` | `skip`/`limit`/`search` | Pagina de lotes con sus lineas, resueltas en una sola consulta por pagina |
 | `DELETE api/v1/lote/{id}` | — | Baja logica del encabezado y de todas sus lineas. 409 si alguna linea tiene existencias con contenido |
 | `GET api/v1/lote/detalles-aperturables?idProducto=` | — | Por cada presentacion del producto base, el detalle que toca abrir (inventario.md INV-13) |
-| `POST api/v1/lote/detalles/{idDetalleLote}/apertura` | `idUsuario` | Abre una unidad cerrada de ese detalle; 409 si no es el mas proximo a vencer de su presentacion (INV-14). Devuelve 201 con la existencia |
-| `POST api/v1/lote/detalles/{idDetalleLote}/vencimiento` | `idUsuario`, `motivo` opcional | Abre y da de baja las unidades cerradas de un detalle vencido (INV-42) |
+| `POST api/v1/lote/detalles/{idDetalleLote}/apertura` | — | Abre una unidad cerrada de ese detalle; 409 si no es el mas proximo a vencer de su presentacion (INV-14). Devuelve 201 con la existencia |
+| `POST api/v1/lote/detalles/{idDetalleLote}/vencimiento` | `motivo` opcional | Abre y da de baja las unidades cerradas de un detalle vencido (INV-42) |
 
 En el alta cada elemento de `detalles` admite `idProducto`, `cantidadInicial`, `precioUnitario`,
 `fraccionable` (opcional) y `fechaVencimiento` (opcional, la caducidad de esa compra). **No admite `cantidadRestante`** (nace igual a `cantidadInicial`)
@@ -525,7 +537,7 @@ Movimiento), una operacion interna sin endpoint (ver 5.5):
 **Operaciones sobre una existencia** — `POST api/v1/existencia/{id}/merma`,
 `.../{id}/vencimiento` y `.../{id}/ajuste` (INV-42, INV-43). Cada una bloquea la existencia,
 registra su movimiento (`Merma`, `Vencimiento`, `Ajuste positivo`/`negativo`) y recalcula el
-stock. El `PUT api/v1/existencia/{id}` solo admite `fechaVencimiento` e `idUsuario`, y el
+stock. El `PUT api/v1/existencia/{id}` solo admite `fechaVencimiento`, y el
 `DELETE` solo da de baja existencias agotadas.
 
 **Inventario de un producto** — `GET api/v1/producto/{id}/inventario`: saldos abierto,

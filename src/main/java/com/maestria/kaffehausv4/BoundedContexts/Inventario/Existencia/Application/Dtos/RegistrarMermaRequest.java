@@ -17,10 +17,14 @@ public class RegistrarMermaRequest {
         this.idUsuario = idUsuario;
     }
 
-    public static RegistrarMermaRequest createFromRequest(Map<String, Object> request) {
+    /**
+     * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
+     * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     */
+    public static RegistrarMermaRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion) {
         BigDecimal cantidad = BigDecimal.valueOf(Validador.numeroRequerido(request.get("cantidad"), "cantidad"));
         String motivo = Validador.textoRequerido(request.get("motivo"), "motivo");
-        String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+        String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
         return new RegistrarMermaRequest(cantidad, motivo, idUsuario);
     }
 

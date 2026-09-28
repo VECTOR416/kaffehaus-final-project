@@ -19,36 +19,31 @@ import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
 public class ActualizarLoteRequest {
     private LocalDateTime fechaCompra;
     private String idProveedor;
-    private String idUsuario;
     private List<ActualizarDetalleLoteRequest> detalles;
 
     private ActualizarLoteRequest(
         LocalDateTime fechaCompra,
         String idProveedor,
-        String idUsuario,
         List<ActualizarDetalleLoteRequest> detalles
     ) {
         this.fechaCompra = fechaCompra;
         this.idProveedor = idProveedor;
-        this.idUsuario = idUsuario;
         this.detalles = detalles;
     }
 
     public static ActualizarLoteRequest createFromRequest(Map<String, Object> request){
         LocalDateTime fechaCompra = Validador.fechaOpcional(request.get("fechaCompra"), "fechaCompra");
         String idProveedor = Validador.textoOpcional(request.get("idProveedor"), "idProveedor");
-        String idUsuario = Validador.textoOpcional(request.get("idUsuario"), "idUsuario");
 
         List<Map<String, Object>> detallesTmp = Validador.listaDeObjetosOpcional(request.get("detalles"), "detalles");
         List<ActualizarDetalleLoteRequest> detalles = detallesTmp != null
                 ? detallesTmp.stream().map(ActualizarDetalleLoteRequest::createFromRequest).collect(Collectors.toList())
                 : null;
 
-        return new ActualizarLoteRequest(fechaCompra, idProveedor, idUsuario, detalles);
+        return new ActualizarLoteRequest(fechaCompra, idProveedor, detalles);
     }
 
     public LocalDateTime getFechaCompra() {return fechaCompra;}
     public String getIdProveedor() {return idProveedor;}
-    public String getIdUsuario() {return idUsuario;}
     public List<ActualizarDetalleLoteRequest> getDetalles() {return detalles;}
 }

@@ -230,7 +230,7 @@ class CrearLoteUseCaseIntegracionTest {
     private LoteResponse crearLoteDeDosLineas() {
         LoteResponse respuesta = crearLoteUseCase.execute(CrearLoteRequest.createFromRequest(payloadCon(List.of(
                 detalle(idProductoCafe, "10", "12.00"),
-                detalle(idProductoAzucar, "8", "5.00")))));
+                detalle(idProductoAzucar, "8", "5.00"))), idUsuario.toString()));
         lotesCreados.add(UUID.fromString(respuesta.getId()));
         return respuesta;
     }
@@ -280,7 +280,7 @@ class CrearLoteUseCaseIntegracionTest {
 
         CrearLoteRequest request = CrearLoteRequest.createFromRequest(payloadCon(List.of(
                 detalle(idProductoCafe, "10", "12.00"),
-                Map.of("idProducto", PRODUCTO_INEXISTENTE, "cantidadInicial", "5", "precioUnitario", "3.00"))));
+                Map.of("idProducto", PRODUCTO_INEXISTENTE, "cantidadInicial", "5", "precioUnitario", "3.00"))), idUsuario.toString());
 
         DomainException error = assertThrows(DomainException.class, () -> crearLoteUseCase.execute(request));
 
@@ -296,7 +296,7 @@ class CrearLoteUseCaseIntegracionTest {
 
         CrearLoteRequest request = CrearLoteRequest.createFromRequest(payloadCon(List.of(
                 detalle(idProductoCafe, "10", "12.00"),
-                detalle(idProductoAzucar, "0", "5.00"))));
+                detalle(idProductoAzucar, "0", "5.00"))), idUsuario.toString());
 
         DomainException error = assertThrows(DomainException.class, () -> crearLoteUseCase.execute(request));
 
@@ -313,7 +313,7 @@ class CrearLoteUseCaseIntegracionTest {
                 "detalles", List.of());
 
         DomainException error = assertThrows(DomainException.class,
-                () -> CrearLoteRequest.createFromRequest(payload));
+                () -> CrearLoteRequest.createFromRequest(payload, idUsuario.toString()));
 
         assertEquals(400, error.getCodigo());
         assertTrue(error.getMensaje().contains("detalles"));

@@ -32,7 +32,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.RegistrarMermaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.RegistrarVencimientoUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/existencia")
 public class ExistenciaControllerV1 {
@@ -109,20 +114,20 @@ public class ExistenciaControllerV1 {
     // Movimientos operativos sobre una existencia (inventario.md INV-42, INV-43).
 
     @PostMapping("/{id}/merma")
-    public ResponseEntity<ExistenciaResponse> registrarMerma(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        RegistrarMermaRequest request = RegistrarMermaRequest.createFromRequest(body);
+    public ResponseEntity<ExistenciaResponse> registrarMerma(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        RegistrarMermaRequest request = RegistrarMermaRequest.createFromRequest(body, idUsuario);
         return ResponseEntity.ok(registrarMermaUseCase.execute(id, request));
     }
 
     @PostMapping("/{id}/vencimiento")
-    public ResponseEntity<ExistenciaResponse> registrarVencimiento(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        RegistrarVencimientoRequest request = RegistrarVencimientoRequest.createFromRequest(body);
+    public ResponseEntity<ExistenciaResponse> registrarVencimiento(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        RegistrarVencimientoRequest request = RegistrarVencimientoRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
         return ResponseEntity.ok(registrarVencimientoUseCase.execute(id, request));
     }
 
     @PostMapping("/{id}/ajuste")
-    public ResponseEntity<ExistenciaResponse> ajustar(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        AjustarExistenciaRequest request = AjustarExistenciaRequest.createFromRequest(body);
+    public ResponseEntity<ExistenciaResponse> ajustar(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        AjustarExistenciaRequest request = AjustarExistenciaRequest.createFromRequest(body, idUsuario);
         return ResponseEntity.ok(ajustarExistenciaUseCase.execute(id, request));
     }
 }

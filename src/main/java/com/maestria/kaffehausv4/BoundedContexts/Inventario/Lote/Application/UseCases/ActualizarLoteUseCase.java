@@ -20,8 +20,6 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Repositories.IProveedorRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
@@ -40,19 +38,16 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 public class ActualizarLoteUseCase {
     private final ILoteRepository loteRepository;
     private final IProveedorRepository proveedorRepository;
-    private final IUsuarioRepository usuarioRepository;
     private final IProductoRepository productoRepository;
     private final IExistenciaRepository existenciaRepository;
 
     public ActualizarLoteUseCase(
             ILoteRepository loteRepository,
             IProveedorRepository proveedorRepository,
-            IUsuarioRepository usuarioRepository,
             IProductoRepository productoRepository,
             IExistenciaRepository existenciaRepository) {
         this.loteRepository = loteRepository;
         this.proveedorRepository = proveedorRepository;
-        this.usuarioRepository = usuarioRepository;
         this.productoRepository = productoRepository;
         this.existenciaRepository = existenciaRepository;
     }
@@ -69,17 +64,11 @@ public class ActualizarLoteUseCase {
             proveedorRepository.obtenerPorId(proveedorId)
                     .orElseThrow(() -> DomainException.throwException(404, "El proveedor con id '" + actualizarLoteRequest.getIdProveedor() + "' no existe"));
         }
-        UsuarioId usuarioId = null;
-        if (actualizarLoteRequest.getIdUsuario() != null) {
-            usuarioId = new UsuarioId(actualizarLoteRequest.getIdUsuario());
-            usuarioRepository.obtenerPorId(usuarioId)
-                    .orElseThrow(() -> DomainException.throwException(404, "El usuario con id '" + actualizarLoteRequest.getIdUsuario() + "' no existe"));
-        }
-
+        // El usuario que registro la compra no se corrige: lo fijo la sesion al darla de alta.
         lote.actualizar(
                 actualizarLoteRequest.getFechaCompra(),
                 proveedorId,
-                usuarioId);
+                null);
 
         if (actualizarLoteRequest.getDetalles() != null) {
             conciliarDetalles(lote, actualizarLoteRequest.getDetalles());

@@ -14,9 +14,13 @@ public class RegistrarVencimientoRequest {
         this.idUsuario = idUsuario;
     }
 
-    public static RegistrarVencimientoRequest createFromRequest(Map<String, Object> request) {
+    /**
+     * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
+     * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     */
+    public static RegistrarVencimientoRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion) {
         String motivo = Validador.textoOpcional(request.get("motivo"), "motivo");
-        String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+        String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
         return new RegistrarVencimientoRequest(motivo, idUsuario);
     }
 

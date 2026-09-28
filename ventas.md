@@ -207,10 +207,13 @@ sequenceDiagram
 - **VEN-40 — Anular una venta:**
 
   ```
-  POST api/v1/venta/{id}/anulacion   { "idUsuario": "...", "motivo": "...", "reintegrar": true|false }
+  POST api/v1/venta/{id}/anulacion   { "motivo": "...", "reintegrar": true|false }
   ```
 
-  - Requiere `@RequiereRol("Administrador")`: una anulación deshace un cobro.
+  - Debe quedar restringida a `Administrador`, porque deshace un cobro. Hoy, como todo el API,
+    admite `Operador` y `Administrador`; la restricción se aplicará con
+    `@RequiereRol("Administrador")` en el método.
+  - Quien anula es el usuario de la sesión: el frontend no envía `idUsuario`.
   - `motivo` es obligatorio.
   - Solo se anula una venta `Completada` (409 si ya está `Anulada`).
   - La venta pasa a `Anulada` y guarda `motivo_anulacion` e `id_usuario_anulacion`. Sus
@@ -342,7 +345,7 @@ Estado al 2026-09-27 respecto del código en `feature-inventarios`.
 | VEN-22 409 que remite a abrir una presentación | Implementado | Mensaje e `idProducto` de INV-34 |
 | VEN-23 `detalle_venta.costo_total` | Implementado | `Venta.registrarCosto`; `VentaResponse.costoTotal` |
 | VEN-30..33 Venta inmutable; `PUT` solo `idCliente`; `DELETE` → 409 | Implementado | `ActualizarVentaRequest`, `Venta.asignarCliente`, `Venta.eliminar` |
-| VEN-40..44 Anulación y reintegro | Implementado | `POST api/v1/venta/{id}/anulacion` (rol `Administrador`) → `RegistrarAnulacionDeVentaUseCase` + `RegistrarReintegroDeInventarioUseCase` |
+| VEN-40..44 Anulación y reintegro | Implementado, salvo restringir el rol a `Administrador` | `POST api/v1/venta/{id}/anulacion` → `RegistrarAnulacionDeVentaUseCase` + `RegistrarReintegroDeInventarioUseCase` |
 | VEN-50..53 Pedidos | Implementado | `CrearPedidoUseCase` (nace `Recibido`), `ActualizarPedidoUseCase` (transiciones; cancelar anula la venta) |
 | VEN-60 CHECK de importes | Implementado | `chk_detalle_venta_importes`, `chk_venta_total` |
 | VEN-63 Un pedido por venta, nunca de una anulada | Implementado | `CrearPedidoUseCase` (409) + `pedidos.id_venta UNIQUE` |

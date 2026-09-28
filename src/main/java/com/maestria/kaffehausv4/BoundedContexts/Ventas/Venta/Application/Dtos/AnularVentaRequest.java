@@ -19,8 +19,12 @@ public class AnularVentaRequest {
         this.reintegrar = reintegrar;
     }
 
-    public static AnularVentaRequest createFromRequest(Map<String, Object> request) {
-        String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+    /**
+     * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
+     * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     */
+    public static AnularVentaRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion) {
+        String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
         String motivo = Validador.textoRequerido(request.get("motivo"), "motivo");
         Boolean reintegrar = Validador.booleanoOpcional(request.get("reintegrar"), "reintegrar");
 

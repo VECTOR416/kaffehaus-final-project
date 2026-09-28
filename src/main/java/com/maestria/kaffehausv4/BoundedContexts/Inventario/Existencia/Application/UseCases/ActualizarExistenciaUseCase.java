@@ -16,8 +16,6 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.Val
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.Repositories.IUnidadRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates.Unidad;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 @Service
@@ -27,19 +25,16 @@ public class ActualizarExistenciaUseCase {
     private final ILoteRepository loteRepository;
     private final IEstadoExistenciaRepository estadoExistenciaRepository;
     private final IUnidadRepository unidadRepository;
-    private final IUsuarioRepository usuarioRepository;
 
     public ActualizarExistenciaUseCase(
             IExistenciaRepository existenciaRepository,
             ILoteRepository loteRepository,
             IEstadoExistenciaRepository estadoExistenciaRepository,
-            IUnidadRepository unidadRepository,
-            IUsuarioRepository usuarioRepository) {
+            IUnidadRepository unidadRepository) {
         this.existenciaRepository = existenciaRepository;
         this.loteRepository = loteRepository;
         this.estadoExistenciaRepository = estadoExistenciaRepository;
         this.unidadRepository = unidadRepository;
-        this.usuarioRepository = usuarioRepository;
     }
 
     public ExistenciaResponse execute(String existenciaId, ActualizarExistenciaRequest actualizarExistenciaRequest) {
@@ -67,13 +62,6 @@ public class ActualizarExistenciaUseCase {
                     .orElseThrow(() -> DomainException.throwException(404, "La unidad con id '" + actualizarExistenciaRequest.getIdUnidad() + "' no existe"));
         }
 
-        UsuarioId usuarioId = null;
-        if (actualizarExistenciaRequest.getIdUsuario() != null) {
-            usuarioId = new UsuarioId(actualizarExistenciaRequest.getIdUsuario());
-            usuarioRepository.obtenerPorId(usuarioId)
-                    .orElseThrow(() -> DomainException.throwException(404, "El usuario con id '" + actualizarExistenciaRequest.getIdUsuario() + "' no existe"));
-        }
-
         existencia.actualizar(
                 actualizarExistenciaRequest.getContenidoInicial(),
                 actualizarExistenciaRequest.getContenidoActual(),
@@ -83,7 +71,7 @@ public class ActualizarExistenciaUseCase {
                 detalleLoteId,
                 estadoExistenciaId,
                 unidadId,
-                usuarioId);
+                null);
 
         Existencia existenciaActualizada = existenciaRepository.actualizar(id, existencia);
 

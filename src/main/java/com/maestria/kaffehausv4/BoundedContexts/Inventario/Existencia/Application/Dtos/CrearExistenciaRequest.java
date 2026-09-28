@@ -16,7 +16,6 @@ public class CrearExistenciaRequest {
     private String idDetalleLote;
     private String idEstadoExistencia;
     private String idUnidad;
-    private String idUsuario;
 
     private CrearExistenciaRequest(
         BigDecimal contenidoInicial,
@@ -26,8 +25,7 @@ public class CrearExistenciaRequest {
         LocalDateTime fechaApertura,
         String idDetalleLote,
         String idEstadoExistencia,
-        String idUnidad,
-        String idUsuario
+        String idUnidad
     ) {
         this.contenidoInicial = contenidoInicial;
         this.contenidoActual = contenidoActual;
@@ -37,7 +35,6 @@ public class CrearExistenciaRequest {
         this.idDetalleLote = idDetalleLote;
         this.idEstadoExistencia = idEstadoExistencia;
         this.idUnidad = idUnidad;
-        this.idUsuario = idUsuario;
     }
 
     public static CrearExistenciaRequest createFromRequest(Map<String, Object> request){
@@ -50,9 +47,8 @@ public class CrearExistenciaRequest {
         String idDetalleLote = Validador.textoRequerido(request.get("idDetalleLote"), "idDetalleLote");
         String idEstadoExistencia = Validador.textoRequerido(request.get("idEstadoExistencia"), "idEstadoExistencia");
         String idUnidad = Validador.textoRequerido(request.get("idUnidad"), "idUnidad");
-        String idUsuario = Validador.textoOpcional(request.get("idUsuario"), "idUsuario");
 
-        return new CrearExistenciaRequest(contenidoInicial, contenidoActual, fechaAcabado, fechaVencimiento, fechaApertura, idDetalleLote, idEstadoExistencia, idUnidad, idUsuario);
+        return new CrearExistenciaRequest(contenidoInicial, contenidoActual, fechaAcabado, fechaVencimiento, fechaApertura, idDetalleLote, idEstadoExistencia, idUnidad);
     }
 
     public BigDecimal getContenidoInicial() {return contenidoInicial;}
@@ -63,5 +59,4 @@ public class CrearExistenciaRequest {
     public String getIdDetalleLote() {return idDetalleLote;}
     public String getIdEstadoExistencia() {return idEstadoExistencia;}
     public String getIdUnidad() {return idUnidad;}
-    public String getIdUsuario() {return idUsuario;}
 }

@@ -17,6 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -29,8 +30,13 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
  *
  * 1. La cadena de filtros cierra el API: solo /api/v1/auth queda abierto, todo lo demas exige
  *    un access token valido. Quien lo valida es JwtAuthenticationFilter.
- * 2. Los roles se exigen endpoint por endpoint con @RequiereRol, que aplica GuardiaDeRoles.
- *    No hay tabla de rutas que mantener en paralelo a los controllers.
+ * 2. Los roles se exigen con @RequiereRol, que aplica GuardiaDeRoles. Todo controller de un
+ *    agregado lleva @RequiereRol({"Operador", "Administrador"}) a nivel de clase; un metodo
+ *    puede restringirlo mas con su propia anotacion. No hay tabla de rutas que mantener en
+ *    paralelo a los controllers.
+ *
+ * Y un complemento: @UsuarioEnSesion inyecta en el controller el id del usuario del token, que
+ * resuelve ResolvedorDeUsuarioEnSesion. El frontend nunca envia 'idUsuario'.
  *
  * Politica de la cadena:
  *
@@ -54,9 +60,11 @@ public class SecurityConfig implements WebMvcConfigurer {
      * aplicacion al arrancar.
      */
     private final GuardiaDeRoles guardiaDeRoles;
+    private final ResolvedorDeUsuarioEnSesion resolvedorDeUsuarioEnSesion;
 
-    public SecurityConfig(GuardiaDeRoles guardiaDeRoles) {
+    public SecurityConfig(GuardiaDeRoles guardiaDeRoles, ResolvedorDeUsuarioEnSesion resolvedorDeUsuarioEnSesion) {
         this.guardiaDeRoles = guardiaDeRoles;
+        this.resolvedorDeUsuarioEnSesion = resolvedorDeUsuarioEnSesion;
     }
 
     @Bean
@@ -71,22 +79,42 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 401 en JSON en vez de la redireccion a un formulario que aqui no existe.
                 .exceptionHandling(errores -> errores.authenticationEntryPoint(
                         (peticion, respuesta, excepcion) -> escritorDeErrorHttp.escribir(respuesta,
                                 new AutorizacionException(401,
                                         "Falta la cabecera Authorization con un token Bearer valido"))))
-                // .authorizeHttpRequests(rutas -> rutas
-                //         .requestMatchers(RUTA_DE_AUTENTICACION + "/**").permitAll()
-                //         .anyRequest().authenticated())
+                // Solo el login y los tokens quedan abiertos; todo lo demas exige un token valido.
+                .authorizeHttpRequests(rutas -> rutas
+                        .requestMatchers(RUTA_DE_AUTENTICACION + "/**").permitAll()
+                        .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
+    /** Registra el guardia de @RequiereRol. Sobre un endpoint sin anotar no hace nada. */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(guardiaDeRoles).addPathPatterns("/**");
     }
 
+    /** Registra el resolvedor de @UsuarioEnSesion. */
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.add(resolvedorDeUsuarioEnSesion);
+    }
+
+    /**
+     * CORS de la API.
+     *
+     * Se declara dentro de la cadena de seguridad, y no como WebMvcConfigurer, porque los
+     * filtros corren antes que Spring MVC: si el preflight OPTIONS no se resuelve aqui, el
+     * navegador recibe un 401 antes de que MVC llegue a opinar.
+     *
+     * allowCredentials sigue en false y por eso el comodin de origen es aceptable: la
+     * autenticacion viaja en la cabecera Authorization, no en cookies. Si algun dia se pasa a
+     * cookies, hay que enumerar los dominios del frontend en allowedOriginPatterns.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuracion = new CorsConfiguration();

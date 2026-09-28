@@ -26,7 +26,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Application
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Application.UseCases.ObtenerTipoDescuentoPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Application.UseCases.ObtenerTiposDescuentoUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/tipo-descuento")
 public class TipoDescuentoControllerV1 {

@@ -20,10 +20,14 @@ public class AjustarExistenciaRequest {
         this.idUsuario = idUsuario;
     }
 
-    public static AjustarExistenciaRequest createFromRequest(Map<String, Object> request) {
+    /**
+     * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
+     * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     */
+    public static AjustarExistenciaRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion) {
         BigDecimal contenidoContado = BigDecimal.valueOf(Validador.numeroRequerido(request.get("contenidoContado"), "contenidoContado"));
         String motivo = Validador.textoRequerido(request.get("motivo"), "motivo");
-        String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+        String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
         return new AjustarExistenciaRequest(contenidoContado, motivo, idUsuario);
     }
 

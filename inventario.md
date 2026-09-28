@@ -216,7 +216,7 @@ antes.
   El usuario elige la presentación enviando el `idDetalleLote` que recibió de INV-13:
 
   ```
-  POST api/v1/lote/detalles/{idDetalleLote}/apertura     { "idUsuario": "..." }
+  POST api/v1/lote/detalles/{idDetalleLote}/apertura     (sin cuerpo: abre el usuario de la sesión)
   ```
 
   Dentro de la transacción, ya con el bloqueo tomado (INV-52), se recalcula cuál es el
@@ -566,7 +566,7 @@ Estado al 2026-09-27 respecto del código en `feature-inventarios`.
 | INV-06..08 Jerarquía presentación → base | Implementado | `Producto.esPresentacion/productoBaseId`; INV-07 en `Crear/ActualizarProductoUseCase`; INV-08 en `Crear/ActualizarRecetaUseCase` |
 | INV-09 Conversiones | Implementado | `Conversion.factorEntre` (dominio puro, BFS de hasta 4 saltos) |
 | INV-10..11 Apertura con movimiento `Apertura` | Implementado | `RegistrarAperturaUseCase` (operación interna) |
-| INV-12 Sin alta manual de existencias | Implementado | `CrearExistenciaUseCase` responde 409; `PUT` solo admite `fechaVencimiento` e `idUsuario` |
+| INV-12 Sin alta manual de existencias | Implementado | `CrearExistenciaUseCase` responde 409; `PUT` solo admite `fechaVencimiento` |
 | INV-13 Consulta de detalles aperturables | Implementado | `GET api/v1/lote/detalles-aperturables` → `ObtenerDetallesAperturablesUseCase` |
 | INV-14 Apertura del detalle más próximo a vencer | Implementado | `POST api/v1/lote/detalles/{id}/apertura` → `AbrirDetalleLoteUseCase` |
 | INV-20 Proyección `producto.stock` | Implementado | `RecalcularStockUseCase` (operación interna); `stock` ya no se acepta en el alta ni en el `PUT` de producto |

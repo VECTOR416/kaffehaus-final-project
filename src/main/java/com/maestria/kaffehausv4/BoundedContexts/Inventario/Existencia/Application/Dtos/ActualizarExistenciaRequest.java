@@ -10,7 +10,8 @@ import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
- * Correccion de una existencia. Solo admite 'fechaVencimiento' e 'idUsuario': el contenido, el
+ * Correccion de una existencia. Solo admite 'fechaVencimiento' (el responsable lo fija la sesion
+ * al abrirla y no se corrige): el contenido, el
  * estado, la unidad, el detalle de origen y las fechas de apertura y acabado los mueven la
  * apertura, los consumos, las mermas y los ajustes, cada uno con su movimiento
  * (inventario.md INV-40, INV-43). Se rechazan en lugar de ignorarse.
@@ -27,7 +28,6 @@ public class ActualizarExistenciaRequest {
     private String idDetalleLote;
     private String idEstadoExistencia;
     private String idUnidad;
-    private String idUsuario;
 
     private ActualizarExistenciaRequest(
         BigDecimal contenidoInicial,
@@ -37,8 +37,7 @@ public class ActualizarExistenciaRequest {
         LocalDateTime fechaApertura,
         String idDetalleLote,
         String idEstadoExistencia,
-        String idUnidad,
-        String idUsuario
+        String idUnidad
     ) {
         this.contenidoInicial = contenidoInicial;
         this.contenidoActual = contenidoActual;
@@ -48,7 +47,6 @@ public class ActualizarExistenciaRequest {
         this.idDetalleLote = idDetalleLote;
         this.idEstadoExistencia = idEstadoExistencia;
         this.idUnidad = idUnidad;
-        this.idUsuario = idUsuario;
     }
 
     public static ActualizarExistenciaRequest createFromRequest(Map<String, Object> request){
@@ -70,9 +68,8 @@ public class ActualizarExistenciaRequest {
         String idDetalleLote = Validador.textoOpcional(request.get("idDetalleLote"), "idDetalleLote");
         String idEstadoExistencia = Validador.textoOpcional(request.get("idEstadoExistencia"), "idEstadoExistencia");
         String idUnidad = Validador.textoOpcional(request.get("idUnidad"), "idUnidad");
-        String idUsuario = Validador.textoOpcional(request.get("idUsuario"), "idUsuario");
 
-        return new ActualizarExistenciaRequest(contenidoInicial, contenidoActual, fechaAcabado, fechaVencimiento, fechaApertura, idDetalleLote, idEstadoExistencia, idUnidad, idUsuario);
+        return new ActualizarExistenciaRequest(contenidoInicial, contenidoActual, fechaAcabado, fechaVencimiento, fechaApertura, idDetalleLote, idEstadoExistencia, idUnidad);
     }
 
     public BigDecimal getContenidoInicial() {return contenidoInicial;}
@@ -83,5 +80,4 @@ public class ActualizarExistenciaRequest {
     public String getIdDetalleLote() {return idDetalleLote;}
     public String getIdEstadoExistencia() {return idEstadoExistencia;}
     public String getIdUnidad() {return idUnidad;}
-    public String getIdUsuario() {return idUsuario;}
 }

@@ -12,8 +12,12 @@ public class AbrirDetalleLoteRequest {
         this.idUsuario = idUsuario;
     }
 
-    public static AbrirDetalleLoteRequest createFromRequest(Map<String, Object> request) {
-        String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+    /**
+     * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
+     * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     */
+    public static AbrirDetalleLoteRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion) {
+        String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
         return new AbrirDetalleLoteRequest(idUsuario);
     }
 

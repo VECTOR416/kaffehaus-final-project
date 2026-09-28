@@ -352,14 +352,14 @@ class CrearVentaUseCaseIntegracionTest {
     }
 
     private VentaResponse vender(List<Object> detalles) {
-        VentaResponse respuesta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(detalles)));
+        VentaResponse respuesta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(detalles), idUsuario.toString()));
         ventasCreadas.add(UUID.fromString(respuesta.getId()));
         return respuesta;
     }
 
     private VentaResponse anular(String idVenta, boolean reintegrar) {
         return anularVentaUseCase.execute(idVenta, AnularVentaRequest.createFromRequest(Map.of(
-                "idUsuario", idUsuario.toString(), "motivo", "Prueba de anulacion", "reintegrar", reintegrar)));
+                "idUsuario", idUsuario.toString(), "motivo", "Prueba de anulacion", "reintegrar", reintegrar), idUsuario.toString()));
     }
 
     private BigDecimal contenido(UUID idExistencia) {
@@ -422,12 +422,12 @@ class CrearVentaUseCaseIntegracionTest {
     @Test
     void rechazaQueElPuntoDeVentaEnviePrecioDescuentoOEstado() {
         DomainException conPrecio = assertThrows(DomainException.class, () -> CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "precioUnitario", "1.00")))));
+                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "precioUnitario", "1.00"))), idUsuario.toString()));
         DomainException conDescuento = assertThrows(DomainException.class, () -> CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "descuentoAplicado", "1.00")))));
+                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "descuentoAplicado", "1.00"))), idUsuario.toString()));
         DomainException conEstado = assertThrows(DomainException.class, () -> CrearVentaRequest.createFromRequest(Map.of(
                 "idUsuario", idUsuario.toString(), "idEstadoVenta", UUID.randomUUID().toString(),
-                "detalles", List.of(linea(idProductoCafe, "1")))));
+                "detalles", List.of(linea(idProductoCafe, "1"))), idUsuario.toString()));
 
         assertEquals(400, conPrecio.getCodigo());
         assertEquals(400, conDescuento.getCodigo());
@@ -480,7 +480,7 @@ class CrearVentaUseCaseIntegracionTest {
     @Test
     void rechazaUnaVentaSinDetalles() {
         DomainException error = assertThrows(DomainException.class,
-                () -> CrearVentaRequest.createFromRequest(payloadCon(List.of())));
+                () -> CrearVentaRequest.createFromRequest(payloadCon(List.of()), idUsuario.toString()));
 
         assertEquals(400, error.getCodigo());
         assertTrue(error.getMensaje().contains("detalles"));
@@ -570,9 +570,9 @@ class CrearVentaUseCaseIntegracionTest {
         Map<String, Object> payload = new HashMap<>(payloadCon(List.of(linea(idProductoCafe, "2"))));
         payload.put("claveIdempotencia", "pos-1-" + UUID.randomUUID());
 
-        VentaResponse primera = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payload));
+        VentaResponse primera = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payload, idUsuario.toString()));
         ventasCreadas.add(UUID.fromString(primera.getId()));
-        VentaResponse reintento = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payload));
+        VentaResponse reintento = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payload, idUsuario.toString()));
 
         assertEquals(primera.getId(), reintento.getId());
         assertEquals(0, new BigDecimal("8").compareTo(contenido(idExistenciaCafe)));

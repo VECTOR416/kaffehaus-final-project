@@ -5,6 +5,8 @@ import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -47,6 +49,15 @@ public class RecursoProtegidoDePruebaController {
     @GetMapping("/solo-operador")
     public ResponseEntity<String> soloOperador(@AuthenticationPrincipal SecurityUser usuario) {
         return ResponseEntity.ok(usuario.getRolNombre());
+    }
+
+    /**
+     * El id del usuario resuelto por @UsuarioEnSesion. Recibe un cuerpo con un 'idUsuario'
+     * ajeno para comprobar que se ignora y manda el del token.
+     */
+    @PostMapping("/sesion")
+    public ResponseEntity<String> usuarioEnSesion(@RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        return ResponseEntity.ok(idUsuario);
     }
 
     /** Varios roles admitidos: basta con tener uno. */

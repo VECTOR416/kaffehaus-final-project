@@ -29,7 +29,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCase
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ObtenerVentasUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/venta")
 public class VentaControllerV1 {
@@ -57,8 +61,8 @@ public class VentaControllerV1 {
     }
 
     @PostMapping
-    public ResponseEntity<VentaResponse> crear(@RequestBody Map<String, Object> body) {
-        CrearVentaRequest request = CrearVentaRequest.createFromRequest(body);
+    public ResponseEntity<VentaResponse> crear(@RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        CrearVentaRequest request = CrearVentaRequest.createFromRequest(body, idUsuario);
         VentaResponse response = crearVentaUseCase.execute(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -97,11 +101,10 @@ public class VentaControllerV1 {
         return ResponseEntity.noContent().build();
     }
 
-    // Unico modo de deshacer una venta (ventas.md VEN-40): deshace un cobro, asi que exige rol.
-    @RequiereRol("Administrador")
+    // Unico modo de deshacer una venta (ventas.md VEN-40).
     @PostMapping("/{id}/anulacion")
-    public ResponseEntity<VentaResponse> anular(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        AnularVentaRequest request = AnularVentaRequest.createFromRequest(body);
+    public ResponseEntity<VentaResponse> anular(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        AnularVentaRequest request = AnularVentaRequest.createFromRequest(body, idUsuario);
         return ResponseEntity.ok(anularVentaUseCase.execute(id, request));
     }
 }
