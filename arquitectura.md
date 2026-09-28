@@ -387,6 +387,10 @@ de negocio; es el unico lugar del repositorio donde eso es aceptable.
 `Venta` se escribe y se lee siempre entera por `api/v1/venta`. **No existe `api/v1/detalle-venta`**:
 se retiro al subordinar las lineas a su raiz.
 
+> Las reglas de negocio de la venta y su integracion con el inventario (precio y descuento
+> derivados, inmutabilidad, anulacion con reintegro, pedidos) estan en `ventas.md`, con su
+> estado de implementacion. Esta seccion describe el contrato que el codigo expone hoy.
+
 | Operacion | Payload | Efecto |
 |---|---|---|
 | `POST api/v1/venta` | encabezado + `detalles[]` (obligatorio, no vacio) | Crea encabezado y lineas en una transaccion. Devuelve 201 con el agregado completo |

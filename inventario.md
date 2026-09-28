@@ -10,6 +10,9 @@
 >
 > Cada regla lleva un identificador (`INV-xx`) para citarla en código, tests y revisiones. La
 > sección 6 indica qué reglas ya están implementadas y cuáles están pendientes.
+>
+> Cómo usa la venta estas reglas (precio, descuentos, anulación, reintegro, pedidos) está en
+> `ventas.md`, que cita las `INV-xx` por su identificador.
 
 ---
 
@@ -168,7 +171,9 @@ Ejemplo:
   Lo vencido se da de baja con INV-42.
 - **INV-12.** `POST api/v1/existencia` no es una vía de ingreso de stock. Crear existencias a
   mano sin apertura rompe la traza (no hay movimiento que las explique). Las existencias nacen
-  solo por Apertura (INV-10) o por Ingreso de producción (INV-21).
+  solo por Apertura (INV-10), por Ingreso de producción (INV-21) o por el reintegro de una
+  venta anulada cuya existencia ya estaba agotada (`ventas.md` VEN-42), cada una con el
+  movimiento de entrada que la explica.
 
 ### 2.4 Elección de la presentación a abrir
 
@@ -416,6 +421,7 @@ Las filas se resuelven **por nombre** (igual que los roles): son datos, no un en
 | `Vencimiento` | Salida | INV-42 | — | Sembrado |
 | `Ajuste positivo` | **Entrada** | INV-43 | — | Sembrado |
 | `Ajuste negativo` | Salida | INV-43 | — | Sembrado |
+| `Devolucion venta` | **Entrada** | `ventas.md` VEN-42, anulación con reintegro | — | **Por sembrar** |
 
 La dirección de cada tipo la fija este documento y la aplica el caso de uso que crea el
 movimiento. No se infiere del nombre en tiempo de ejecución.
@@ -442,7 +448,8 @@ movimiento. No se infiere del nombre en tiempo de ejecución.
   contenido_actual = Σ entradas(existencia) − Σ salidas(existencia)
   ```
 
-  donde las entradas incluyen el `Apertura` o el `Ingreso produccion` que la creó. Una
+  donde las entradas incluyen el `Apertura`, el `Ingreso produccion` o la `Devolucion venta`
+  que la creó. Una
   consulta de conciliación que agrupe `movimientos` por `id_existencia` y dirección debe
   reproducir `contenido_actual` exacto. Cualquier diferencia es un defecto.
 - **INV-46 — Vistas de stock** (todas derivables sin estado adicional):
