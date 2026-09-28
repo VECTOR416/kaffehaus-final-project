@@ -152,6 +152,24 @@ public class DetalleLote {
         this.cantidadRestante = cantidad;
     }
 
+    /** Abre una unidad cerrada: la saca de 'cantidad_restante' (inventario.md INV-10). */
+    void abrirUnidad() {
+        if (this.cantidadRestante.compareTo(BigDecimal.ONE) < 0) {
+            throw DomainException.throwException(409, "El detalle de lote no tiene unidades cerradas para abrir");
+        }
+        this.cantidadRestante = aEscala(this.cantidadRestante.subtract(BigDecimal.ONE));
+    }
+
+    /** Vencido si su caducidad es anterior a la fecha dada. Sin caducidad, nunca vence. */
+    public boolean estaVencido(LocalDate fecha) {
+        return this.fechaVencimiento != null && this.fechaVencimiento.isBefore(fecha);
+    }
+
+    /** Tiene al menos una unidad cerrada que se puede abrir. */
+    public boolean tieneUnidadesCerradas() {
+        return this.cantidadRestante.compareTo(BigDecimal.ONE) >= 0;
+    }
+
     void eliminar() {
         this.borrado = true;
     }

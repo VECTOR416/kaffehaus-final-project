@@ -65,13 +65,13 @@ public class ActualizarProductoUseCase {
         ProductoId productoPadreId = null;
         if (actualizarProductoRequest.getIdProductoPadre() != null) {
             productoPadreId = new ProductoId(actualizarProductoRequest.getIdProductoPadre());
-            productoRepository.obtenerPorId(productoPadreId)
+            Producto padre = productoRepository.obtenerPorId(productoPadreId)
                     .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + actualizarProductoRequest.getIdProductoPadre() + "' no existe"));
+            exigirJerarquiaDeUnNivel(producto, padre);
         }
 
         producto.actualizar(
                 actualizarProductoRequest.getNombre(),
-                actualizarProductoRequest.getStock(),
                 actualizarProductoRequest.getPrecio(),
                 actualizarProductoRequest.getStockMinimo(),
                 actualizarProductoRequest.getVendible(),
@@ -84,6 +84,21 @@ public class ActualizarProductoUseCase {
         Producto productoActualizado = productoRepository.actualizar(id, producto);
 
         return toResponse(productoActualizado);
+    }
+
+    /** La jerarquia presentacion -> producto base tiene un solo nivel (inventario.md INV-07). */
+    private void exigirJerarquiaDeUnNivel(Producto producto, Producto padre) {
+        if (padre.getId().getValue().equals(producto.getId().getValue())) {
+            throw DomainException.throwException(409, "Un producto no puede ser su propio producto base");
+        }
+        if (padre.esPresentacion()) {
+            throw DomainException.throwException(409,
+                    "El producto '" + padre.getNombre() + "' es una presentacion y no puede ser producto base de otra");
+        }
+        if (!productoRepository.obtenerPresentaciones(producto.getId()).isEmpty()) {
+            throw DomainException.throwException(409,
+                    "El producto '" + producto.getNombre() + "' es producto base de otras presentaciones y no puede tener padre");
+        }
     }
 
     private ProductoResponse toResponse(Producto producto) {

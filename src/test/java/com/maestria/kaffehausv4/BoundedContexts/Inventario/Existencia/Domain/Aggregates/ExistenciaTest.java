@@ -3,8 +3,10 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.Ag
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.Test;
@@ -77,5 +79,70 @@ class ExistenciaTest {
                 () -> existencia.consumir(BigDecimal.ZERO, AHORA, AGOTADA));
 
         assertEquals(400, error.getCodigo());
+    }
+
+    @Test
+    void ajustarAUnConteoMenorDevuelveLaDiferenciaNegativa() {
+        Existencia existencia = bolsaDeCafe("500.0000");
+
+        BigDecimal diferencia = existencia.ajustarA(new BigDecimal("480"), AHORA, AGOTADA);
+
+        assertEquals(new BigDecimal("-20.0000"), diferencia);
+        assertEquals(new BigDecimal("480.0000"), existencia.getContenidoActual());
+    }
+
+    @Test
+    void ajustarAUnConteoMayorDevuelveLaDiferenciaPositiva() {
+        Existencia existencia = bolsaDeCafe("500.0000");
+
+        assertEquals(new BigDecimal("15.0000"), existencia.ajustarA(new BigDecimal("515"), AHORA, AGOTADA));
+    }
+
+    @Test
+    void unAjustaACeroLaDejaAgotada() {
+        Existencia existencia = bolsaDeCafe("5.0000");
+
+        existencia.ajustarA(BigDecimal.ZERO, AHORA, AGOTADA);
+
+        assertTrue(existencia.isAgotada());
+        assertEquals(AGOTADA.getValue(), existencia.getEstadoExistenciaId().getValue());
+    }
+
+    @Test
+    void noSeAjustaUnaExistenciaAgotada() {
+        Existencia existencia = bolsaDeCafe("0.0000");
+
+        DomainException error = assertThrows(DomainException.class, () -> existencia.ajustarA(BigDecimal.TEN, AHORA, AGOTADA));
+
+        assertEquals(409, error.getCodigo());
+    }
+
+    @Test
+    void unConteoNoPuedeSuperarElContenidoInicial() {
+        Existencia existencia = bolsaDeCafe("500.0000");
+
+        DomainException error = assertThrows(DomainException.class, () -> existencia.ajustarA(new BigDecimal("1001"), AHORA, AGOTADA));
+
+        assertEquals(409, error.getCodigo());
+    }
+
+    @Test
+    void darDeBajaTodoDevuelveLoQueQuedaba() {
+        Existencia existencia = bolsaDeCafe("320.0000");
+
+        assertEquals(new BigDecimal("320.0000"), existencia.darDeBajaTodo(AHORA, AGOTADA));
+        assertTrue(existencia.isAgotada());
+    }
+
+    @Test
+    void noSeDaDeBajaLogicaUnaExistenciaConContenido() {
+        DomainException error = assertThrows(DomainException.class, () -> bolsaDeCafe("1.0000").eliminar());
+
+        assertEquals(409, error.getCodigo());
+    }
+
+    @Test
+    void sinFechaDeVencimientoNuncaVence() {
+        assertTrue(!bolsaDeCafe("1.0000").estaVencida(LocalDate.of(2099, 1, 1)));
     }
 }

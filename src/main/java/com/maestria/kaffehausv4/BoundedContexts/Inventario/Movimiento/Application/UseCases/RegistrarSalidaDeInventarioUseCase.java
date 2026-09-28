@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Applicati
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.ValueObjects.ProduccionId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Repositories.IRecetaRepository;
@@ -43,19 +45,23 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * movimiento por cada existencia tocada. No tiene endpoint; la invocan CrearProduccionUseCase
  * (consumo de insumos) y CrearVentaUseCase (salida por venta), dentro de su transaccion.
  *
- * Lo que se descuenta depende de la naturaleza del producto:
- * - Stock directo (MTS, reventa, insumos): sale de sus existencias abiertas en orden FEFO,
- *   repartiendo el consumo entre varias si una sola no alcanza. Una existencia que se vacia
- *   pasa al estado 'Agotada'.
+ * Implementa el algoritmo de consumo de inventario.md (INV-32). Lo que se descuenta depende
+ * de la naturaleza del producto:
+ * - Stock directo (MTS, reventa, insumos): sale de sus existencias abiertas y no vencidas, las
+ *   suyas y las abiertas desde sus presentaciones, en orden FEFO, repartiendo el consumo entre
+ *   varias si una sola no alcanza. Las existencias se bloquean antes de leerlas (INV-52). Una
+ *   existencia que se vacia pasa al estado 'Agotada'. Al terminar recalcula 'producto.stock'.
  * - Bajo demanda (MTO): no tiene existencias propias. Se descuentan los ingredientes de su
  *   receta vigente escalados a la cantidad pedida (backflush). Si un ingrediente es a su vez
  *   bajo demanda se explota su receta, y un ciclo entre recetas se rechaza.
  *
- * Si no alcanza el stock de algun insumo lanza 409 y, al estar dentro de la transaccion del
- * caso de uso que la invoca, no queda ni una existencia descontada a medias.
+ * Nunca abre unidades cerradas (INV-34): si el stock abierto no alcanza lanza 409 y, al estar
+ * dentro de la transaccion del caso de uso que la invoca, no queda ni una existencia
+ * descontada a medias. Si hay unidades cerradas que alcanzarian, el mensaje lo dice para que
+ * el usuario abra una presentacion (INV-13, INV-14) y reintente.
  *
- * Solo se consideran las existencias abiertas en la unidad del producto ('unidad_actual'):
- * la receta expresa sus cantidades en esa unidad y aqui no se convierten unidades.
+ * Solo se consideran las existencias en la unidad del producto ('unidad_actual'): la apertura
+ * ya las dejo expresadas en ella (INV-10).
  */
 @Service
 @Transactional
@@ -74,6 +80,7 @@ public class RegistrarSalidaDeInventarioUseCase {
     private final IEstadoExistenciaRepository estadoExistenciaRepository;
     private final IMovimientoRepository movimientoRepository;
     private final ITipoMovimientoRepository tipoMovimientoRepository;
+    private final RecalcularStockUseCase recalcularStockUseCase;
 
     public RegistrarSalidaDeInventarioUseCase(
             IProductoRepository productoRepository,
@@ -82,7 +89,8 @@ public class RegistrarSalidaDeInventarioUseCase {
             IExistenciaRepository existenciaRepository,
             IEstadoExistenciaRepository estadoExistenciaRepository,
             IMovimientoRepository movimientoRepository,
-            ITipoMovimientoRepository tipoMovimientoRepository) {
+            ITipoMovimientoRepository tipoMovimientoRepository,
+            RecalcularStockUseCase recalcularStockUseCase) {
         this.productoRepository = productoRepository;
         this.recetaRepository = recetaRepository;
         this.loteRepository = loteRepository;
@@ -90,6 +98,7 @@ public class RegistrarSalidaDeInventarioUseCase {
         this.estadoExistenciaRepository = estadoExistenciaRepository;
         this.movimientoRepository = movimientoRepository;
         this.tipoMovimientoRepository = tipoMovimientoRepository;
+        this.recalcularStockUseCase = recalcularStockUseCase;
     }
 
     public SalidaDeInventarioResponse execute(RegistrarSalidaDeInventarioRequest request) {
@@ -153,29 +162,45 @@ public class RegistrarSalidaDeInventarioUseCase {
             return BigDecimal.ZERO;
         }
 
+        // El insumo base y sus presentaciones: las existencias abiertas desde cualquiera de ellas
+        // contienen al insumo base (INV-08).
+        List<ProductoId> fuentes = new ArrayList<>();
+        fuentes.add(producto.getId());
+        productoRepository.obtenerPresentaciones(producto.getId()).forEach(presentacion -> fuentes.add(presentacion.getId()));
+        Set<String> idsFuente = fuentes.stream().map(ProductoId::getValue).collect(Collectors.toSet());
+
+        LocalDate hoy = salida.request.getFecha().toLocalDate();
         Map<String, Lote> lotePorDetalle = new HashMap<>();
         List<DetalleLoteId> detallesDelProducto = new ArrayList<>();
-        for (Lote lote : loteRepository.obtenerPorProducto(producto.getId())) {
+        boolean hayUnidadesCerradas = false;
+        for (Lote lote : loteRepository.obtenerPorProductos(fuentes)) {
             for (DetalleLote detalle : lote.getDetallesActivos()) {
-                if (detalle.getProductoId().getValue().equals(producto.getId().getValue())) {
+                if (idsFuente.contains(detalle.getProductoId().getValue())) {
                     lotePorDetalle.put(detalle.getId().getValue(), lote);
                     detallesDelProducto.add(detalle.getId());
+                    hayUnidadesCerradas = hayUnidadesCerradas || (detalle.tieneUnidadesCerradas() && !detalle.estaVencido(hoy));
                 }
             }
         }
 
         String unidadDelProducto = producto.getUnidadActualId().getValue();
-        List<Existencia> disponibles = existenciaRepository.obtenerDisponiblesPorDetallesLote(detallesDelProducto).stream()
+        List<Existencia> disponibles = existenciaRepository.obtenerDisponiblesParaConsumo(detallesDelProducto).stream()
                 .filter(existencia -> existencia.getUnidadId().getValue().equals(unidadDelProducto))
+                .filter(existencia -> !existencia.estaVencida(hoy))
                 .collect(Collectors.toList());
 
         BigDecimal totalDisponible = disponibles.stream()
                 .map(Existencia::getContenidoActual)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (totalDisponible.compareTo(requerido) < 0) {
-            throw DomainException.throwException(409,
-                    "Stock insuficiente de '" + producto.getNombre() + "': se requieren " + requerido.stripTrailingZeros().toPlainString()
-                    + " y hay " + totalDisponible.stripTrailingZeros().toPlainString() + " en existencias abiertas en su unidad");
+            String cantidades = ": se requieren " + requerido.stripTrailingZeros().toPlainString()
+                    + " y hay " + totalDisponible.stripTrailingZeros().toPlainString() + " abiertas y vigentes";
+            if (hayUnidadesCerradas) {
+                throw DomainException.throwException(409,
+                        "Stock abierto insuficiente de '" + producto.getNombre() + "' (idProducto '" + producto.getId().getValue()
+                        + "')" + cantidades + ": abre una presentacion para continuar");
+            }
+            throw DomainException.throwException(409, "Stock insuficiente de '" + producto.getNombre() + "'" + cantidades);
         }
 
         BigDecimal pendiente = requerido;
@@ -206,6 +231,7 @@ public class RegistrarSalidaDeInventarioUseCase {
             pendiente = pendiente.subtract(consumo);
         }
 
+        recalcularStockUseCase.execute(producto.getId().getValue());
         return costo;
     }
 

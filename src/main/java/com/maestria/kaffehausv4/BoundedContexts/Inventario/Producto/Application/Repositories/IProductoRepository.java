@@ -14,4 +14,16 @@ public interface IProductoRepository {
     Optional<Producto> obtenerPorId(ProductoId productoId);
     PaginatedResponse<List<Producto>> obtenerTodos(ObtenerProductosRequest obtenerProductosRequest);
     void eliminar(ProductoId productoId);
+
+    /** Presentaciones vivas de un producto base: las que lo tienen por padre (INV-06). */
+    List<Producto> obtenerPresentaciones(ProductoId productoBaseId);
+
+    /**
+     * Lectura con bloqueo pesimista (SELECT ... FOR UPDATE). Serializa las operaciones que
+     * recalculan el stock de un mismo producto (inventario.md INV-52).
+     */
+    Optional<Producto> obtenerPorIdParaActualizar(ProductoId productoId);
+
+    /** Persiste solo el stock proyectado, sin tocar el resto de campos. */
+    void actualizarStock(Producto producto);
 }

@@ -119,8 +119,25 @@ public class LoteDatasourceImpl implements ILoteDatasource {
     }
 
     @Override
-    public List<Lote> obtenerPorProducto(ProductoId productoId) {
-        List<UUID> idsLote = detalleLoteJpaRepository.findByIdProductoAndBorradoFalse(aUuid(productoId.getValue())).stream()
+    public Optional<Lote> obtenerPorDetalleIdParaActualizar(DetalleLoteId detalleLoteId) {
+        // La linea bloqueada es la primera carga de la fila en la transaccion, asi que el lote
+        // que se reconstruye despues la trae con su estado vigente.
+        return detalleLoteJpaRepository.readByIdAndBorradoFalse(aUuid(detalleLoteId.getValue()))
+                .map(DetalleLoteJpaModel::getIdLote)
+                .flatMap(idLote -> obtenerPorId(new LoteId(idLote.toString())));
+    }
+
+    @Override
+    public List<Lote> obtenerPorProductos(List<ProductoId> productoIds) {
+        if (productoIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<UUID> idsProducto = productoIds.stream()
+                .map(productoId -> aUuid(productoId.getValue()))
+                .collect(Collectors.toList());
+
+        List<UUID> idsLote = detalleLoteJpaRepository.findByIdProductoInAndBorradoFalse(idsProducto).stream()
                 .map(DetalleLoteJpaModel::getIdLote)
                 .distinct()
                 .collect(Collectors.toList());

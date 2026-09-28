@@ -192,7 +192,8 @@ antes.
     `cantidad_restante ≥ 1` y no vencidas (`fecha_vencimiento` nula o `≥ hoy`).
   - **Una fila por presentación:** de cada producto candidato se devuelve **solo** el
     `detalle_lote` más próximo a vencer (`fecha_vencimiento ASC`, NULL al final; a igual
-    fecha, el de lote más antiguo por `fecha_compra` y después por `fec_c`). Mostrar otro
+    fecha, el de lote más antiguo por `fecha_compra` y, como desempate estable, el de menor
+    `id`). Mostrar otro
     detalle de la misma presentación invitaría a romper INV-14.
   - **Orden de la lista:** por esa misma fecha de vencimiento, de modo que la primera fila es
     lo que conviene abrir según FEFO; el usuario puede elegir cualquier fila.
@@ -253,8 +254,9 @@ La naturaleza del producto la decide exclusivamente `producto.es_stock_directo`.
   ```
 
   Toda operación que cambia `contenido_actual` (apertura, consumo, ingreso, ajuste) actualiza
-  `producto.stock` **en la misma transacción**. El campo no se edita a mano: `PUT
-  api/v1/producto` no debe aceptar `stock` para un producto MTS. Las existencias y los
+  `producto.stock` **en la misma transacción**, recalculándolo como esa suma (INV-53). El campo
+  no se edita a mano: el alta de producto no lo recibe (nace en 0) y el `PUT
+  api/v1/producto` lo rechaza con 400. Las existencias y los
   movimientos siguen siendo la fuente de verdad; la proyección existe para validar y mostrar
   rápido. Si difieren, manda Σ `contenido_actual`, y la diferencia es un defecto.
 
@@ -276,7 +278,7 @@ La naturaleza del producto la decide exclusivamente `producto.es_stock_directo`.
      - Se crea una existencia `Abierta` con `contenido_inicial = contenido_actual = cantidad_real`
        en la `unidad_actual` del producto terminado.
      - Se registra un movimiento `Ingreso produccion` con `id_produccion`.
-     - `producto.stock += cantidad_real` (INV-20).
+     - `producto.stock` se recalcula desde sus existencias (INV-20).
   6. Si falta cualquier insumo: 409 y rollback total (no queda producción, consumo ni lote).
 - **INV-22.** Una producción registrada es inmutable en cantidades y receta. Solo se corrigen
   `motivo_diferencia` y `fecha_produccion`. Revertirla sería una *anulación* con movimientos
@@ -332,7 +334,7 @@ La naturaleza del producto la decide exclusivamente `producto.es_stock_directo`.
               contenido_actual -= consumo
               si contenido_actual = 0: estado <- Agotada, fecha_acabado <- ahora
               movimiento(tipo, consumo, existencia, id_produccion?)
-          producto.stock -= q                                         (INV-20)
+          producto.stock <- recalcular desde existencias (INV-20, INV-53)
           costo += consumo × costo_por_unidad_de_contenido           (INV-35)
   ```
 
@@ -410,10 +412,10 @@ Las filas se resuelven **por nombre** (igual que los roles): son datos, no un en
 | `Ingreso produccion` | **Entrada** | INV-21 | Sí | Sembrado |
 | `Venta` | Salida | INV-33, producto MTS | — | Sembrado |
 | `Consumo venta` | Salida | INV-33, backflush MTO | — | Sembrado |
-| `Merma` | Salida | INV-42 | — | **Por sembrar** |
-| `Vencimiento` | Salida | INV-42 | — | **Por sembrar** |
-| `Ajuste positivo` | **Entrada** | INV-43 | — | **Por sembrar** |
-| `Ajuste negativo` | Salida | INV-43 | — | **Por sembrar** |
+| `Merma` | Salida | INV-42 | — | Sembrado |
+| `Vencimiento` | Salida | INV-42 | — | Sembrado |
+| `Ajuste positivo` | **Entrada** | INV-43 | — | Sembrado |
+| `Ajuste negativo` | Salida | INV-43 | — | Sembrado |
 
 La dirección de cada tipo la fija este documento y la aplica el caso de uso que crea el
 movimiento. No se infiere del nombre en tiempo de ejecución.
@@ -477,14 +479,29 @@ movimiento. No se infiere del nombre en tiempo de ejecución.
   `SELECT ... FOR UPDATE`:
   - `detalle_lote` al abrir (INV-10);
   - las `existencias` candidatas al consumir (INV-32);
-  - la fila de `producto` al actualizar `producto.stock` (INV-20).
+  - la fila de `producto` al recalcular `producto.stock` (INV-20);
+  - la `existencia` sobre la que se registra una merma, un vencimiento o un ajuste.
 
   Se implementa con `@Lock(LockModeType.PESSIMISTIC_WRITE)` sobre **query methods derivados**
-  del `JpaRepository`. No requiere `@Query`, pero es una adición a `arquitectura.md` 5.7 que
-  debe documentarse allí antes de implementarla.
-- **INV-53 — Orden de bloqueo fijo** para evitar interbloqueos: primero `producto` (por `id`),
-  luego `detalle_lote` (por `id`) y luego `existencias` (en el orden FEFO, desempate por `id`).
-  Una venta con varias líneas procesa sus productos en orden de `id`.
+  del `JpaRepository`, con prefijo `read...By` para distinguirlos de sus gemelos `find...By`
+  sin bloqueo (`arquitectura.md` 5.7).
+- **INV-53 — Orden de bloqueo fijo** para evitar interbloqueos: **primero la fila que
+  identifica la operación** (el `detalle_lote` que se abre, o las `existencias` que se
+  consumen, en orden FEFO con desempate por `id`) y **al final el `producto`**, que se
+  bloquea al recalcular su `stock`. Una venta con varias líneas procesa sus productos en orden
+  de `id`.
+
+  El producto va al final a propósito. Con Hibernate, un `SELECT ... FOR UPDATE` sobre una
+  entidad ya cargada en la transacción no refresca su estado, y el producto suele estar
+  cargado desde antes (la venta lo valida al armar sus líneas). Por eso `producto.stock` no se
+  suma ni se resta sobre el valor leído: se **recalcula** como Σ `contenido_actual` con el
+  bloqueo ya tomado, y esa suma lee datos confirmados. Las existencias y los detalles, en
+  cambio, se cargan por primera vez en la transacción con el bloqueo, así que su estado es el
+  vigente.
+- **Límite conocido.** En el backflush de un MTO, los insumos se bloquean en el orden en que
+  aparecen en la receta. Dos ventas de recetas distintas que comparten insumos en orden
+  inverso pueden interbloquearse. PostgreSQL detecta el caso y aborta una de las dos, que se
+  revierte entera y puede reintentarse.
 - **INV-54.** Después de bloquear se **revalida** el saldo: la validación hecha antes del
   bloqueo, o la disponibilidad de INV-31, no sirve como garantía.
 
@@ -492,16 +509,17 @@ movimiento. No se infiere del nombre en tiempo de ejecución.
 
 | Id | Invariante | Dónde se garantiza |
 |---|---|---|
-| INV-55 | `existencias.contenido_actual ≥ 0` y `≤ contenido_inicial` | `Existencia` (dominio) + CHECK propuesto |
-| INV-56 | `0 ≤ detalle_lote.cantidad_restante ≤ cantidad_inicial` | `DetalleLote` (dominio) + CHECK propuesto |
-| INV-57 | `movimientos.cantidad > 0` | `Movimiento.crear` + CHECK propuesto |
-| INV-58 | `producto.stock ≥ 0` para MTS | caso de uso + CHECK propuesto |
+| INV-55 | `existencias.contenido_actual ≥ 0` y `≤ contenido_inicial` | `Existencia` (dominio) + CHECK |
+| INV-56 | `0 ≤ detalle_lote.cantidad_restante ≤ cantidad_inicial` | `DetalleLote` (dominio) + CHECK |
+| INV-57 | `movimientos.cantidad > 0` | `Movimiento.crear` + CHECK |
+| INV-58 | `producto.stock ≥ 0` | `Producto.proyectarStock` + `chk_producto_stock` |
 | INV-59 | Existencia `Agotada` ⇔ `contenido_actual = 0` y `fecha_acabado` no nula | `Existencia.consumir` |
 | INV-60 | Lote de compra: `id_proveedor` no nulo e `id_produccion` nulo. Lote de producción: al revés | `Lote.crear` / `Lote.registrarProduccion` + `chk_lote_origen` (existe) |
 | INV-61 | Un lote de producción tiene exactamente una línea, del producto obtenido de su receta | `Lote.registrarProduccion` |
 | INV-62 | Nunca se consume de una existencia vencida ni borrada | filtro de candidatas (INV-32) |
 
-CHECK propuestos para `databasev4.sql`, como red de seguridad si el dominio falla:
+CHECK de `databasev4.sql`, red de seguridad si el dominio falla (además de
+`chk_producto_stock` y `chk_producto_padre` en `producto`):
 
 ```sql
 ALTER TABLE existencias  ADD CONSTRAINT chk_existencia_saldo
@@ -535,24 +553,28 @@ ALTER TABLE movimientos  ADD CONSTRAINT chk_movimiento_cantidad CHECK (cantidad 
 
 Estado al 2026-09-27 respecto del código en `feature-inventarios`.
 
-| Regla | Estado | Nota |
+| Regla | Estado | Dónde |
 |---|---|---|
-| INV-01..04 Compras | Implementado | `CrearLoteUseCase`, `Lote.crear` exige proveedor |
-| INV-06..09 Jerarquía y conversiones | **Pendiente** | Hoy el consumo solo busca existencias del mismo producto y en su `unidad_actual`, sin conversión |
-| INV-10..11 Apertura con movimiento `Apertura` | **Pendiente** | No existe el caso de uso; `CrearExistenciaUseCase` es CRUD sin movimiento |
-| INV-12 Retirar el alta manual de existencias | **Pendiente** | |
-| INV-13 Consulta de detalles aperturables | **Pendiente** | Endpoint y método de puerto nuevos en `Lote`; documentar antes en `arquitectura.md` 4.7 |
-| INV-14 Apertura del detalle más próximo a vencer | **Pendiente** | Depende de INV-10 |
-| INV-20 Proyección `producto.stock` | **Pendiente** | Hoy ni la producción ni la venta actualizan `producto.stock`; el saldo vive solo en existencias |
-| INV-21..23 Producción | Implementado, salvo el paso 5 (`producto.stock`) | `CrearProduccionUseCase` |
-| INV-31 Disponibilidad MTO | **Pendiente** | Requiere una consulta de lectura nueva |
-| INV-32..33 Consumo FEFO y backflush | Implementado, salvo lo siguiente | `RegistrarSalidaDeInventarioUseCase`; falta excluir vencidas (INV-62), bloquear (INV-52) y actualizar `stock` |
-| INV-34 Sin apertura automática; 409 que remite a abrir | **Pendiente** | El consumo actual ya no abre nada; falta distinguir el 409 "abre una presentación" del de stock agotado |
+| INV-01..04 Compras | Implementado | `CrearLoteUseCase`; `Lote.crear` exige proveedor |
+| INV-06..08 Jerarquía presentación → base | Implementado | `Producto.esPresentacion/productoBaseId`; INV-07 en `Crear/ActualizarProductoUseCase`; INV-08 en `Crear/ActualizarRecetaUseCase` |
+| INV-09 Conversiones | Implementado | `Conversion.factorEntre` (dominio puro, BFS de hasta 4 saltos) |
+| INV-10..11 Apertura con movimiento `Apertura` | Implementado | `RegistrarAperturaUseCase` (operación interna) |
+| INV-12 Sin alta manual de existencias | Implementado | `CrearExistenciaUseCase` responde 409; `PUT` solo admite `fechaVencimiento` e `idUsuario` |
+| INV-13 Consulta de detalles aperturables | Implementado | `GET api/v1/lote/detalles-aperturables` → `ObtenerDetallesAperturablesUseCase` |
+| INV-14 Apertura del detalle más próximo a vencer | Implementado | `POST api/v1/lote/detalles/{id}/apertura` → `AbrirDetalleLoteUseCase` |
+| INV-20 Proyección `producto.stock` | Implementado | `RecalcularStockUseCase` (operación interna); `stock` ya no se acepta en el alta ni en el `PUT` de producto |
+| INV-21..23 Producción | Implementado | `CrearProduccionUseCase` |
+| INV-30..31 Disponibilidad MTS y MTO | Implementado | `GET api/v1/producto/{id}/inventario` → `ObtenerInventarioProductoUseCase` |
+| INV-32..33 Consumo FEFO y backflush | Implementado | `RegistrarSalidaDeInventarioUseCase`: presentaciones, sin vencidas, con bloqueo, recalcula `stock` |
+| INV-34 Sin apertura automática | Implementado | 409 `"abre una presentacion para continuar"` con el `idProducto` si hay unidades cerradas |
 | INV-35 Costeo | Implementado | `Lote.costoPorUnidadDeContenido` |
-| INV-40..41 Libro mayor inmutable | Implementado | `Movimiento` rechaza `actualizar`/`eliminar` con 409 |
-| INV-42..44 Mermas, vencimientos, ajustes | **Pendiente** | Faltan los casos de uso y sembrar sus tipos |
-| INV-45..46 Conciliación y vistas | **Pendiente** | |
+| INV-40..41 Libro mayor inmutable | Implementado | `Movimiento` rechaza `actualizar`/`eliminar` con 409; CHECK `cantidad > 0` |
+| INV-42 Mermas y vencimientos | Implementado | `POST api/v1/existencia/{id}/merma`, `.../{id}/vencimiento`; unidades cerradas: `POST api/v1/lote/detalles/{id}/vencimiento` |
+| INV-43..44 Ajustes | Implementado | `POST api/v1/existencia/{id}/ajuste` → `AjustarExistenciaUseCase` |
+| INV-45 Conciliación | Verificado por test | `AperturaInventarioIntegracionTest` reproduce `contenido_actual` desde el libro mayor; no hay endpoint |
+| INV-46 Vistas | Implementado, salvo consumo por producción o venta | Abierto, cerrado, total, valor y bajo mínimo en `InventarioProductoResponse`; los consumos se consultan por `movimientos` |
 | INV-50..51 Transacción única | Implementado | |
-| INV-52..54 Bloqueos | **Pendiente** | Requiere documentar `@Lock` en `arquitectura.md` 5.7 |
-| INV-55..62 Invariantes | Dominio implementado (55, 56, 57, 59, 60, 61); CHECK propuestos pendientes; 58 y 62 pendientes | |
-| INV-63 Baja de detalle con existencias vivas | **Pendiente** | |
+| INV-52..54 Bloqueos | Implementado | `read...By` con `@Lock`; test de concurrencia en `FlujoInventarioIntegracionTest` |
+| INV-55..62 Invariantes | Implementado | Dominio + CHECK en `databasev4.sql` |
+| INV-63 Baja de detalle o lote con existencias vivas | Implementado | `ActualizarLoteUseCase`, `EliminarLoteUseCase`, `Existencia.eliminar` |
+| Anulación de producción o venta con compensatorios | **Pendiente** | Fuera de alcance (INV-22) |

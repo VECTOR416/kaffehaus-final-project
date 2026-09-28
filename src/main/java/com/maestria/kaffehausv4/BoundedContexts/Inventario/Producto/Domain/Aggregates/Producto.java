@@ -1,11 +1,13 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 public class Producto {
     private ProductoId id;
@@ -66,9 +68,12 @@ public class Producto {
         return new Producto(new ProductoId(id), nombre, stock, precio, stockMinimo, vendible, esStockDirecto, unidadActualId, tipoId, categoriaId, productoPadreId, borrado);
     }
 
+    /**
+     * El stock no se recibe: es la proyeccion del contenido abierto de sus existencias
+     * (inventario.md INV-20), asi que todo producto nace con stock cero.
+     */
     public static Producto crear(
         String nombre,
-        BigDecimal stock,
         BigDecimal precio,
         BigDecimal stockMinimo,
         boolean vendible,
@@ -78,12 +83,11 @@ public class Producto {
         CategoriaId categoriaId,
         ProductoId productoPadreId
     ){
-        return new Producto(null, nombre, stock, precio, stockMinimo, vendible, esStockDirecto, unidadActualId, tipoId, categoriaId, productoPadreId, false);
+        return new Producto(null, nombre, BigDecimal.ZERO.setScale(2), precio, stockMinimo, vendible, esStockDirecto, unidadActualId, tipoId, categoriaId, productoPadreId, false);
     }
 
     public void actualizar(
         String nombre,
-        BigDecimal stock,
         BigDecimal precio,
         BigDecimal stockMinimo,
         Boolean vendible,
@@ -94,7 +98,6 @@ public class Producto {
         ProductoId productoPadreId
     ){
         this.nombre = nombre != null ? nombre : this.nombre;
-        this.stock = stock != null ? stock : this.stock;
         this.precio = precio != null ? precio : this.precio;
         this.stockMinimo = stockMinimo != null ? stockMinimo : this.stockMinimo;
         this.vendible = vendible != null ? vendible : this.vendible;
@@ -107,6 +110,31 @@ public class Producto {
 
     public void eliminar(){
         this.borrado = true;
+    }
+
+    /**
+     * Fija el stock proyectado a partir del contenido abierto de sus existencias. Es la unica
+     * forma de cambiar 'stock' (inventario.md INV-20, INV-58). Un producto bajo demanda no
+     * tiene stock propio.
+     */
+    public void proyectarStock(BigDecimal contenidoAbierto) {
+        if (!this.esStockDirecto) {
+            throw DomainException.throwException(409, "El producto '" + this.nombre + "' se prepara bajo demanda y no tiene stock propio");
+        }
+        if (contenidoAbierto == null || contenidoAbierto.signum() < 0) {
+            throw DomainException.throwException(409, "El stock del producto '" + this.nombre + "' no puede ser negativo");
+        }
+        this.stock = contenidoAbierto.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** Una presentacion es la forma de compra de un producto base (inventario.md INV-06). */
+    public boolean esPresentacion() {
+        return this.productoPadreId != null;
+    }
+
+    /** El producto que contienen sus existencias: el padre si es presentacion, o el mismo. */
+    public ProductoId productoBaseId() {
+        return esPresentacion() ? this.productoPadreId : this.id;
     }
 
     public ProductoId getId() {return id;}

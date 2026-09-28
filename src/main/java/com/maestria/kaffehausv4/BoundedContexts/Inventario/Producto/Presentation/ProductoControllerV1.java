@@ -25,6 +25,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.EliminarProductoUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.ObtenerProductoPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.ObtenerProductosUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.InventarioProductoResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.ObtenerInventarioProductoUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 @RestController
@@ -36,18 +38,21 @@ public class ProductoControllerV1 {
     private final ObtenerProductoPorIdUseCase obtenerProductoPorIdUseCase;
     private final ObtenerProductosUseCase obtenerProductosUseCase;
     private final EliminarProductoUseCase eliminarProductoUseCase;
+    private final ObtenerInventarioProductoUseCase obtenerInventarioProductoUseCase;
 
     public ProductoControllerV1(
             CrearProductoUseCase crearProductoUseCase,
             ActualizarProductoUseCase actualizarProductoUseCase,
             ObtenerProductoPorIdUseCase obtenerProductoPorIdUseCase,
             ObtenerProductosUseCase obtenerProductosUseCase,
-            EliminarProductoUseCase eliminarProductoUseCase) {
+            EliminarProductoUseCase eliminarProductoUseCase,
+            ObtenerInventarioProductoUseCase obtenerInventarioProductoUseCase) {
         this.crearProductoUseCase = crearProductoUseCase;
         this.actualizarProductoUseCase = actualizarProductoUseCase;
         this.obtenerProductoPorIdUseCase = obtenerProductoPorIdUseCase;
         this.obtenerProductosUseCase = obtenerProductosUseCase;
         this.eliminarProductoUseCase = eliminarProductoUseCase;
+        this.obtenerInventarioProductoUseCase = obtenerInventarioProductoUseCase;
     }
 
     @PostMapping
@@ -89,5 +94,11 @@ public class ProductoControllerV1 {
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarProductoUseCase.execute(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Situacion de inventario y disponibilidad (inventario.md INV-30, INV-31, INV-46).
+    @GetMapping("/{id}/inventario")
+    public ResponseEntity<InventarioProductoResponse> obtenerInventario(@PathVariable String id) {
+        return ResponseEntity.ok(obtenerInventarioProductoUseCase.execute(id));
     }
 }

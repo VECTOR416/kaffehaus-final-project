@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Conversion.Infrastructure.Persistence.Jpa;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -11,4 +12,5 @@ public interface ConversionJpaRepository extends JpaRepository<ConversionJpaMode
 
     Optional<ConversionJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<ConversionJpaModel> findByBorradoFalse(Pageable pageable);
+    List<ConversionJpaModel> findByBorradoFalse();
 }

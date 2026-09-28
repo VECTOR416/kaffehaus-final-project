@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Dtos.ActualizarIngredienteRecetaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Dtos.ActualizarPasoRecetaRequest;
@@ -110,8 +111,13 @@ public class ActualizarRecetaUseCase {
         }
 
         ProductoId productoId = new ProductoId(ingrediente.getIdProducto());
-        productoRepository.obtenerPorId(productoId)
+        Producto producto = productoRepository.obtenerPorId(productoId)
                 .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + ingrediente.getIdProducto() + "' no existe"));
+        // Las recetas se expresan en productos base (inventario.md INV-08).
+        if (producto.esPresentacion()) {
+            throw DomainException.throwException(400,
+                    "El producto '" + producto.getNombre() + "' es una presentacion; la receta debe usar su producto base");
+        }
 
         receta.agregarIngrediente(productoId, ingrediente.getCantidad());
     }

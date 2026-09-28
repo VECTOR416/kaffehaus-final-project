@@ -25,6 +25,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.EliminarExistenciaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.ObtenerExistenciaPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.ObtenerExistenciasUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.AjustarExistenciaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.RegistrarMermaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.RegistrarVencimientoRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.AjustarExistenciaUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.RegistrarMermaUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.RegistrarVencimientoUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 @RestController
@@ -36,18 +42,27 @@ public class ExistenciaControllerV1 {
     private final ObtenerExistenciaPorIdUseCase obtenerExistenciaPorIdUseCase;
     private final ObtenerExistenciasUseCase obtenerExistenciasUseCase;
     private final EliminarExistenciaUseCase eliminarExistenciaUseCase;
+    private final RegistrarMermaUseCase registrarMermaUseCase;
+    private final RegistrarVencimientoUseCase registrarVencimientoUseCase;
+    private final AjustarExistenciaUseCase ajustarExistenciaUseCase;
 
     public ExistenciaControllerV1(
             CrearExistenciaUseCase crearExistenciaUseCase,
             ActualizarExistenciaUseCase actualizarExistenciaUseCase,
             ObtenerExistenciaPorIdUseCase obtenerExistenciaPorIdUseCase,
             ObtenerExistenciasUseCase obtenerExistenciasUseCase,
-            EliminarExistenciaUseCase eliminarExistenciaUseCase) {
+            EliminarExistenciaUseCase eliminarExistenciaUseCase,
+            RegistrarMermaUseCase registrarMermaUseCase,
+            RegistrarVencimientoUseCase registrarVencimientoUseCase,
+            AjustarExistenciaUseCase ajustarExistenciaUseCase) {
         this.crearExistenciaUseCase = crearExistenciaUseCase;
         this.actualizarExistenciaUseCase = actualizarExistenciaUseCase;
         this.obtenerExistenciaPorIdUseCase = obtenerExistenciaPorIdUseCase;
         this.obtenerExistenciasUseCase = obtenerExistenciasUseCase;
         this.eliminarExistenciaUseCase = eliminarExistenciaUseCase;
+        this.registrarMermaUseCase = registrarMermaUseCase;
+        this.registrarVencimientoUseCase = registrarVencimientoUseCase;
+        this.ajustarExistenciaUseCase = ajustarExistenciaUseCase;
     }
 
     @PostMapping
@@ -89,5 +104,25 @@ public class ExistenciaControllerV1 {
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarExistenciaUseCase.execute(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Movimientos operativos sobre una existencia (inventario.md INV-42, INV-43).
+
+    @PostMapping("/{id}/merma")
+    public ResponseEntity<ExistenciaResponse> registrarMerma(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        RegistrarMermaRequest request = RegistrarMermaRequest.createFromRequest(body);
+        return ResponseEntity.ok(registrarMermaUseCase.execute(id, request));
+    }
+
+    @PostMapping("/{id}/vencimiento")
+    public ResponseEntity<ExistenciaResponse> registrarVencimiento(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        RegistrarVencimientoRequest request = RegistrarVencimientoRequest.createFromRequest(body);
+        return ResponseEntity.ok(registrarVencimientoUseCase.execute(id, request));
+    }
+
+    @PostMapping("/{id}/ajuste")
+    public ResponseEntity<ExistenciaResponse> ajustar(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        AjustarExistenciaRequest request = AjustarExistenciaRequest.createFromRequest(body);
+        return ResponseEntity.ok(ajustarExistenciaUseCase.execute(id, request));
     }
 }

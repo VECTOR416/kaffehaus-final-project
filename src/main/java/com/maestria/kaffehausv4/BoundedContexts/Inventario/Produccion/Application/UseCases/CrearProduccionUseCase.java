@@ -23,6 +23,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Repositories.IProduccionRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.Aggregates.Produccion;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Repositories.IRecetaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.Aggregates.IngredienteReceta;
@@ -69,6 +70,7 @@ public class CrearProduccionUseCase {
     private final IMovimientoRepository movimientoRepository;
     private final ITipoMovimientoRepository tipoMovimientoRepository;
     private final RegistrarSalidaDeInventarioUseCase registrarSalidaDeInventarioUseCase;
+    private final RecalcularStockUseCase recalcularStockUseCase;
 
     public CrearProduccionUseCase(
             IProduccionRepository produccionRepository,
@@ -80,7 +82,8 @@ public class CrearProduccionUseCase {
             IEstadoExistenciaRepository estadoExistenciaRepository,
             IMovimientoRepository movimientoRepository,
             ITipoMovimientoRepository tipoMovimientoRepository,
-            RegistrarSalidaDeInventarioUseCase registrarSalidaDeInventarioUseCase) {
+            RegistrarSalidaDeInventarioUseCase registrarSalidaDeInventarioUseCase,
+            RecalcularStockUseCase recalcularStockUseCase) {
         this.produccionRepository = produccionRepository;
         this.recetaRepository = recetaRepository;
         this.productoRepository = productoRepository;
@@ -91,6 +94,7 @@ public class CrearProduccionUseCase {
         this.movimientoRepository = movimientoRepository;
         this.tipoMovimientoRepository = tipoMovimientoRepository;
         this.registrarSalidaDeInventarioUseCase = registrarSalidaDeInventarioUseCase;
+        this.recalcularStockUseCase = recalcularStockUseCase;
     }
 
     public ProduccionResponse execute(CrearProduccionRequest crearProduccionRequest) {
@@ -187,5 +191,7 @@ public class CrearProduccionUseCase {
                 ingreso.getId(),
                 usuarioId,
                 produccion.getId()));
+
+        recalcularStockUseCase.execute(productoObtenido.getId().getValue());
     }
 }

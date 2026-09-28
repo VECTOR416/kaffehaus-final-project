@@ -21,4 +21,13 @@ public interface IExistenciaDatasource {
      * vence antes (las que no vencen, al final) y, a igual vencimiento, la mas antigua.
      */
     List<Existencia> obtenerDisponiblesPorDetallesLote(List<DetalleLoteId> detalleLoteIds);
+
+    /**
+     * Las mismas existencias, en el mismo orden FEFO, bloqueadas (SELECT ... FOR UPDATE) para
+     * descontarlas (inventario.md INV-52). Solo la usa el algoritmo de consumo.
+     */
+    List<Existencia> obtenerDisponiblesParaConsumo(List<DetalleLoteId> detalleLoteIds);
+
+    /** Lectura con bloqueo de una existencia, para mermas, vencimientos y ajustes. */
+    Optional<Existencia> obtenerPorIdParaActualizar(ExistenciaId existenciaId);
 }

@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases;
 
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -98,8 +99,15 @@ public class CrearVentaUseCase {
         return VentaResponse.createFromAggregate(ventaCreada, estadoVenta);
     }
 
+    /**
+     * Las lineas se procesan en orden de id de producto para que dos ventas concurrentes tomen
+     * los bloqueos en el mismo orden (inventario.md INV-53).
+     */
     private void descontarInventario(Venta venta) {
-        for (DetalleVenta detalle : venta.getDetallesActivos()) {
+        List<DetalleVenta> enOrden = venta.getDetallesActivos().stream()
+                .sorted(Comparator.comparing(detalle -> detalle.getProductoId().getValue()))
+                .toList();
+        for (DetalleVenta detalle : enOrden) {
             registrarSalidaDeInventarioUseCase.execute(RegistrarSalidaDeInventarioRequest.crear(
                     detalle.getProductoId().getValue(),
                     detalle.getCantidad(),

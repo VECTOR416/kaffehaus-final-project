@@ -42,6 +42,11 @@ public class ConversionRepositoryImpl implements IConversionRepository{
     }
 
     @Override
+    public List<Conversion> obtenerVivas() {
+        return this.conversionDatasource.obtenerVivas();
+    }
+
+    @Override
     public void eliminar(ConversionId conversionId) {
         this.conversionDatasource.eliminar(conversionId);
     }

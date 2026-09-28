@@ -411,7 +411,10 @@ se retiro al subordinar las lineas a su raiz.
 | `PUT api/v1/lote/{id}` | encabezado opcional + `detalles[]` opcional | **Concilia por id**, no reemplaza: linea con `id` se corrige, linea sin `id` se agrega, linea ausente se da de baja logica |
 | `GET api/v1/lote/{id}` | — | Devuelve el lote con sus lineas vivas |
 | `GET api/v1/lote` | `skip`/`limit`/`search` | Pagina de lotes con sus lineas, resueltas en una sola consulta por pagina |
-| `DELETE api/v1/lote/{id}` | — | Baja logica del encabezado y de todas sus lineas |
+| `DELETE api/v1/lote/{id}` | — | Baja logica del encabezado y de todas sus lineas. 409 si alguna linea tiene existencias con contenido |
+| `GET api/v1/lote/detalles-aperturables?idProducto=` | — | Por cada presentacion del producto base, el detalle que toca abrir (inventario.md INV-13) |
+| `POST api/v1/lote/detalles/{idDetalleLote}/apertura` | `idUsuario` | Abre una unidad cerrada de ese detalle; 409 si no es el mas proximo a vencer de su presentacion (INV-14). Devuelve 201 con la existencia |
+| `POST api/v1/lote/detalles/{idDetalleLote}/vencimiento` | `idUsuario`, `motivo` opcional | Abre y da de baja las unidades cerradas de un detalle vencido (INV-42) |
 
 En el alta cada elemento de `detalles` admite `idProducto`, `cantidadInicial`, `precioUnitario`,
 `fraccionable` (opcional) y `fechaVencimiento` (opcional, la caducidad de esa compra). **No admite `cantidadRestante`** (nace igual a `cantidadInicial`)
@@ -422,6 +425,11 @@ rechaza con 400.
 La conciliacion por id y la baja logica no son una preferencia de estilo: `existencias`
 referencia `detalle_lote` con `ON DELETE RESTRICT`, asi que perder o borrar fisicamente esos
 identificadores dejaria el stock huerfano o haria fallar el DELETE.
+
+Las tres ultimas rutas son las unicas fuera de los cinco verbos estandar en `Lote` (regla
+25). Viven bajo la raiz porque `detalle_lote` es entidad hija sin endpoints propios (5.13) y
+cada una opera sobre una linea a traves de su lote. Un `PUT` que dejaria fuera una linea con
+existencias con contenido se rechaza con 409 (INV-63).
 
 **Dos origenes, uno solo por lote** (`chk_lote_origen` en la base y la raiz en el dominio):
 un lote de **compra** tiene `idProveedor` y no tiene `idProduccion`; un lote de **produccion**
@@ -452,16 +460,17 @@ ingrediente existente se rechaza con 400.
 
 ### 4.9 Flujo de inventario: MTS, MTO y auditoria
 
-> Las reglas de negocio del inventario (apertura, conversiones, proyeccion de
-> `producto.stock`, mermas, bloqueos) estan en `inventario.md`, con su estado de
-> implementacion. Esta seccion describe lo que el codigo hace hoy.
+> Las reglas de negocio del inventario estan en `inventario.md`, cada una con su
+> identificador `INV-xx` y su estado de implementacion (seccion 6). Esta seccion resume como
+> el codigo las reparte entre agregados.
 
 Dos naturalezas operativas conviven, y las distingue `producto.es_stock_directo`:
 
 | | Stock directo (`true`, MTS / reventa / insumo) | Bajo demanda (`false`, MTO) |
 |---|---|---|
 | Existencias propias | Si | No |
-| Como entra al inventario | Compra (`api/v1/lote`) o produccion (`api/v1/produccion`) | Nunca |
+| Como entra al inventario | Compra + apertura (`api/v1/lote`), o produccion (`api/v1/produccion`) | Nunca |
+| `producto.stock` | Proyeccion del contenido abierto (INV-20) | Siempre 0 |
 | Que descuenta al venderse | Sus existencias, FEFO. Movimiento `Venta` | Los insumos de su receta vigente (backflush). Movimiento `Consumo venta` |
 
 **Produccion (MTS)** — `POST api/v1/produccion`, en una sola transaccion:
@@ -469,10 +478,11 @@ Dos naturalezas operativas conviven, y las distingue `producto.es_stock_directo`
 1. Guarda la produccion. `diferencia` es derivada (`cantidadReal - cantidadEsperada`).
 2. Consume los ingredientes de la receta escalados por `cantidadEsperada / receta.cantidad`.
    Cada consumo es un movimiento `Consumo produccion` con `id_produccion`.
-3. Si `cantidadReal > 0`: el producto terminado **no** se suma a `producto.stock`. Se crea un
-   lote de produccion con una linea a costo unitario = costo de los insumos / `cantidadReal`
-   y `fechaVencimiento` (obligatoria en el payload), y se abre una existencia `Abierta` con
-   esa cantidad. Su entrada es un movimiento `Ingreso produccion` con `id_produccion`.
+3. Si `cantidadReal > 0`: se crea un lote de produccion con una linea a costo unitario =
+   costo de los insumos / `cantidadReal` y `fechaVencimiento` (obligatoria en el payload), y
+   se abre una existencia `Abierta` con esa cantidad. Su entrada es un movimiento
+   `Ingreso produccion` con `id_produccion`, y `producto.stock` se recalcula desde sus
+   existencias.
 4. Desde ahi el producto terminado se vende o se consume como insumo de otra receta por el
    mismo camino que cualquier producto de stock directo.
 
@@ -483,23 +493,48 @@ Producir un producto MTO se rechaza con 409. Una produccion registrada solo admi
 misma transaccion. `movimientos` no guarda `id_detalle_venta`: la salida se reconoce por su
 tipo y por el id de la venta que cita el `motivo`.
 
+**Apertura** — una compra no crea existencias: deja unidades cerradas en
+`detalle_lote.cantidad_restante`. El usuario consulta que puede abrir
+(`GET api/v1/lote/detalles-aperturables`) y elige; el sistema nunca abre por su cuenta
+(INV-34). `RegistrarAperturaUseCase` descuenta la unidad a traves de `Lote`, resuelve el
+producto base (la presentacion tiene `id_producto_padre`) y el contenido con
+`Conversion.factorEntre` (INV-09), crea la existencia en la unidad del producto base y
+registra el movimiento `Apertura`. `POST api/v1/existencia` responde 409 (INV-12).
+
 **El descuento** vive en un solo sitio, `RegistrarSalidaDeInventarioUseCase` (slice
 Movimiento), una operacion interna sin endpoint (ver 5.5):
 
-- Stock directo: reparte el consumo entre las existencias abiertas del producto en orden FEFO
-  (vence antes primero; sin vencimiento, al final). Una existencia que llega a cero registra
-  `fecha_acabado` y pasa a `Agotada`.
+- Stock directo: reparte el consumo entre las existencias abiertas y no vencidas del producto
+  y de sus presentaciones, en orden FEFO, bloqueandolas (`SELECT ... FOR UPDATE`). Una
+  existencia que llega a cero registra `fecha_acabado` y pasa a `Agotada`.
 - MTO: explota la receta vigente (la viva mas reciente del producto) y recurre por cada
   ingrediente; un ingrediente MTO explota a su vez su receta y un ciclo se rechaza con 409.
-- Si no alcanza el stock responde 409 y la transaccion del llamador revierte entera.
-- Solo cuenta existencias abiertas en la `unidad_actual` del producto: no convierte unidades.
+- Si no alcanza el stock abierto responde 409 y la transaccion del llamador revierte entera.
+  Si hay unidades cerradas que alcanzarian, el mensaje pide abrir una presentacion.
+- Solo cuenta existencias en la `unidad_actual` del producto: la apertura ya las dejo en ella.
 - Costeo por unidad de contenido: en una compra, `precio_unitario / contenido_inicial` de la
   existencia; en un lote de produccion, el propio `precio_unitario` (lo decide `Lote`).
 
+**Operaciones sobre una existencia** — `POST api/v1/existencia/{id}/merma`,
+`.../{id}/vencimiento` y `.../{id}/ajuste` (INV-42, INV-43). Cada una bloquea la existencia,
+registra su movimiento (`Merma`, `Vencimiento`, `Ajuste positivo`/`negativo`) y recalcula el
+stock. El `PUT api/v1/existencia/{id}` solo admite `fechaVencimiento` e `idUsuario`, y el
+`DELETE` solo da de baja existencias agotadas.
+
+**Inventario de un producto** — `GET api/v1/producto/{id}/inventario`: saldos abierto,
+cerrado y total, valor, bajo minimo y disponibilidad; para un MTO,
+min(floor(saldo / consumo por unidad)) por insumo (INV-30, INV-31).
+
+**Proyeccion de `producto.stock`** — `RecalcularStockUseCase`, operacion interna, bloquea la
+fila del producto y **despues** suma el contenido abierto. No suma ni resta sobre el valor
+leido, porque con Hibernate un bloqueo sobre una entidad ya cargada no refresca su estado.
+Por eso el producto se bloquea el ultimo (inventario.md INV-53).
+
 **Catalogo resuelto por nombre.** Igual que los roles, el flujo busca por nombre las filas
 que necesita (`ITipoMovimientoRepository.obtenerPorNombre`,
-`IEstadoExistenciaRepository.obtenerPorNombre`): tipos `Consumo produccion`,
-`Ingreso produccion`, `Venta`, `Consumo venta`; estados `Abierta`, `Agotada`. Las siembra la
+`IEstadoExistenciaRepository.obtenerPorNombre`): tipos `Apertura`, `Consumo produccion`,
+`Ingreso produccion`, `Venta`, `Consumo venta`, `Merma`, `Vencimiento`, `Ajuste positivo` y
+`Ajuste negativo`; estados `Abierta` y `Agotada`. Las siembra la
 seccion 7 de `databasev4.sql`. Si falta una,
 el flujo responde 404 nombrandola.
 
@@ -540,7 +575,9 @@ No introducir ninguno sin actualizar este documento.
 **Los cinco casos de uso son siempre**: `Crear`, `Actualizar`, `Obtener<Agregado>PorId`,
 `Obtener<Agregados>`, `Eliminar` (23 agregados x 5 = 115 casos de uso; `Persona` no expone
 ninguno). Los cinco metodos del controller son siempre:
-`crear`, `obtenerPorId`, `obtenerTodos`, `actualizar`, `eliminar`.
+`crear`, `obtenerPorId`, `obtenerTodos`, `actualizar`, `eliminar`. Las operaciones de
+inventario de `Lote`, `Existencia`, `Producto` y `Movimiento` agregan casos de uso a esos
+cinco sin reemplazarlos (ver 4.9 y 6.5).
 
 ### 5.2 Agregados (`Domain/Aggregates`)
 
@@ -596,11 +633,19 @@ ocurre exclusivamente en Infrastructure.
   `@Autowired` en campos.
 - Solo dependen de interfaces `I*Repository` (y `IHasheadorDeContrasena` cuando aplica),
   nunca de `I*Datasource` ni de clases de Infrastructure.
-- **Unica excepcion: la operacion interna de inventario.** `RegistrarSalidaDeInventarioUseCase`
-  no tiene controller y la inyectan `CrearProduccionUseCase` y `CrearVentaUseCase`, que la
-  ejecutan dentro de su transaccion. Existe para que el descuento FEFO y el backflush vivan
-  en un solo lugar. Su request se arma con `crear(...)`, no con `createFromRequest(Map)`,
-  porque no viaja por HTTP. No se crean operaciones internas nuevas sin documentarlas aqui.
+- **Unica excepcion: las operaciones internas de inventario.** Son casos de uso sin
+  controller que otros casos de uso inyectan y ejecutan dentro de su propia transaccion, para
+  que una regla de inventario viva en un solo lugar. Hay tres, y no se crean mas sin
+  documentarlas aqui:
+
+  | Operacion interna | Slice | La usan |
+  |---|---|---|
+  | `RegistrarSalidaDeInventarioUseCase` (consumo FEFO y backflush) | Movimiento | `CrearProduccionUseCase`, `CrearVentaUseCase` |
+  | `RegistrarAperturaUseCase` (abrir una unidad cerrada) | Existencia | `AbrirDetalleLoteUseCase`, `DarDeBajaDetalleVencidoUseCase` |
+  | `RecalcularStockUseCase` (proyeccion de `producto.stock`) | Producto | Todas las que cambian `contenido_actual` |
+
+  Sus requests se arman con `crear(...)`, no con `createFromRequest(Map)`, porque no viajan
+  por HTTP. Una operacion interna puede invocar a otra (la apertura recalcula el stock).
 - Firma de entrada: DTO de request, o `String` crudo para los que van por id
   (`execute(String categoriaId)`, `execute(String id, Actualizar...Request request)`).
 - Devuelven siempre DTOs (`<Agregado>Response`, `PaginatedResponse<List<...Response>>`) o `void`.
@@ -639,6 +684,12 @@ ocurre exclusivamente en Infrastructure.
   methods derivados**. El proyecto no usa `@Query`, JPQL ni Criteria API en ningun punto.
   Derivados en uso: `findByIdAndBorradoFalse`, `findByBorradoFalse`,
   `findByBorradoFalseAnd<Campo>ContainingIgnoreCase`.
+- **Bloqueo pesimista.** Una lectura que precede a un descuento de inventario lleva
+  `@Lock(LockModeType.PESSIMISTIC_WRITE)` (`SELECT ... FOR UPDATE`). Sigue siendo un query
+  method derivado, sin `@Query`; se nombra con el prefijo `read...By` para distinguirlo de su
+  gemelo `find...By` sin bloqueo (`readByIdAndBorradoFalse`). En el puerto se expone con el
+  sufijo `ParaActualizar` (`obtenerPorIdParaActualizar`) o `ParaConsumo`. Donde se bloquea y
+  en que orden lo fija inventario.md (INV-52, INV-53).
 
 ### 5.8 Datasources (`Infrastructure/Datasources`)
 
@@ -887,21 +938,36 @@ publico justo para esto.
   unico datasource que escribe en dos fases. Ambas cosas son consecuencia de tener una
   coleccion ordenada bajo borrado logico; no se replican sin esa combinacion.
 - Puertos con metodos fuera del CRUD de cinco operaciones, todos al servicio del flujo de
-  inventario (4.9): `ILoteRepository.obtenerPorDetalleId` y `obtenerPorProducto`,
-  `IExistenciaRepository.obtenerDisponiblesPorDetallesLote` (FEFO),
-  `IRecetaRepository.obtenerPorProductoObtenido`, y `obtenerPorNombre` en
-  `ITipoMovimientoRepository` e `IEstadoExistenciaRepository`. Cada uno repite la firma en su
-  `I*Datasource`.
-- `Inventario/Movimiento` tiene un sexto caso de uso, `RegistrarSalidaDeInventarioUseCase`,
-  sin endpoint (ver 5.5). Sus `Actualizar` y `Eliminar` existen pero el agregado los rechaza
-  con 409: los movimientos son inmutables.
+  inventario (4.9), y cada uno con la misma firma en su `I*Datasource`:
+  - `ILoteRepository`: `obtenerPorDetalleId`, `obtenerPorDetalleIdParaActualizar`,
+    `obtenerPorProductos`.
+  - `IExistenciaRepository`: `obtenerDisponiblesPorDetallesLote` (FEFO),
+    `obtenerDisponiblesParaConsumo` (FEFO con bloqueo), `obtenerPorIdParaActualizar`.
+  - `IProductoRepository`: `obtenerPresentaciones`, `obtenerPorIdParaActualizar`,
+    `actualizarStock`.
+  - `IRecetaRepository.obtenerPorProductoObtenido`; `IConversionRepository.obtenerVivas`.
+  - `obtenerPorNombre` en `ITipoMovimientoRepository` e `IEstadoExistenciaRepository`.
+- Slices de inventario con casos de uso ademas de los cinco:
+  - `Movimiento`: `RegistrarSalidaDeInventarioUseCase` (interna). Sus `Actualizar` y
+    `Eliminar` existen pero el agregado los rechaza con 409: los movimientos son inmutables.
+  - `Lote`: `ObtenerDetallesAperturablesUseCase`, `AbrirDetalleLoteUseCase`,
+    `DarDeBajaDetalleVencidoUseCase`.
+  - `Existencia`: `RegistrarAperturaUseCase` (interna), `RegistrarMermaUseCase`,
+    `RegistrarVencimientoUseCase`, `AjustarExistenciaUseCase`. Su `Crear` existe pero responde
+    409 (inventario.md INV-12).
+  - `Producto`: `ObtenerInventarioProductoUseCase`, `RecalcularStockUseCase` (interna).
+- Las funciones de dominio sobre colecciones (`Conversion.factorEntre`,
+  `Lote.aperturablesEnOrden`, `Lote.dueno`) son `static` en su agregado: son reglas puras que
+  operan sobre varios agregados del mismo tipo ya cargados por el caso de uso.
 - `Inventario/Lote` deja la linea `//String search = ...` comentada en su datasource porque la
   entidad no tiene campo de texto buscable.
-- Tests de negocio existentes (92): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio
-  puro, sin Spring, `VentaTest` (10), `LoteTest` (20), `RecetaTest` (18), `ExistenciaTest` (4),
-  `ProduccionTest` (5) y `MovimientoTest` (3); de integracion contra la BD real,
-  `CrearVentaUseCaseIntegracionTest` (8), `CrearLoteUseCaseIntegracionTest` (8),
-  `CrearRecetaUseCaseIntegracionTest` (9) y `FlujoInventarioIntegracionTest` (6), todos
+- Tests de negocio existentes (126): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio
+  puro, sin Spring, `VentaTest` (10), `LoteTest` (23), `RecetaTest` (18), `ExistenciaTest` (12),
+  `ProduccionTest` (5), `MovimientoTest` (3), `ConversionTest` (6) y `ProductoTest` (5); de
+  integracion contra la BD real, `CrearVentaUseCaseIntegracionTest` (8),
+  `CrearLoteUseCaseIntegracionTest` (8), `CrearRecetaUseCaseIntegracionTest` (9),
+  `FlujoInventarioIntegracionTest` (7, incluida una prueba de concurrencia de dos ventas
+  simultaneas) y `AperturaInventarioIntegracionTest` (11), todos
   `@SpringBootTest` sin `@Transactional` de clase para poder observar el rollback del caso de
   uso. Los de integracion de inventario necesitan el catalogo de 4.9 en la base. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
   paquete de produccion.

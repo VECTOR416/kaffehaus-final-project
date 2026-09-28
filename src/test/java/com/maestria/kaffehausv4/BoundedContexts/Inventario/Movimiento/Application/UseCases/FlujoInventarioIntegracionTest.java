@@ -13,6 +13,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -455,8 +460,13 @@ class FlujoInventarioIntegracionTest {
     @Test
     void elProductoProducidoSeVendeDesdeSuExistenciaDeProduccion() {
         producir(idRecetaSandwich, "4", "4");
+        // INV-20: la produccion proyecta el stock del producto terminado...
+        assertEquals(0, new BigDecimal("4").compareTo(productoJpaRepository.findById(idSandwich).orElseThrow().getStock()));
 
         vender(idSandwich, "3");
+        // ...y la venta lo baja; los insumos consumidos tambien quedan proyectados.
+        assertEquals(0, new BigDecimal("1").compareTo(productoJpaRepository.findById(idSandwich).orElseThrow().getStock()));
+        assertEquals(0, new BigDecimal("2").compareTo(productoJpaRepository.findById(idPan).orElseThrow().getStock()));
 
         ExistenciaJpaModel terminado = existenciaJpaRepository.findAll().stream()
                 .filter(existencia -> !detallesCompra.contains(existencia.getIdDetalleLote()))
@@ -488,6 +498,45 @@ class FlujoInventarioIntegracionTest {
         assertEquals(0, vasos.getContenidoActual().signum());
         assertTrue(vasos.getFechaAcabado() != null);
         assertEquals("Agotada", estadoExistenciaJpaRepository.findById(vasos.getIdEstadoExistencia()).orElseThrow().getNombre());
+    }
+
+    /**
+     * INV-52: dos ventas simultaneas de 60 vasos (producto de stock directo) se disputan una
+     * existencia de 100. Con el bloqueo de las existencias, la segunda espera a la primera, ve
+     * los 40 que quedan y se rechaza: nunca se venden 120 vasos de 100 ni se pierde una
+     * actualizacion. Sin el bloqueo, ambas leerian 100 y las dos se aceptarian.
+     */
+    @Test
+    void dosVentasSimultaneasNoConsumenMasDeLoQueHay() throws Exception {
+        ExecutorService hilos = Executors.newFixedThreadPool(2);
+        CountDownLatch largada = new CountDownLatch(1);
+        Callable<Boolean> venta = () -> {
+            largada.await();
+            try {
+                vender(idVaso, "60");
+                return true;
+            } catch (RuntimeException rechazo) {
+                return false;
+            }
+        };
+
+        try {
+            Future<Boolean> primera = hilos.submit(venta);
+            Future<Boolean> segunda = hilos.submit(venta);
+            largada.countDown();
+
+            int aceptadas = (primera.get() ? 1 : 0) + (segunda.get() ? 1 : 0);
+            assertEquals(1, aceptadas);
+        } finally {
+            hilos.shutdown();
+        }
+
+        assertEquals(0, new BigDecimal("40").compareTo(contenido(existenciaVaso)));
+        BigDecimal vasosEnMovimientos = movimientoJpaRepository.findAll().stream()
+                .filter(movimiento -> movimiento.getIdExistencia().equals(existenciaVaso))
+                .map(MovimientoJpaModel::getCantidad)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertEquals(0, new BigDecimal("60").compareTo(vasosEnMovimientos));
     }
 
     @Test

@@ -44,8 +44,13 @@ public class LoteRepositoryImpl implements ILoteRepository{
     }
 
     @Override
-    public List<Lote> obtenerPorProducto(ProductoId productoId) {
-        return this.loteDatasource.obtenerPorProducto(productoId);
+    public List<Lote> obtenerPorProductos(List<ProductoId> productoIds) {
+        return this.loteDatasource.obtenerPorProductos(productoIds);
+    }
+
+    @Override
+    public Optional<Lote> obtenerPorDetalleIdParaActualizar(DetalleLoteId detalleLoteId) {
+        return this.loteDatasource.obtenerPorDetalleIdParaActualizar(detalleLoteId);
     }
 
     @Override

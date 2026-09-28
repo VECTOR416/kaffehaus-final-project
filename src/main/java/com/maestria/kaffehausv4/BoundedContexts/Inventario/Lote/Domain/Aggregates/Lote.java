@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -186,6 +187,55 @@ public class Lote {
      */
     public void ajustarCantidadRestante(String detalleLoteId, BigDecimal nuevaCantidad) {
         detalleVivo(detalleLoteId).ajustarCantidadRestante(nuevaCantidad);
+    }
+
+    /**
+     * Abre una unidad cerrada de una linea viva (inventario.md INV-10). No toca el total: el
+     * costo de compra no cambia porque se abra un empaque.
+     */
+    public void abrirUnidad(String detalleLoteId) {
+        if (this.borrado) {
+            throw DomainException.throwException(409, "No se puede abrir una unidad de un lote dado de baja");
+        }
+        detalleVivo(detalleLoteId).abrirUnidad();
+    }
+
+    /**
+     * Lineas de un producto que se pueden abrir, en el orden en que deben abrirse
+     * (inventario.md INV-13 e INV-14): de lotes vivos, con unidades cerradas y no vencidas a la
+     * fecha; primero la que vence antes (sin vencimiento, al final), despues la del lote mas
+     * antiguo y, como desempate estable, la de menor id.
+     */
+    public static List<DetalleLote> aperturablesEnOrden(List<Lote> lotes, ProductoId productoId, LocalDate fecha) {
+        List<Lote> vivos = lotes.stream().filter(lote -> !lote.isBorrado()).collect(Collectors.toList());
+
+        Comparator<DetalleLote> porVencimiento = Comparator.comparing(
+                DetalleLote::getFechaVencimiento, Comparator.nullsLast(Comparator.naturalOrder()));
+        Comparator<DetalleLote> porCompra = Comparator.comparing(
+                detalle -> dueno(vivos, detalle).getFechaCompra(), Comparator.nullsLast(Comparator.naturalOrder()));
+        Comparator<DetalleLote> porId = Comparator.comparing(detalle -> detalle.getId().getValue());
+
+        return vivos.stream()
+                .flatMap(lote -> lote.getDetallesActivos().stream())
+                .filter(detalle -> detalle.getProductoId().getValue().equals(productoId.getValue()))
+                .filter(DetalleLote::tieneUnidadesCerradas)
+                .filter(detalle -> !detalle.estaVencido(fecha))
+                .sorted(porVencimiento.thenComparing(porCompra).thenComparing(porId))
+                .collect(Collectors.toList());
+    }
+
+    /** Lote que contiene una linea, entre varios lotes. */
+    public static Lote dueno(List<Lote> lotes, DetalleLote detalle) {
+        return lotes.stream()
+                .filter(lote -> lote.getDetalles().contains(detalle))
+                .findFirst()
+                .orElseThrow(() -> DomainException.throwException(404,
+                        "El detalle con id '" + detalle.getId().getValue() + "' no pertenece a ninguno de los lotes"));
+    }
+
+    /** Linea viva por id, o 404 si no pertenece al lote. */
+    public DetalleLote obtenerDetalle(String detalleLoteId) {
+        return detalleVivo(detalleLoteId);
     }
 
     /** Da de baja logica una linea y descuenta su costo del total. */

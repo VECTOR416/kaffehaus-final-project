@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Infrastructure.Datasources;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -85,6 +86,29 @@ public class ProductoDatasourceImpl implements IProductoDatasource {
         producto.eliminar();
 
         ProductoJpaMapper.copiarCambios(producto, model);
+        productoJpaRepository.save(model);
+    }
+
+    @Override
+    public List<Producto> obtenerPresentaciones(ProductoId productoBaseId) {
+        return productoJpaRepository.findByIdProductoPadreAndBorradoFalse(aUuid(productoBaseId.getValue())).stream()
+                .map(ProductoJpaMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<Producto> obtenerPorIdParaActualizar(ProductoId productoId) {
+        return productoJpaRepository.readByIdAndBorradoFalse(aUuid(productoId.getValue()))
+                .map(ProductoJpaMapper::toDomain);
+    }
+
+    @Override
+    public void actualizarStock(Producto producto) {
+        ProductoJpaModel model = productoJpaRepository.findByIdAndBorradoFalse(aUuid(producto.getId().getValue()))
+                .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + producto.getId().getValue() + "' no existe"));
+
+        model.setStock(producto.getStock());
+        model.setFecU(OffsetDateTime.now());
         productoJpaRepository.save(model);
     }
 

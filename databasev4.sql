@@ -126,7 +126,10 @@ CREATE TABLE producto (
     id_producto_padre UUID REFERENCES producto(id) ON UPDATE CASCADE ON DELETE SET NULL,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
-    borrado BOOLEAN NOT NULL DEFAULT FALSE
+    borrado BOOLEAN NOT NULL DEFAULT FALSE,
+    -- 'stock' es la proyeccion del contenido abierto de sus existencias (inventario.md INV-20).
+    CONSTRAINT chk_producto_stock CHECK (stock >= 0),
+    CONSTRAINT chk_producto_padre CHECK (id_producto_padre IS NULL OR id_producto_padre <> id)
 );
 
 CREATE TABLE receta (
@@ -225,7 +228,9 @@ CREATE TABLE detalle_lote (
     fecha_vencimiento DATE,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
-    borrado BOOLEAN NOT NULL DEFAULT FALSE
+    borrado BOOLEAN NOT NULL DEFAULT FALSE,
+    -- 'cantidad_restante' cuenta unidades aun cerradas (inventario.md INV-56).
+    CONSTRAINT chk_detalle_lote_restante CHECK (cantidad_restante >= 0 AND cantidad_restante <= cantidad_inicial)
 );
 
 CREATE TABLE existencias (
@@ -241,7 +246,9 @@ CREATE TABLE existencias (
     id_usuario UUID REFERENCES usuario(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
-    borrado BOOLEAN NOT NULL DEFAULT FALSE
+    borrado BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Saldo nunca negativo ni por encima de lo que cabia al abrir (inventario.md INV-55).
+    CONSTRAINT chk_existencia_saldo CHECK (contenido_actual >= 0 AND contenido_actual <= contenido_inicial)
 );
 
 CREATE TABLE movimientos (
@@ -257,7 +264,9 @@ CREATE TABLE movimientos (
     id_produccion UUID REFERENCES produccion(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fec_u TIMESTAMP,
-    borrado BOOLEAN NOT NULL DEFAULT FALSE
+    borrado BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Magnitud siempre positiva; la direccion la da el tipo (inventario.md INV-41, INV-57).
+    CONSTRAINT chk_movimiento_cantidad CHECK (cantidad > 0)
 );
 
 -- ============================================================================
@@ -370,14 +379,24 @@ CREATE INDEX idx_pedidos_venta ON pedidos(id_venta);
 --   Ingreso produccion  producto terminado que entra a su existencia (id_produccion)
 --   Venta               producto de stock directo (MTS) que sale al venderse
 --   Consumo venta       insumo descontado por la receta de un producto MTO vendido (backflush)
---   Abierta / Agotada   estado de la existencia del producto terminado / de una ya vaciada
+--   Merma               perdida de contenido de una existencia, con motivo
+--   Vencimiento         baja de contenido vencido, abierto o cerrado
+--   Ajuste positivo     conteo fisico mayor que el saldo
+--   Ajuste negativo     conteo fisico menor que el saldo
+--   Abierta / Agotada   estado de una existencia en uso / de una ya vaciada
+-- 'Apertura' es la entrada que crea el saldo de una existencia al abrir un empaque.
+-- La direccion de cada tipo la fija inventario.md (seccion 4.2).
 
 INSERT INTO tipo_movimiento (nombre) VALUES
     ('Apertura'),
     ('Consumo produccion'),
     ('Ingreso produccion'),
     ('Venta'),
-    ('Consumo venta');
+    ('Consumo venta'),
+    ('Merma'),
+    ('Vencimiento'),
+    ('Ajuste positivo'),
+    ('Ajuste negativo');
 
 INSERT INTO estado_existencia (nombre) VALUES
     ('Abierta'),

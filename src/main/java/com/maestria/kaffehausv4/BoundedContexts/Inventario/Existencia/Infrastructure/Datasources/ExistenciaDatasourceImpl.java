@@ -106,6 +106,29 @@ public class ExistenciaDatasourceImpl implements IExistenciaDatasource {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public List<Existencia> obtenerDisponiblesParaConsumo(List<DetalleLoteId> detalleLoteIds) {
+        if (detalleLoteIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<UUID> ids = detalleLoteIds.stream()
+                .map(detalleLoteId -> aUuid(detalleLoteId.getValue()))
+                .collect(Collectors.toList());
+
+        return existenciaJpaRepository
+                .readByIdDetalleLoteInAndBorradoFalseAndContenidoActualGreaterThanOrderByFechaVencimientoAscFecCAscIdAsc(ids, BigDecimal.ZERO)
+                .stream()
+                .map(ExistenciaJpaMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<Existencia> obtenerPorIdParaActualizar(ExistenciaId existenciaId) {
+        return existenciaJpaRepository.readByIdAndBorradoFalse(aUuid(existenciaId.getValue()))
+                .map(ExistenciaJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

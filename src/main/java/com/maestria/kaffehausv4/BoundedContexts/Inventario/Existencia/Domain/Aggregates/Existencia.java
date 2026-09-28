@@ -131,7 +131,62 @@ public class Existencia {
         }
     }
 
+    /**
+     * Ajusta el contenido al valor contado en un inventario fisico (inventario.md INV-43) y
+     * devuelve la diferencia con signo (contado - actual). Nunca revive una existencia
+     * agotada (INV-05) ni supera lo que cabia al abrirla.
+     */
+    public BigDecimal ajustarA(BigDecimal contado, LocalDateTime fecha, EstadoExistenciaId estadoAgotada) {
+        if (isAgotada()) {
+            throw DomainException.throwException(409, "La existencia con id '" + this.id.getValue() + "' esta agotada y no se puede ajustar");
+        }
+        if (contado == null || contado.signum() < 0) {
+            throw DomainException.throwException(400, "El contenido contado no puede ser negativo");
+        }
+
+        BigDecimal nuevo = contado.setScale(ESCALA, RoundingMode.HALF_UP);
+        if (nuevo.compareTo(this.contenidoInicial) > 0) {
+            throw DomainException.throwException(409,
+                    "El contenido contado supera el contenido inicial de la existencia; revisa el registro antes de ajustar");
+        }
+
+        BigDecimal diferencia = nuevo.subtract(this.contenidoActual);
+        this.contenidoActual = nuevo;
+        if (this.contenidoActual.signum() == 0) {
+            this.fechaAcabado = fecha;
+            this.estadoExistenciaId = estadoAgotada != null ? estadoAgotada : this.estadoExistenciaId;
+        }
+        return diferencia;
+    }
+
+    /**
+     * Da de baja todo el contenido restante (vencimiento, inventario.md INV-42) y devuelve la
+     * cantidad dada de baja.
+     */
+    public BigDecimal darDeBajaTodo(LocalDateTime fecha, EstadoExistenciaId estadoAgotada) {
+        BigDecimal cantidad = this.contenidoActual;
+        consumir(cantidad, fecha, estadoAgotada);
+        return cantidad;
+    }
+
+    public boolean isAgotada() {
+        return this.contenidoActual.signum() == 0;
+    }
+
+    /** Vencida si su caducidad es anterior a la fecha dada. Sin caducidad, nunca vence. */
+    public boolean estaVencida(LocalDate fecha) {
+        return this.fechaVencimiento != null && this.fechaVencimiento.isBefore(fecha);
+    }
+
+    /**
+     * Baja logica. Solo de una existencia agotada: con contenido, primero hay que darlo de baja
+     * con una merma o un vencimiento para que la perdida quede en el libro mayor.
+     */
     public void eliminar(){
+        if (!isAgotada()) {
+            throw DomainException.throwException(409,
+                    "La existencia aun tiene contenido; registra una merma o un vencimiento antes de darla de baja");
+        }
         this.borrado = true;
     }
 

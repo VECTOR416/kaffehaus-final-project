@@ -42,6 +42,21 @@ public class ProductoRepositoryImpl implements IProductoRepository{
     }
 
     @Override
+    public List<Producto> obtenerPresentaciones(ProductoId productoBaseId) {
+        return this.productoDatasource.obtenerPresentaciones(productoBaseId);
+    }
+
+    @Override
+    public Optional<Producto> obtenerPorIdParaActualizar(ProductoId productoId) {
+        return this.productoDatasource.obtenerPorIdParaActualizar(productoId);
+    }
+
+    @Override
+    public void actualizarStock(Producto producto) {
+        this.productoDatasource.actualizarStock(producto);
+    }
+
+    @Override
     public void eliminar(ProductoId productoId) {
         this.productoDatasource.eliminar(productoId);
     }

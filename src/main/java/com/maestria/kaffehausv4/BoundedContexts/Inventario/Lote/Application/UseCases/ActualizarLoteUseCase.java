@@ -7,12 +7,14 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Repositories.IExistenciaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.ActualizarDetalleLoteRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.ActualizarLoteRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.LoteResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repositories.ILoteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
@@ -40,16 +42,19 @@ public class ActualizarLoteUseCase {
     private final IProveedorRepository proveedorRepository;
     private final IUsuarioRepository usuarioRepository;
     private final IProductoRepository productoRepository;
+    private final IExistenciaRepository existenciaRepository;
 
     public ActualizarLoteUseCase(
             ILoteRepository loteRepository,
             IProveedorRepository proveedorRepository,
             IUsuarioRepository usuarioRepository,
-            IProductoRepository productoRepository) {
+            IProductoRepository productoRepository,
+            IExistenciaRepository existenciaRepository) {
         this.loteRepository = loteRepository;
         this.proveedorRepository = proveedorRepository;
         this.usuarioRepository = usuarioRepository;
         this.productoRepository = productoRepository;
+        this.existenciaRepository = existenciaRepository;
     }
 
     public LoteResponse execute(String loteId, ActualizarLoteRequest actualizarLoteRequest) {
@@ -99,6 +104,12 @@ public class ActualizarLoteUseCase {
 
         for (String idVivo : idsVivos) {
             if (!idsRecibidos.contains(idVivo)) {
+                // Una linea con existencias en uso no se da de baja: su stock quedaria sin
+                // origen (inventario.md INV-63).
+                if (!existenciaRepository.obtenerDisponiblesPorDetallesLote(List.of(new DetalleLoteId(idVivo))).isEmpty()) {
+                    throw DomainException.throwException(409,
+                            "El detalle con id '" + idVivo + "' tiene existencias con contenido y no se puede dar de baja");
+                }
                 lote.removerDetalle(idVivo);
             }
         }

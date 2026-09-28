@@ -277,4 +277,55 @@ class LoteTest {
 
         assertEquals(0, new BigDecimal("0.012").compareTo(costoPorGramo));
     }
+
+    @Test
+    void abrirUnaUnidadLaSacaDeLasCerradasSinTocarElTotal() {
+        Lote lote = lotePersistido();
+
+        lote.abrirUnidad(ID_DETALLE_CAFE);
+
+        assertEquals(new BigDecimal("9.00"), lote.obtenerDetalle(ID_DETALLE_CAFE).getCantidadRestante());
+        assertEquals(new BigDecimal("160.00"), lote.getTotal());
+    }
+
+    @Test
+    void noSeAbreUnaLineaSinUnidadesCerradas() {
+        Lote lote = lotePersistido();
+        lote.ajustarCantidadRestante(ID_DETALLE_CAFE, BigDecimal.ZERO);
+
+        DomainException error = assertThrows(DomainException.class, () -> lote.abrirUnidad(ID_DETALLE_CAFE));
+
+        assertEquals(409, error.getCodigo());
+    }
+
+    private Lote loteDeCafe(String idLote, LocalDateTime compra, String idDetalle, LocalDate vence, String restante) {
+        return Lote.restaurar(idLote, compra, new BigDecimal("0.00"),
+                new ProveedorId("11111111-1111-1111-1111-111111111111"),
+                new UsuarioId("22222222-2222-2222-2222-222222222222"),
+                false, null, false,
+                List.of(DetalleLote.restaurar(idDetalle, PRODUCTO_CAFE,
+                        new BigDecimal("5.00"), new BigDecimal(restante), new BigDecimal("12.00"), false, vence, false)));
+    }
+
+    @Test
+    void lasLineasSeAbrenEnOrdenFefoYSinLasVencidasNiLasVacias() {
+        LocalDate hoy = LocalDate.of(2026, 9, 27);
+        List<Lote> lotes = List.of(
+                loteDeCafe("a1111111-1111-1111-1111-111111111111", LocalDateTime.of(2026, 9, 1, 8, 0),
+                        "d1111111-1111-1111-1111-111111111111", null, "2.00"),
+                loteDeCafe("a2222222-2222-2222-2222-222222222222", LocalDateTime.of(2026, 9, 2, 8, 0),
+                        "d2222222-2222-2222-2222-222222222222", LocalDate.of(2026, 12, 1), "2.00"),
+                loteDeCafe("a3333333-3333-3333-3333-333333333333", LocalDateTime.of(2026, 9, 3, 8, 0),
+                        "d3333333-3333-3333-3333-333333333333", LocalDate.of(2026, 10, 15), "1.00"),
+                loteDeCafe("a4444444-4444-4444-4444-444444444444", LocalDateTime.of(2026, 9, 4, 8, 0),
+                        "d4444444-4444-4444-4444-444444444444", LocalDate.of(2026, 9, 1), "3.00"),
+                loteDeCafe("a5555555-5555-5555-5555-555555555555", LocalDateTime.of(2026, 9, 5, 8, 0),
+                        "d5555555-5555-5555-5555-555555555555", LocalDate.of(2026, 10, 1), "0.00"));
+
+        List<DetalleLote> orden = Lote.aperturablesEnOrden(lotes, PRODUCTO_CAFE, hoy);
+
+        assertEquals(List.of("d3333333-3333-3333-3333-333333333333", "d2222222-2222-2222-2222-222222222222",
+                        "d1111111-1111-1111-1111-111111111111"),
+                orden.stream().map(detalle -> detalle.getId().getValue()).toList());
+    }
 }

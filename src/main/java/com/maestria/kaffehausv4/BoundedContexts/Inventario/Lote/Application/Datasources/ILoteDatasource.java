@@ -23,10 +23,17 @@ public interface ILoteDatasource {
     Optional<Lote> obtenerPorDetalleId(DetalleLoteId detalleLoteId);
 
     /**
-     * Lotes vivos con al menos una linea viva del producto. Es el punto de partida para
-     * localizar sus existencias al descontar inventario, y el que da el costo de cada una.
+     * Lotes vivos con al menos una linea viva de alguno de los productos. Es el punto de
+     * partida para localizar las existencias y las unidades cerradas de un insumo base y de
+     * sus presentaciones, y el que da el costo de cada una.
      */
-    List<Lote> obtenerPorProducto(ProductoId productoId);
+    List<Lote> obtenerPorProductos(List<ProductoId> productoIds);
+
+    /**
+     * Como obtenerPorDetalleId, pero bloqueando la linea (SELECT ... FOR UPDATE) antes de
+     * leerla. Lo usa la apertura para que dos usuarios no abran la misma unidad (INV-52).
+     */
+    Optional<Lote> obtenerPorDetalleIdParaActualizar(DetalleLoteId detalleLoteId);
     PaginatedResponse<List<Lote>> obtenerTodos(ObtenerLotesRequest obtenerLotesRequest);
     void eliminar(LoteId loteId);
 }

@@ -52,4 +52,14 @@ public class ExistenciaRepositoryImpl implements IExistenciaRepository{
         return this.existenciaDatasource.obtenerDisponiblesPorDetallesLote(detalleLoteIds);
     }
 
+    @Override
+    public List<Existencia> obtenerDisponiblesParaConsumo(List<DetalleLoteId> detalleLoteIds) {
+        return this.existenciaDatasource.obtenerDisponiblesParaConsumo(detalleLoteIds);
+    }
+
+    @Override
+    public Optional<Existencia> obtenerPorIdParaActualizar(ExistenciaId existenciaId) {
+        return this.existenciaDatasource.obtenerPorIdParaActualizar(existenciaId);
+    }
+
 }
