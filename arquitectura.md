@@ -452,6 +452,10 @@ ingrediente existente se rechaza con 400.
 
 ### 4.9 Flujo de inventario: MTS, MTO y auditoria
 
+> Las reglas de negocio del inventario (apertura, conversiones, proyeccion de
+> `producto.stock`, mermas, bloqueos) estan en `inventario.md`, con su estado de
+> implementacion. Esta seccion describe lo que el codigo hace hoy.
+
 Dos naturalezas operativas conviven, y las distingue `producto.es_stock_directo`:
 
 | | Stock directo (`true`, MTS / reventa / insumo) | Bajo demanda (`false`, MTO) |
