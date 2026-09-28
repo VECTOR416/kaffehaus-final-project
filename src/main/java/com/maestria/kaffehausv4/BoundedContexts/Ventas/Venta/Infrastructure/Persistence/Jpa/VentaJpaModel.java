@@ -5,11 +5,17 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.Generated;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+/**
+ * 'numero_ticket' lo asigna la base con seq_numero_ticket: no se inserta ni se actualiza desde
+ * aqui, y @Generated hace que Hibernate lo relea tras el INSERT.
+ */
 @Entity
 @Table(name = "venta")
 public class VentaJpaModel {
@@ -17,6 +23,10 @@ public class VentaJpaModel {
     @Id
     @Column(name = "id")
     private UUID id;
+
+    @Generated
+    @Column(name = "numero_ticket", insertable = false, updatable = false)
+    private Long numeroTicket;
 
     @Column(name = "fecha_venta", nullable = false)
     private LocalDateTime fechaVenta;
@@ -27,8 +37,11 @@ public class VentaJpaModel {
     @Column(name = "id_usuario", nullable = false)
     private UUID idUsuario;
 
-    @Column(name = "id_cliente")
+    @Column(name = "id_cliente", nullable = false)
     private UUID idCliente;
+
+    @Column(name = "id_sesion_caja", nullable = false)
+    private UUID idSesionCaja;
 
     @Column(name = "id_estado_venta", nullable = false)
     private UUID idEstadoVenta;
@@ -55,6 +68,7 @@ public class VentaJpaModel {
 
     public UUID getId() {return id;}
     public void setId(UUID id) {this.id = id;}
+    public Long getNumeroTicket() {return numeroTicket;}
     public LocalDateTime getFechaVenta() {return fechaVenta;}
     public void setFechaVenta(LocalDateTime fechaVenta) {this.fechaVenta = fechaVenta;}
     public BigDecimal getTotal() {return total;}
@@ -63,6 +77,8 @@ public class VentaJpaModel {
     public void setIdUsuario(UUID idUsuario) {this.idUsuario = idUsuario;}
     public UUID getIdCliente() {return idCliente;}
     public void setIdCliente(UUID idCliente) {this.idCliente = idCliente;}
+    public UUID getIdSesionCaja() {return idSesionCaja;}
+    public void setIdSesionCaja(UUID idSesionCaja) {this.idSesionCaja = idSesionCaja;}
     public UUID getIdEstadoVenta() {return idEstadoVenta;}
     public void setIdEstadoVenta(UUID idEstadoVenta) {this.idEstadoVenta = idEstadoVenta;}
     public String getClaveIdempotencia() {return claveIdempotencia;}

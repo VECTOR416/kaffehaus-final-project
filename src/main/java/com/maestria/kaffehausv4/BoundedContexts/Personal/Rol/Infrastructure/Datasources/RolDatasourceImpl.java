@@ -88,6 +88,12 @@ public class RolDatasourceImpl implements IRolDatasource {
         rolJpaRepository.save(model);
     }
 
+    @Override
+    public Optional<Rol> obtenerPorNombre(String nombre) {
+        return rolJpaRepository.findFirstByNombreIgnoreCaseAndBorradoFalse(nombre)
+                .map(RolJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

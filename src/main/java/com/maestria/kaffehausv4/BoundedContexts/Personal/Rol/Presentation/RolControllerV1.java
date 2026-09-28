@@ -53,6 +53,7 @@ public class RolControllerV1 {
         this.eliminarRolUseCase = eliminarRolUseCase;
     }
 
+    @RequiereRol("Administrador")
     @PostMapping
     public ResponseEntity<RolResponse> crear(@RequestBody Map<String, Object> body) {
         CrearRolRequest request = CrearRolRequest.createFromRequest(body);
@@ -81,6 +82,7 @@ public class RolControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @PutMapping("/{id}")
     public ResponseEntity<RolResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body) {
         ActualizarRolRequest request = ActualizarRolRequest.createFromRequest(body);
@@ -88,6 +90,7 @@ public class RolControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarRolUseCase.execute(id);

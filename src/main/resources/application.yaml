@@ -26,3 +26,5 @@ seguridad:
     dias-de-refresco: ${JWT_REFRESH_DAYS:7}
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
+  # POST /api/v1/seed publico para el primer arranque. En false solo lo llama un Administrador.
+  seed-habilitado: ${SEED_HABILITADO:true}

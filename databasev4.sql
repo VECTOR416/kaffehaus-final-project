@@ -302,11 +302,61 @@ CREATE TABLE descuentos (
     borrado BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+CREATE TABLE tipo_pago (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre VARCHAR(50) NOT NULL UNIQUE,
+    fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- Turno de caja: quien lo abre es el responsable del dinero fisico hasta cerrarlo.
+CREATE TABLE sesion_caja (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_usuario UUID NOT NULL REFERENCES usuario(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    fecha_apertura TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_cierre TIMESTAMP,
+    monto_apertura NUMERIC(12, 2) NOT NULL CHECK (monto_apertura >= 0),
+    -- Efectivo contado al cerrar, el que el sistema esperaba y la diferencia (declarado - esperado).
+    monto_cierre_declarado NUMERIC(12, 2),
+    monto_cierre_esperado NUMERIC(12, 2),
+    diferencia NUMERIC(12, 2),
+    motivo_diferencia TEXT,
+    estado VARCHAR(20) NOT NULL DEFAULT 'ABIERTA' CHECK (estado IN ('ABIERTA', 'CERRADA')),
+    fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- Una sola caja abierta en todo el local a la vez.
+CREATE UNIQUE INDEX uq_sesion_caja_abierta ON sesion_caja (estado) WHERE estado = 'ABIERTA' AND borrado = FALSE;
+
+-- Ingresos y egresos menores de efectivo durante el turno. Inmutables, como los movimientos
+-- de inventario; 'fec_u' existe solo por la convencion de auditoria (arquitectura.md 5.7).
+CREATE TABLE movimiento_caja (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_sesion_caja UUID NOT NULL REFERENCES sesion_caja(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    id_usuario UUID NOT NULL REFERENCES usuario(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('INGRESO', 'EGRESO')),
+    monto NUMERIC(12, 2) NOT NULL CHECK (monto > 0),
+    motivo VARCHAR(255) NOT NULL,
+    fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE SEQUENCE IF NOT EXISTS seq_numero_ticket START WITH 1 INCREMENT BY 1;
+
 CREATE TABLE venta (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- Numero correlativo que se imprime en el ticket y por el que se recupera la venta.
+    numero_ticket BIGINT NOT NULL DEFAULT nextval('seq_numero_ticket'),
     fecha_venta TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Empleado que cobra; el responsable del dinero es el titular de la sesion de caja.
     id_usuario UUID NOT NULL REFERENCES usuario(id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    id_cliente UUID REFERENCES cliente(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    id_sesion_caja UUID NOT NULL REFERENCES sesion_caja(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    -- Sin cliente identificado se usa el cliente 'Mostrador' que siembra POST api/v1/seed.
+    id_cliente UUID NOT NULL REFERENCES cliente(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     total NUMERIC(12, 2) NOT NULL DEFAULT 0,
     id_estado_venta UUID NOT NULL REFERENCES estado_venta(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     -- La genera el POS para que un reintento no cobre dos veces (ventas.md VEN-66).
@@ -321,6 +371,7 @@ CREATE TABLE venta (
 );
 
 CREATE UNIQUE INDEX uq_venta_clave_idempotencia ON venta (clave_idempotencia) WHERE clave_idempotencia IS NOT NULL;
+CREATE UNIQUE INDEX idx_venta_numero_ticket ON venta (numero_ticket);
 
 CREATE TABLE detalle_venta (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -338,6 +389,22 @@ CREATE TABLE detalle_venta (
     borrado BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT chk_detalle_venta_importes CHECK (
         precio_unitario >= 0 AND cantidad > 0 AND descuento_aplicado >= 0 AND subtotal >= 0 AND costo_total >= 0)
+);
+
+-- Pagos de una venta: admite pagos mixtos. 'cambio' es derivado (monto_recibido - monto) y
+-- solo es distinto de cero en efectivo.
+CREATE TABLE pago_venta (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_venta UUID NOT NULL REFERENCES venta(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    id_tipo_pago UUID NOT NULL REFERENCES tipo_pago(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    monto NUMERIC(12, 2) NOT NULL,
+    monto_recibido NUMERIC(12, 2) NOT NULL,
+    cambio NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    referencia VARCHAR(100),
+    fec_c TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fec_u TIMESTAMP,
+    borrado BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT chk_pago_venta_importes CHECK (monto > 0 AND monto_recibido >= monto AND cambio >= 0)
 );
 
 CREATE TABLE estado_pedido (
@@ -382,58 +449,16 @@ CREATE INDEX idx_ingredientes_receta_receta ON ingredientes_receta(id_receta);
 CREATE INDEX idx_pasos_receta_receta ON pasos_receta(id_receta);
 CREATE INDEX idx_detalle_venta_venta ON detalle_venta(id_venta);
 CREATE INDEX idx_pedidos_venta ON pedidos(id_venta);
+CREATE INDEX idx_venta_sesion_caja ON venta(id_sesion_caja);
+CREATE INDEX idx_pago_venta_venta ON pago_venta(id_venta);
+CREATE INDEX idx_movimiento_caja_sesion ON movimiento_caja(id_sesion_caja);
 
 -- ============================================================================
--- 7. CATALOGOS QUE EL FLUJO DE INVENTARIO RESUELVE POR NOMBRE
+-- 7. CATALOGOS Y DATOS INICIALES
 -- ============================================================================
--- Los casos de uso de produccion y venta buscan estas filas por nombre (igual que los roles):
---   Consumo produccion  insumo que sale de su existencia hacia una produccion (id_produccion)
---   Ingreso produccion  producto terminado que entra a su existencia (id_produccion)
---   Venta               producto de stock directo (MTS) que sale al venderse
---   Consumo venta       insumo descontado por la receta de un producto MTO vendido (backflush)
---   Merma               perdida de contenido de una existencia, con motivo
---   Vencimiento         baja de contenido vencido, abierto o cerrado
---   Ajuste positivo     conteo fisico mayor que el saldo
---   Ajuste negativo     conteo fisico menor que el saldo
---   Abierta / Agotada   estado de una existencia en uso / de una ya vaciada
--- 'Apertura' es la entrada que crea el saldo de una existencia al abrir un empaque.
--- La direccion de cada tipo la fija inventario.md (seccion 4.2).
-
-INSERT INTO tipo_movimiento (nombre) VALUES
-    ('Apertura'),
-    ('Consumo produccion'),
-    ('Ingreso produccion'),
-    ('Venta'),
-    ('Consumo venta'),
-    ('Merma'),
-    ('Vencimiento'),
-    ('Ajuste positivo'),
-    ('Ajuste negativo'),
-    ('Devolucion venta');
-
-INSERT INTO estado_existencia (nombre) VALUES
-    ('Abierta'),
-    ('Agotada');
-
--- Ventas y pedidos (ventas.md): tambien se resuelven por nombre.
---   Devolucion venta  entrada que compensa una salida al anular con reintegro (VEN-42)
---   Completada        venta cobrada con su inventario descontado (VEN-01)
---   Anulada           venta sin efecto comercial (VEN-40)
---   Porcentaje        'descuentos.descuento' es un porcentaje en (0, 100] (VEN-14)
---   Monto fijo        'descuentos.descuento' es un importe por unidad (VEN-14)
-
-INSERT INTO estado_venta (nombre) VALUES
-    ('Completada'),
-    ('Anulada');
-
-INSERT INTO tipo_descuento (nombre) VALUES
-    ('Porcentaje'),
-    ('Monto fijo');
-
--- Transiciones en ventas.md VEN-51.
-INSERT INTO estado_pedido (nombre) VALUES
-    ('Recibido'),
-    ('En preparacion'),
-    ('En camino'),
-    ('Entregado'),
-    ('Cancelado');
+-- Este script solo crea el esquema. Los catalogos que el negocio resuelve por nombre
+-- (tipo_movimiento, estado_existencia, estado_venta, tipo_descuento, estado_pedido,
+-- tipo_pago), los roles, el administrador inicial, las unidades y conversiones estandar y el
+-- cliente 'Mostrador' los siembra POST api/v1/seed (SembrarSistemaUseCase), que es idempotente.
+-- Primer arranque: ejecutar este script en una base vacia, levantar la aplicacion y llamar
+-- una vez a POST api/v1/seed.

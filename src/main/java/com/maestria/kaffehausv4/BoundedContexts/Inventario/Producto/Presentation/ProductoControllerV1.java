@@ -59,6 +59,7 @@ public class ProductoControllerV1 {
         this.obtenerInventarioProductoUseCase = obtenerInventarioProductoUseCase;
     }
 
+    @RequiereRol("Administrador")
     @PostMapping
     public ResponseEntity<ProductoResponse> crear(@RequestBody Map<String, Object> body) {
         CrearProductoRequest request = CrearProductoRequest.createFromRequest(body);
@@ -87,6 +88,7 @@ public class ProductoControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @PutMapping("/{id}")
     public ResponseEntity<ProductoResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body) {
         ActualizarProductoRequest request = ActualizarProductoRequest.createFromRequest(body);
@@ -94,6 +96,7 @@ public class ProductoControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarProductoUseCase.execute(id);

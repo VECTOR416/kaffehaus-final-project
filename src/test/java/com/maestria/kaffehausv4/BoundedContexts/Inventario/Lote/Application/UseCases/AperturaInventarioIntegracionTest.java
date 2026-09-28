@@ -74,6 +74,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.Persistence.Jpa.UsuarioJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Infrastructure.Persistence.Jpa.EstadoVentaJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Infrastructure.Persistence.Jpa.EstadoVentaJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.CajaDePrueba;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.CrearVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.CrearVentaUseCase;
@@ -92,7 +93,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  *   D3  bolsa 2 kg  3 cerradas  vence en 45 dias   <- la que toca abrir de 2 kg
  *   D4  bolsa 2 kg  1 cerrada   vencida hace 10 dias
  *
- * Requiere el catalogo de la seccion 7 de databasev4.sql. Sin @Transactional de clase.
+ * Requiere el catalogo que siembra POST api/v1/seed; CajaDePrueba lo ejecuta antes de cada prueba. Sin @Transactional de clase.
  */
 @SpringBootTest
 class AperturaInventarioIntegracionTest {
@@ -108,6 +109,7 @@ class AperturaInventarioIntegracionTest {
     @Autowired private ObtenerInventarioProductoUseCase obtenerInventarioProductoUseCase;
     @Autowired private CrearProductoUseCase crearProductoUseCase;
     @Autowired private CrearVentaUseCase crearVentaUseCase;
+    @Autowired private CajaDePrueba cajaDePrueba;
 
     @Autowired private RolJpaRepository rolJpaRepository;
     @Autowired private PersonaJpaRepository personaJpaRepository;
@@ -138,6 +140,7 @@ class AperturaInventarioIntegracionTest {
     private UUID idRol;
     private UUID idPersona;
     private UUID idUsuario;
+    private UUID idSesionCaja;
     private UUID idProveedor;
     private UUID idTipo;
     private UUID idCategoria;
@@ -256,6 +259,7 @@ class AperturaInventarioIntegracionTest {
         d2 = guardarDetalle(idBolsa5, "1", "50.00", hoy.plusDays(30));
         d3 = guardarDetalle(idBolsa2, "3", "24.00", hoy.plusDays(45));
         d4 = guardarDetalle(idBolsa2, "1", "24.00", hoy.minusDays(10));
+        idSesionCaja = cajaDePrueba.prepararCaja(idUsuario);
     }
 
     private UUID guardarUnidad(String nombre) {
@@ -343,6 +347,7 @@ class AperturaInventarioIntegracionTest {
             detalleVentaJpaRepository.deleteAll(detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(idVenta));
             ventaJpaRepository.deleteById(idVenta);
         }
+        cajaDePrueba.retirarCaja(idSesionCaja);
         if (idReceta != null) {
             ingredienteRecetaJpaRepository.deleteAll(ingredienteRecetaJpaRepository.findByIdRecetaAndBorradoFalse(idReceta));
             pasoRecetaJpaRepository.deleteAll(pasoRecetaJpaRepository.findByIdRecetaAndBorradoFalseOrderByPasosAsc(idReceta));
@@ -378,7 +383,8 @@ class AperturaInventarioIntegracionTest {
     private VentaResponse venderHarina(String cantidad) {
         VentaResponse venta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(Map.of(
                 "idUsuario", idUsuario.toString(),
-                "detalles", List.of(Map.of("idProducto", idHarina.toString(), "cantidad", cantidad))), idUsuario.toString()));
+                "detalles", List.of(Map.of("idProducto", idHarina.toString(), "cantidad", cantidad)),
+                "pagos", cajaDePrueba.enEfectivo(aPagar("10.00", cantidad))), idUsuario.toString()));
         ventas.add(UUID.fromString(venta.getId()));
         return venta;
     }
@@ -607,5 +613,10 @@ class AperturaInventarioIntegracionTest {
                 () -> crearProductoUseCase.execute(CrearProductoRequest.createFromRequest(payload)));
 
         assertEquals(409, error.getCodigo());
+    }
+
+    /** Total que cobra el sistema: todos los productos de la prueba tienen un unico precio y ningun descuento. */
+    private static String aPagar(String precio, String cantidad) {
+        return new BigDecimal(precio).multiply(new BigDecimal(cantidad)).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
     }
 }

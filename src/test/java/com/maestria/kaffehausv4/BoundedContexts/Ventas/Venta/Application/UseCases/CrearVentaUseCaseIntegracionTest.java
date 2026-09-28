@@ -38,6 +38,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.P
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Infrastructure.Persistence.Jpa.TipoMovimientoJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Infrastructure.Persistence.Jpa.UnidadJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Infrastructure.Persistence.Jpa.UnidadJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.Aggregates.Cliente;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Infrastructure.Persistence.Jpa.ClienteJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Infrastructure.Persistence.Jpa.ClienteJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Infrastructure.Persistence.Jpa.PersonaJpaModel;
@@ -50,6 +51,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.Persistence.Jpa.UsuarioJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.CajaDePrueba;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Infrastructure.Persistence.Jpa.TipoDescuentoJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ActualizarVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.AnularVentaRequest;
@@ -65,8 +67,10 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  *
  * Escenario: cafe (12.50) y te (8.00), de stock directo, cada uno con una existencia abierta de
  * 10 unidades compradas a 50.00 la caja de 10 (costo 5.00 por unidad). Requiere el catalogo de
- * la seccion 7 de databasev4.sql ('Completada', 'Anulada', 'Porcentaje', 'Monto fijo', tipos
- * de movimiento y estados de existencia).
+ * POST api/v1/seed ('Completada', 'Anulada', 'Porcentaje', 'Monto fijo', tipos de movimiento,
+ * estados de existencia, tipos de pago y el cliente 'Mostrador'), que CajaDePrueba ejecuta
+ * antes de cada prueba junto con la apertura de una caja. Cada venta se paga en efectivo por
+ * su total exacto (arquitectura.md 4.11, CAJ-11).
  *
  * No se anota @Transactional a proposito: cada caso de uso abre y cierra su propia
  * transaccion, que es justo lo que se quiere observar.
@@ -99,6 +103,7 @@ class CrearVentaUseCaseIntegracionTest {
     @Autowired private TipoMovimientoJpaRepository tipoMovimientoJpaRepository;
     @Autowired private DescuentoJpaRepository descuentoJpaRepository;
     @Autowired private TipoDescuentoJpaRepository tipoDescuentoJpaRepository;
+    @Autowired private CajaDePrueba cajaDePrueba;
 
     private static final String PRODUCTO_INEXISTENTE = "00000000-0000-0000-0000-0000000000ff";
 
@@ -116,6 +121,7 @@ class CrearVentaUseCaseIntegracionTest {
     private UUID idEstadoExistencia;
     private UUID idExistenciaCafe;
     private UUID idExistenciaTe;
+    private UUID idSesionCaja;
 
     private final List<UUID> productos = new ArrayList<>();
     private final List<UUID> detallesLote = new ArrayList<>();
@@ -193,6 +199,7 @@ class CrearVentaUseCaseIntegracionTest {
         idProductoTe = guardarProducto("te-test", "8.00", true, null);
 
         sembrarStock();
+        idSesionCaja = cajaDePrueba.prepararCaja(idUsuario);
     }
 
     private UUID guardarProducto(String nombre, String precio, boolean vendible, UUID padre) {
@@ -325,6 +332,7 @@ class CrearVentaUseCaseIntegracionTest {
             ventaJpaRepository.deleteById(idVenta);
         }
         descuentoJpaRepository.deleteAllById(descuentos);
+        cajaDePrueba.retirarCaja(idSesionCaja);
 
         List<UUID> enOrden = new ArrayList<>(productos);
         java.util.Collections.reverse(enOrden);
@@ -347,12 +355,13 @@ class CrearVentaUseCaseIntegracionTest {
         return Map.of("idProducto", idProducto.toString(), "cantidad", cantidad);
     }
 
-    private Map<String, Object> payloadCon(List<Object> detalles) {
-        return Map.of("idUsuario", idUsuario.toString(), "detalles", detalles);
+    private Map<String, Object> payloadCon(List<Object> detalles, String total) {
+        return Map.of("idUsuario", idUsuario.toString(), "detalles", detalles, "pagos", cajaDePrueba.enEfectivo(total));
     }
 
-    private VentaResponse vender(List<Object> detalles) {
-        VentaResponse respuesta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(detalles), idUsuario.toString()));
+    /** Vende y paga en efectivo 'total', que el test calcula a mano: el sistema exige que cuadre. */
+    private VentaResponse vender(List<Object> detalles, String total) {
+        VentaResponse respuesta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payloadCon(detalles, total), idUsuario.toString()));
         ventasCreadas.add(UUID.fromString(respuesta.getId()));
         return respuesta;
     }
@@ -384,7 +393,7 @@ class CrearVentaUseCaseIntegracionTest {
 
     @Test
     void registraLaVentaCompletadaConPrecioDeListaYDescuentaSuInventario() {
-        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2"), linea(idProductoTe, "3")));
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2"), linea(idProductoTe, "3")), "49.00");
 
         assertEquals("Completada", venta.getEstadoVenta().getNombre());
         // 2 x 12.50 + 3 x 8.00, sin descuentos vigentes.
@@ -410,7 +419,7 @@ class CrearVentaUseCaseIntegracionTest {
         guardarDescuento(idProductoCafe, "Porcentaje", "50", ahora.minusDays(10), ahora.minusDays(5), true);
         guardarDescuento(idProductoCafe, "Porcentaje", "80", ahora.minusDays(1), ahora.plusDays(1), false);
 
-        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")));
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")), "21.00");
 
         // 10 % de 25.00 = 2.50; 2.00 por unidad = 4.00. El vencido y el inactivo no cuentan.
         assertEquals(new BigDecimal("4.00"), venta.getDetalles().get(0).getDescuentoAplicado());
@@ -422,9 +431,9 @@ class CrearVentaUseCaseIntegracionTest {
     @Test
     void rechazaQueElPuntoDeVentaEnviePrecioDescuentoOEstado() {
         DomainException conPrecio = assertThrows(DomainException.class, () -> CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "precioUnitario", "1.00"))), idUsuario.toString()));
+                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "precioUnitario", "1.00")), "12.50"), idUsuario.toString()));
         DomainException conDescuento = assertThrows(DomainException.class, () -> CrearVentaRequest.createFromRequest(payloadCon(List.of(
-                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "descuentoAplicado", "1.00"))), idUsuario.toString()));
+                Map.of("idProducto", idProductoCafe.toString(), "cantidad", "1", "descuentoAplicado", "1.00")), "12.50"), idUsuario.toString()));
         DomainException conEstado = assertThrows(DomainException.class, () -> CrearVentaRequest.createFromRequest(Map.of(
                 "idUsuario", idUsuario.toString(), "idEstadoVenta", UUID.randomUUID().toString(),
                 "detalles", List.of(linea(idProductoCafe, "1"))), idUsuario.toString()));
@@ -440,8 +449,8 @@ class CrearVentaUseCaseIntegracionTest {
         UUID presentacion = guardarProducto("cafe-caja-test", "100.00", true, idProductoCafe);
         long ventasAntes = ventaJpaRepository.count();
 
-        DomainException alNoVendible = assertThrows(DomainException.class, () -> vender(List.of(linea(noVendible, "1"))));
-        DomainException alaPresentacion = assertThrows(DomainException.class, () -> vender(List.of(linea(presentacion, "1"))));
+        DomainException alNoVendible = assertThrows(DomainException.class, () -> vender(List.of(linea(noVendible, "1")), "1.00"));
+        DomainException alaPresentacion = assertThrows(DomainException.class, () -> vender(List.of(linea(presentacion, "1")), "100.00"));
 
         assertEquals(400, alNoVendible.getCodigo());
         assertEquals(400, alaPresentacion.getCodigo());
@@ -454,7 +463,7 @@ class CrearVentaUseCaseIntegracionTest {
 
         DomainException error = assertThrows(DomainException.class, () -> vender(List.of(
                 linea(idProductoCafe, "2"),
-                Map.of("idProducto", PRODUCTO_INEXISTENTE, "cantidad", "1"))));
+                Map.of("idProducto", PRODUCTO_INEXISTENTE, "cantidad", "1")), "25.00"));
 
         assertEquals(404, error.getCodigo());
         assertEquals(ventasAntes, ventaJpaRepository.count());
@@ -469,7 +478,7 @@ class CrearVentaUseCaseIntegracionTest {
 
         DomainException error = assertThrows(DomainException.class, () -> vender(List.of(
                 linea(idProductoCafe, "2"),
-                linea(idProductoTe, "11"))));
+                linea(idProductoTe, "11")), "113.00"));
 
         assertEquals(409, error.getCodigo());
         assertEquals(ventasAntes, ventaJpaRepository.count());
@@ -480,7 +489,7 @@ class CrearVentaUseCaseIntegracionTest {
     @Test
     void rechazaUnaVentaSinDetalles() {
         DomainException error = assertThrows(DomainException.class,
-                () -> CrearVentaRequest.createFromRequest(payloadCon(List.of()), idUsuario.toString()));
+                () -> CrearVentaRequest.createFromRequest(payloadCon(List.of(), "1.00"), idUsuario.toString()));
 
         assertEquals(400, error.getCodigo());
         assertTrue(error.getMensaje().contains("detalles"));
@@ -490,7 +499,7 @@ class CrearVentaUseCaseIntegracionTest {
 
     @Test
     void unaVentaRegistradaSoloAdmiteAsociarleElCliente() {
-        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")));
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")), "25.00");
 
         DomainException conLineas = assertThrows(DomainException.class,
                 () -> ActualizarVentaRequest.createFromRequest(Map.of("detalles", List.of(linea(idProductoCafe, "5")))));
@@ -505,7 +514,7 @@ class CrearVentaUseCaseIntegracionTest {
 
     @Test
     void unaVentaNoSeDaDeBaja() {
-        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")));
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")), "25.00");
 
         DomainException error = assertThrows(DomainException.class, () -> eliminarVentaUseCase.execute(venta.getId()));
 
@@ -517,7 +526,7 @@ class CrearVentaUseCaseIntegracionTest {
 
     @Test
     void anularSinReintegroNoTocaElInventario() {
-        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")));
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2")), "25.00");
 
         VentaResponse anulada = anular(venta.getId(), false);
 
@@ -530,7 +539,7 @@ class CrearVentaUseCaseIntegracionTest {
 
     @Test
     void anularConReintegroDevuelveLoDescontadoConCompensatorios() {
-        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2"), linea(idProductoTe, "3")));
+        VentaResponse venta = vender(List.of(linea(idProductoCafe, "2"), linea(idProductoTe, "3")), "49.00");
 
         anular(venta.getId(), true);
 
@@ -546,7 +555,7 @@ class CrearVentaUseCaseIntegracionTest {
 
     @Test
     void elReintegroDeUnaExistenciaAgotadaAbreUnaNueva() {
-        VentaResponse venta = vender(List.of(linea(idProductoTe, "10")));
+        VentaResponse venta = vender(List.of(linea(idProductoTe, "10")), "80.00");
         assertEquals(0, contenido(idExistenciaTe).signum());
 
         anular(venta.getId(), true);
@@ -567,7 +576,7 @@ class CrearVentaUseCaseIntegracionTest {
 
     @Test
     void unReintentoConLaMismaClaveNoCobraDosVeces() {
-        Map<String, Object> payload = new HashMap<>(payloadCon(List.of(linea(idProductoCafe, "2"))));
+        Map<String, Object> payload = new HashMap<>(payloadCon(List.of(linea(idProductoCafe, "2")), "25.00"));
         payload.put("claveIdempotencia", "pos-1-" + UUID.randomUUID());
 
         VentaResponse primera = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payload, idUsuario.toString()));
@@ -580,5 +589,41 @@ class CrearVentaUseCaseIntegracionTest {
                 .filter(movimiento -> movimiento.getIdExistencia().equals(idExistenciaCafe))
                 .toList();
         assertEquals(1, movimientos.size());
+    }
+
+    // ------------------------------------------------------------------ CAJ-01, CAJ-02, CAJ-10..CAJ-14
+
+    @Test
+    void sinClienteLaVentaEsDelMostradorYGuardaSusPagosMixtosConCambio() {
+        Map<String, Object> payload = Map.of(
+                "detalles", List.of(linea(idProductoCafe, "2")),
+                "pagos", List.of(
+                        Map.of("idTipoPago", cajaDePrueba.idTipoPago("Efectivo").toString(), "monto", "15.00", "montoRecibido", "20"),
+                        Map.of("idTipoPago", cajaDePrueba.idTipoPago("Tarjeta").toString(), "monto", "10.00", "referencia", "VISA-1")));
+
+        VentaResponse venta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(payload, idUsuario.toString()));
+        ventasCreadas.add(UUID.fromString(venta.getId()));
+
+        assertEquals(Cliente.ID_MOSTRADOR, venta.getIdCliente());
+        assertTrue(venta.getNumeroTicket() != null && venta.getNumeroTicket() > 0);
+        assertTrue(venta.getIdSesionCaja() != null);
+        assertEquals(2, venta.getPagos().size());
+        assertEquals(new BigDecimal("5.00"), venta.getCambio());
+
+        VentaResponse releida = obtenerVentaPorIdUseCase.execute(venta.getId());
+        assertEquals(2, releida.getPagos().size());
+        assertEquals(venta.getNumeroTicket(), releida.getNumeroTicket());
+    }
+
+    @Test
+    void unosPagosQueNoCuadranNoRegistranLaVentaNiTocanElInventario() {
+        long ventasAntes = ventaJpaRepository.count();
+
+        DomainException error = assertThrows(DomainException.class,
+                () -> vender(List.of(linea(idProductoCafe, "2")), "20.00"));
+
+        assertEquals(400, error.getCodigo());
+        assertEquals(ventasAntes, ventaJpaRepository.count());
+        assertEquals(0, new BigDecimal("10").compareTo(contenido(idExistenciaCafe)));
     }
 }

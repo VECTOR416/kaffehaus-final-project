@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.Shared.Presentation.Security;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,8 +29,9 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
  *
  * El esquema es deliberadamente corto y tiene dos piezas:
  *
- * 1. La cadena de filtros cierra el API: solo /api/v1/auth queda abierto, todo lo demas exige
- *    un access token valido. Quien lo valida es JwtAuthenticationFilter.
+ * 1. La cadena de filtros cierra el API: solo /api/v1/auth queda abierto (y /api/v1/seed
+ *    mientras la siembra de primer arranque este habilitada), todo lo demas exige un access
+ *    token valido. Quien lo valida es JwtAuthenticationFilter.
  * 2. Los roles se exigen con @RequiereRol, que aplica GuardiaDeRoles. Todo controller de un
  *    agregado lleva @RequiereRol({"Operador", "Administrador"}) a nivel de clase; un metodo
  *    puede restringirlo mas con su propia anotacion. No hay tabla de rutas que mantener en
@@ -54,6 +56,14 @@ public class SecurityConfig implements WebMvcConfigurer {
     public static final String RUTA_DE_AUTENTICACION = "/api/v1/auth";
 
     /**
+     * Siembra de primer arranque (SembrarSistemaUseCase). En una base vacia no hay ningun
+     * usuario que pueda pedir un token, asi que tiene que poder llamarse sin el. Con
+     * 'seguridad.seed-habilitado' en false deja de ser publica y solo la alcanza un
+     * Administrador: es idempotente, pero no tiene por que quedar abierta en produccion.
+     */
+    public static final String RUTA_DE_SIEMBRA = "/api/v1/seed";
+
+    /**
      * Lo unico que se inyecta por constructor es el guardia, porque hace falta para configurar
      * Spring MVC. El filtro y el escritor llegan como parametros del @Bean de abajo: asi no se
      * construyen hasta que se arma la cadena, y la configuracion de MVC no arrastra media
@@ -71,7 +81,8 @@ public class SecurityConfig implements WebMvcConfigurer {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            EscritorDeErrorHttp escritorDeErrorHttp) throws Exception {
+            EscritorDeErrorHttp escritorDeErrorHttp,
+            @Value("${seguridad.seed-habilitado:true}") boolean seedHabilitado) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -84,10 +95,17 @@ public class SecurityConfig implements WebMvcConfigurer {
                         (peticion, respuesta, excepcion) -> escritorDeErrorHttp.escribir(respuesta,
                                 new AutorizacionException(401,
                                         "Falta la cabecera Authorization con un token Bearer valido"))))
-                // Solo el login y los tokens quedan abiertos; todo lo demas exige un token valido.
-                .authorizeHttpRequests(rutas -> rutas
-                        .requestMatchers(RUTA_DE_AUTENTICACION + "/**").permitAll()
-                        .anyRequest().authenticated())
+                // Solo el login, los tokens y la siembra habilitada quedan abiertos; todo lo demas
+                // exige un token valido. SecurityUser concede ROLE_ADMINISTRADOR al rol 'Administrador'.
+                .authorizeHttpRequests(rutas -> {
+                    rutas.requestMatchers(RUTA_DE_AUTENTICACION + "/**").permitAll();
+                    if (seedHabilitado) {
+                        rutas.requestMatchers(RUTA_DE_SIEMBRA).permitAll();
+                    } else {
+                        rutas.requestMatchers(RUTA_DE_SIEMBRA).hasRole("ADMINISTRADOR");
+                    }
+                    rutas.anyRequest().authenticated();
+                })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

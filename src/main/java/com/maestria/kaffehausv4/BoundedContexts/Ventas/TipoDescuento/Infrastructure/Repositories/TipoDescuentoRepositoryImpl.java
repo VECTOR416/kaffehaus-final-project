@@ -46,4 +46,8 @@ public class TipoDescuentoRepositoryImpl implements ITipoDescuentoRepository{
         this.tipoDescuentoDatasource.eliminar(tipoDescuentoId);
     }
 
+    @Override
+    public Optional<TipoDescuento> obtenerPorNombre(String nombre) {
+        return this.tipoDescuentoDatasource.obtenerPorNombre(nombre);
+    }
 }

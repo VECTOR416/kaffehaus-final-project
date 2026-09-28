@@ -46,4 +46,8 @@ public class CategoriaRepositoryImpl implements ICategoriaRepository{
         this.categoriaDatasource.eliminar(categoriaId);
     }
 
+    @Override
+    public Optional<Categoria> obtenerPorNombre(String nombre) {
+        return this.categoriaDatasource.obtenerPorNombre(nombre);
+    }
 }

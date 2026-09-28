@@ -100,6 +100,7 @@ public class LoteControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @PutMapping("/{id}")
     public ResponseEntity<LoteResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body) {
         ActualizarLoteRequest request = ActualizarLoteRequest.createFromRequest(body);

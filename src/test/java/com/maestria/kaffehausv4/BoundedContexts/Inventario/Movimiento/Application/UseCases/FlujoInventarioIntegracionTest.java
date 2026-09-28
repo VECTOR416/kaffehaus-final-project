@@ -63,6 +63,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.Persistence.Jpa.UsuarioJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Infrastructure.Persistence.Jpa.EstadoVentaJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Infrastructure.Persistence.Jpa.EstadoVentaJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.CajaDePrueba;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.CrearVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.CrearVentaUseCase;
@@ -76,7 +77,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  *
  * Usa las filas de catalogo que el flujo resuelve por nombre ('Consumo produccion',
  * 'Ingreso produccion', 'Venta', 'Consumo venta', 'Abierta', 'Agotada'): deben existir, como
- * deja la seccion 7 de databasev4.sql.
+ * siembra POST api/v1/seed (lo ejecuta CajaDePrueba).
  *
  * Sin @Transactional de clase, igual que el resto de pruebas de integracion, para observar el
  * rollback de cada caso de uso.
@@ -86,6 +87,7 @@ class FlujoInventarioIntegracionTest {
 
     @Autowired private CrearProduccionUseCase crearProduccionUseCase;
     @Autowired private CrearVentaUseCase crearVentaUseCase;
+    @Autowired private CajaDePrueba cajaDePrueba;
 
     @Autowired private RolJpaRepository rolJpaRepository;
     @Autowired private PersonaJpaRepository personaJpaRepository;
@@ -111,6 +113,7 @@ class FlujoInventarioIntegracionTest {
     private UUID idRol;
     private UUID idPersona;
     private UUID idUsuario;
+    private UUID idSesionCaja;
     private UUID idProveedor;
     private UUID idUnidad;
     private UUID idTipo;
@@ -253,6 +256,7 @@ class FlujoInventarioIntegracionTest {
         existenciaJamon = abrirCompra(idJamon, "50.00", "1000"); // 0.05 por gramo
         existenciaGrano = abrirCompra(idGrano, "240.00", "2000");// 0.12 por gramo
         existenciaVaso = abrirCompra(idVaso, "30.00", "100");    // 0.30 por vaso
+        idSesionCaja = cajaDePrueba.prepararCaja(idUsuario);
     }
 
     private UUID guardarProducto(String nombre, boolean esStockDirecto) {
@@ -367,6 +371,7 @@ class FlujoInventarioIntegracionTest {
             detalleVentaJpaRepository.deleteAll(detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(idVenta));
             ventaJpaRepository.deleteById(idVenta);
         }
+        cajaDePrueba.retirarCaja(idSesionCaja);
 
         List<UUID> recetas = new ArrayList<>(List.of(idRecetaSandwich, idRecetaAmericano));
         if (idRecetaDelMto != null) {
@@ -412,7 +417,8 @@ class FlujoInventarioIntegracionTest {
                 "idUsuario", idUsuario.toString(),
                 "detalles", List.of(Map.of(
                         "idProducto", idProducto.toString(),
-                        "cantidad", cantidad))), idUsuario.toString()));
+                        "cantidad", cantidad)),
+                "pagos", cajaDePrueba.enEfectivo(aPagar("10.00", cantidad))), idUsuario.toString()));
         ventas.add(UUID.fromString(respuesta.getId()));
         return respuesta;
     }
@@ -562,5 +568,10 @@ class FlujoInventarioIntegracionTest {
         assertEquals(produccionesAntes, produccionJpaRepository.count());
         assertEquals(0, new BigDecimal("10").compareTo(contenido(existenciaPan)));
         assertEquals(0, new BigDecimal("1000").compareTo(contenido(existenciaJamon)));
+    }
+
+    /** Total que cobra el sistema: todos los productos de la prueba tienen un unico precio y ningun descuento. */
+    private static String aPagar(String precio, String cantidad) {
+        return new BigDecimal(precio).multiply(new BigDecimal(cantidad)).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
     }
 }

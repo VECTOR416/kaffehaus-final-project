@@ -45,4 +45,8 @@ public class RolRepositoryImpl implements IRolRepository{
         this.rolDatasource.eliminar(rolId);
     }
 
+    @Override
+    public Optional<Rol> obtenerPorNombre(String nombre) {
+        return this.rolDatasource.obtenerPorNombre(nombre);
+    }
 }

@@ -96,18 +96,18 @@ es un modulo autocontenido con sus cuatro capas dentro.
 BoundedContexts / <Contexto> / <Agregado> / {Domain, Application, Infrastructure, Presentation}
 ```
 
-Contextos existentes (4) y agregados (24):
+Contextos existentes (4) y agregados (26):
 
 | Bounded Context | Agregados |
 |---|---|
 | `Inventario` (12) | Categoria, Conversion, EstadoExistencia, Existencia, Lote (contiene DetalleLote), Movimiento, Produccion, Producto, Receta (contiene IngredienteReceta y PasoReceta), Tipo, TipoMovimiento, Unidad |
-| `Ventas` (4) | Descuento, EstadoVenta, TipoDescuento, Venta (contiene DetalleVenta) |
+| `Ventas` (6) | Descuento, EstadoVenta, SesionCaja (contiene MovimientoCaja), TipoDescuento, TipoPago, Venta (contiene DetalleVenta y PagoVenta) |
 | `Personal` (6) | Cliente, Entidad, Persona, Proveedor, Rol, Usuario |
 | `Pedidos` (2) | EstadoPedido, Pedido |
 
-Tres agregados tienen **entidades hijas**: `Venta` (con `DetalleVenta`), `Lote` (con
-`DetalleLote`) y `Receta`, el unico con **dos** colecciones (`IngredienteReceta` y
-`PasoReceta`). Ninguna hija es raiz: viven dentro de su agregado y no tienen slice,
+Cuatro agregados tienen **entidades hijas**: `Venta` (con `DetalleVenta` y `PagoVenta`),
+`Lote` (con `DetalleLote`), `SesionCaja` (con `MovimientoCaja`) y `Receta`. `Venta` y
+`Receta` gobiernan **dos** colecciones cada uno. Ninguna hija es raiz: viven dentro de su agregado y no tienen slice,
 repositorio ni endpoints propios (ver 5.13).
 
 Mas un **Shared Kernel** transversal: `com.maestria.kaffehausv4.Shared`.
@@ -256,6 +256,8 @@ Lo unico compartido entre contextos. Espeja las mismas cuatro capas.
 | `Shared/Infrastructure/Crypto/HasheadorDeContrasenaPbkdf2` | `@Component`. PBKDF2WithHmacSHA256, 210 000 iteraciones, sal de 16 bytes, formato `pbkdf2$iter$sal$hash`, comparacion en tiempo constante |
 | `Shared/Infrastructure/Persistence/OffsetPageRequest` | `Pageable` por offset absoluto. Evita el error de traducir `skip/limit` a numero de pagina |
 | `Shared/Presentation/GlobalExceptionHandler` | `@RestControllerAdvice`. Traduce excepciones a `ErrorResponse` |
+| `Shared/Application/Inicializacion/SembrarSistemaUseCase` | Siembra idempotente de primer arranque (`POST api/v1/seed`): roles, administrador inicial, catalogos, unidades y cliente 'Mostrador'. Ver 4.12 |
+| `Shared/Presentation/Inicializacion/InicializacionControllerV1` | `POST api/v1/seed`. Publico mientras `seguridad.seed-habilitado` sea `true` |
 
 Y el paquete de seguridad, que es plano a proposito (ver 1 y 6.2.10). Es el unico del proyecto
 que importa `org.springframework.security` o `io.jsonwebtoken`:
@@ -405,19 +407,23 @@ se retiro al subordinar las lineas a su raiz.
 
 | Operacion | Payload | Efecto |
 |---|---|---|
-| `POST api/v1/venta` | `idCliente` opcional, `fechaVenta` opcional, `claveIdempotencia` opcional, `detalles[]` (obligatorio, no vacio) | Crea la venta `Completada` y descuenta su inventario en una transaccion (VEN-21). Devuelve 201; con una clave ya usada devuelve la venta existente (VEN-66) |
+| `POST api/v1/venta` | `idCliente` opcional (sin el, cliente 'Mostrador'), `fechaVenta` opcional, `claveIdempotencia` opcional, `detalles[]` (obligatorio, no vacio), `pagos[]` (deben sumar el total) | Exige caja abierta (409 si no la hay). Crea la venta `Completada` con sus pagos y descuenta su inventario en una transaccion (VEN-21, 4.11). Devuelve 201 con `numeroTicket`, `idSesionCaja`, `pagos` y `cambio`; con una clave ya usada devuelve la venta existente (VEN-66) |
 | `PUT api/v1/venta/{id}` | solo `idCliente` | Asocia el cliente (VEN-31). Cualquier otro campo, incluido `detalles`, responde 400; una venta anulada, 409 |
 | `GET api/v1/venta/{id}` | — | Devuelve la venta con sus lineas, costo, estado y datos de anulacion |
 | `GET api/v1/venta` | `skip`/`limit`/`search` | Pagina de ventas con sus lineas, resueltas en una sola consulta por pagina |
 | `DELETE api/v1/venta/{id}` | — | Responde 409: una venta no se da de baja, se anula (VEN-33) |
-| `POST api/v1/venta/{id}/anulacion` | `motivo`, `reintegrar` opcional (falso) | Hoy abierta a Operador y Administrador como el resto; candidata a quedar solo en Administrador (VEN-40). Anula; con reintegro registra compensatorios `Devolucion venta` (VEN-40..43) |
+| `POST api/v1/venta/{id}/anulacion` | `motivo`, `reintegrar` opcional (falso) | **Solo Administrador**. Anula; con reintegro registra compensatorios `Devolucion venta` (VEN-40..43). Los pagos se conservan; la venta deja de contar en el arqueo (CAJ-24) |
+| `GET api/v1/venta/ticket/{numeroTicket}` | — | La venta con cliente, cajero y nombre de cada tipo de pago resueltos (CAJ-14). 400 si el numero no es valido, 404 si no existe |
 
-En el alta cada elemento de `detalles` admite **solo** `idProducto` y `cantidad`. El precio
+Cada elemento de `pagos` admite `idTipoPago`, `monto`, `montoRecibido` (opcional) y `referencia`
+(opcional); `cambio` lo calcula el sistema. El encabezado rechaza tambien `idSesionCaja` y
+`numeroTicket`. En el alta cada elemento de `detalles` admite **solo** `idProducto` y `cantidad`. El precio
 (`producto.precio`), el descuento (el vigente mas favorable de `descuentos`), el subtotal, el
 costo y el estado los pone el sistema; si llegan `precioUnitario`, `descuentoAplicado`,
 `subtotal`, `costoTotal`, `total` o `idEstadoVenta`, se responde 400 (VEN-02, VEN-13, VEN-14).
-La ruta `/anulacion` es la unica fuera de los cinco verbos en `Venta` (regla 25): deshacer un
-cobro no es una baja logica.
+Las rutas `/anulacion` y `/ticket/{numeroTicket}` son las unicas fuera de los cinco verbos en
+`Venta` (regla 25): deshacer un cobro no es una baja logica, y el ticket es la clave con la que el
+personal busca una venta.
 
 ### 4.7 Contrato del agregado Lote (endpoints)
 
@@ -553,8 +559,8 @@ Por eso el producto se bloquea el ultimo (inventario.md INV-53).
 que necesita (`ITipoMovimientoRepository.obtenerPorNombre`,
 `IEstadoExistenciaRepository.obtenerPorNombre`): tipos `Apertura`, `Consumo produccion`,
 `Ingreso produccion`, `Venta`, `Consumo venta`, `Merma`, `Vencimiento`, `Ajuste positivo` y
-`Ajuste negativo`; estados `Abierta` y `Agotada`. Las siembra la
-seccion 7 de `databasev4.sql`. Si falta una,
+`Ajuste negativo`; estados `Abierta` y `Agotada`. Las siembra
+`POST api/v1/seed` (4.12). Si falta una,
 el flujo responde 404 nombrandola.
 
 **Movimientos inmutables.** Un movimiento es auditoria: `Movimiento.actualizar()` y
@@ -568,6 +574,99 @@ La cantidad es siempre una magnitud positiva; la direccion la da el tipo.
 **No existen.** El unico estado es la base de datos PostgreSQL. No hay cache (`@Cacheable`),
 ni broker de mensajes, ni eventos de dominio, ni scheduler, ni WebSocket, ni sesion HTTP.
 No introducir ninguno sin actualizar este documento.
+
+### 4.11 Caja, pagos y ticket (reglas CAJ-xx)
+
+Reglas de negocio de la sesion de caja y del cobro. Complementan las de la venta (VEN-xx) y
+se citan por su identificador desde el codigo.
+
+**Venta y caja**
+
+- **CAJ-01.** Toda venta pertenece a la sesion de caja abierta en la que se cobro
+  (`venta.id_sesion_caja NOT NULL`). Sin caja abierta, `POST api/v1/venta` responde 409. La
+  venta toma la sesion con `FOR SHARE` antes que cualquier bloqueo de inventario.
+- **CAJ-02.** Toda venta tiene cliente (`venta.id_cliente NOT NULL`). Si el POS no envia
+  `idCliente`, la venta es del cliente 'Mostrador' (`Cliente.ID_MOSTRADOR`,
+  `00000000-0000-0000-0000-000000000001`), que siembra `POST api/v1/seed` y que no se puede dar
+  de baja.
+- `venta.id_usuario` es el empleado que cobra; el responsable del dinero es el titular de la
+  sesion.
+
+**Pagos** (`PagoVenta`, hija de `Venta`, tabla `pago_venta`)
+
+- **CAJ-10.** Una venta admite varios pagos de distintos tipos (pago mixto).
+- **CAJ-11.** Los pagos vivos suman **exactamente** el total de la venta (400 si no). Una
+  venta de total cero no lleva pagos.
+- **CAJ-12.** En efectivo, `montoRecibido` (por defecto igual a `monto`) debe cubrir el monto;
+  `cambio = montoRecibido - monto` lo calcula la raiz.
+- **CAJ-13.** Cualquier otro tipo cobra exactamente su monto: un `montoRecibido` distinto
+  responde 400. El efectivo se reconoce por nombre (`TipoPago.esEfectivo()`, 'Efectivo'),
+  como los roles.
+- Los pagos son inmutables, igual que la venta. `tipo_pago` es un catalogo con CRUD en
+  `api/v1/tipo-pago`.
+
+**Ticket**
+
+- **CAJ-14.** `venta.numero_ticket` lo asigna la base (`seq_numero_ticket`, indice unico
+  `idx_venta_numero_ticket`). El `JpaModel` lo mapea con `@Generated` e
+  `insertable/updatable = false`, y `VentaDatasourceImpl.crear` guarda el encabezado con
+  `saveAndFlush` para releerlo. `GET api/v1/venta/ticket/{n}` compone cliente -> persona y
+  usuario -> persona en el caso de uso (4.3), sin consultas a mano.
+
+**Sesion de caja** (`SesionCaja` con `MovimientoCaja`, `api/v1/sesion-caja`)
+
+| Operacion | Payload | Efecto |
+|---|---|---|
+| `POST .../apertura` | `montoApertura` (>= 0) | Abre el turno a nombre de quien firma. 409 si ya hay una abierta (CAJ-20) |
+| `POST .../movimientos` | `tipo` (`INGRESO`/`EGRESO`), `monto` (> 0), `motivo` (<= 255) | Ingreso o egreso menor de efectivo en la sesion abierta; 409 sin caja (CAJ-21). Inmutables |
+| `POST .../cierre` | `montoCierreDeclarado`, `motivoDiferencia` opcional | Arqueo y cierre (CAJ-22..24). Devuelve `ArqueoCajaResponse` con el desglose por tipo de pago |
+| `GET .../estado` | — | `abierta`, fecha de apertura, fondo y nombre del responsable (CAJ-25) |
+| `GET .../{id}`, `GET ...` | `skip`/`limit` | Historial de turnos, el mas reciente primero |
+
+- **CAJ-20.** Una sola caja abierta en todo el local (indice parcial `uq_sesion_caja_abierta`).
+  Dos aperturas simultaneas: la segunda choca con el indice y `GlobalExceptionHandler` la
+  traduce a 409.
+- **CAJ-21.** Los movimientos bloquean la sesion con `FOR UPDATE`, como el cierre.
+- **CAJ-22.** `esperado = monto_apertura + efectivo de las ventas completadas + ingresos -
+  egresos`; `diferencia = declarado - esperado`. La sesion queda `CERRADA` con `fecha_cierre`
+  y ya no admite cambios. Se cuenta el `monto` del pago, no lo recibido: el cambio ya salio de
+  la caja.
+- **CAJ-23.** Solo el titular o un `Administrador` cierran la caja (403 si no). Lo decide el
+  agregado (`exigirQuePuedaCerrar`); el caso de uso resuelve el rol por nombre desde la tabla
+  `rol`.
+- **CAJ-24.** Las ventas `Anuladas` no suman al esperado: se asume que al anular se devolvio el
+  dinero. El arqueo las informa aparte (`cantidadVentasAnuladas`).
+- **CAJ-25.** `GET .../estado` dice si hay turno, desde cuando y quien responde por el.
+
+**Concurrencia.** Las ventas toman la sesion con `FOR SHARE` y no se bloquean entre si. Cierre y
+movimientos la toman con `FOR UPDATE`: un cierre espera a que terminen las ventas en curso y
+ninguna venta nueva entra en una sesion que se esta cerrando. El orden es siempre sesion ->
+existencias -> producto, asi que no se introduce ningun ciclo de bloqueos.
+
+**Limites conocidos.** Anular una venta de una sesion ya cerrada no corrige su arqueo guardado.
+No se valida que un egreso supere el efectivo disponible.
+
+### 4.12 Primer arranque
+
+`databasev4.sql` crea solo el esquema: ya no inserta catalogos. Sobre una base vacia se ejecuta
+el script, se levanta la aplicacion y se llama una vez a `POST api/v1/seed`
+(`SembrarSistemaUseCase`, idempotente), que siembra:
+
+- los roles `Administrador` y `Operador`;
+- el administrador `admin@gmail.com` / `admin`, con su persona (**cambiar la contrasena al
+  entrar**; una siembra repetida nunca la reescribe);
+- los catalogos que el flujo resuelve por nombre (tipos de movimiento, estados de existencia,
+  venta y pedido, tipos de descuento y de pago);
+- los tipos de producto y las categorias por defecto;
+- las unidades `Kilogramo`, `Gramo`, `Litro`, `Mililitro` y `Unidad`, y las conversiones
+  kg -> g y l -> ml (factor 1000). 'Unidad -> Unidad' no se siembra: `chk_distintas_unidades` la
+  prohibe y `Conversion.factorEntre` ya devuelve 1 para la misma unidad;
+- el cliente 'Mostrador'.
+
+La ruta es publica mientras `seguridad.seed-habilitado` (`SEED_HABILITADO`, por defecto `true`)
+lo sea; en `false` solo la alcanza un `Administrador`. La respuesta lista lo `creados` y lo
+`existentes`.
+
 
 ---
 
@@ -711,6 +810,9 @@ ocurre exclusivamente en Infrastructure.
   gemelo `find...By` sin bloqueo (`readByIdAndBorradoFalse`). En el puerto se expone con el
   sufijo `ParaActualizar` (`obtenerPorIdParaActualizar`) o `ParaConsumo`. Donde se bloquea y
   en que orden lo fija inventario.md (INV-52, INV-53).
+- **Bloqueo compartido.** La unica lectura con `PESSIMISTIC_READ` (`FOR SHARE`) es la de la
+  sesion de caja que hace una venta: se nombra con el prefijo `get...By`
+  (`getFirstByEstadoAndBorradoFalse`) y en el puerto con el sufijo `ParaVenta` (4.11).
 
 ### 5.8 Datasources (`Infrastructure/Datasources`)
 
@@ -749,8 +851,8 @@ Jerarquia unica: `BaseException` (abstracta) → `DomainException` | `SystemExce
 - Dos excepciones de Spring se traducen en el `GlobalExceptionHandler` porque surgen al
   confirmar la transaccion, fuera del alcance de cualquier caso de uso:
   `PessimisticLockingFailureException` (interbloqueo o espera de bloqueo abortada) responde
-  409 "reintenta" (ventas.md VEN-65), y una `DataIntegrityViolationException` del indice
-  `uq_venta_clave_idempotencia` responde 409 (VEN-66). Cualquier otra violacion de integridad
+  409 "reintenta" (ventas.md VEN-65), y una `DataIntegrityViolationException` de los indices
+  `uq_venta_clave_idempotencia` (VEN-66) o `uq_sesion_caja_abierta` (CAJ-20) responde 409. Cualquier otra violacion de integridad
   sigue siendo 500.
 - **Mensajes de error en espanol, sin tildes**, citando el campo o id entre comillas simples:
   `"La categoria con id '...' no existe"`, `"El campo 'nombre' es obligatorio..."`.
@@ -991,6 +1093,28 @@ publico justo para esto.
   - `Movimiento`: ademas, `RegistrarReintegroDeInventarioUseCase` (interna).
   - `Venta`: `AnularVentaUseCase` y `RegistrarAnulacionDeVentaUseCase` (interna). Su
     `Eliminar` existe pero el agregado lo rechaza con 409 (ventas.md VEN-33).
+- `Ventas/SesionCaja` no expone los cinco casos de uso: se abre (`AbrirSesionCajaUseCase`),
+  se le registran movimientos (`RegistrarMovimientoCajaUseCase`), se cierra
+  (`CerrarSesionCajaUseCase`) y se consulta (`ObtenerEstadoCajaUseCase`,
+  `ObtenerSesionCajaPorIdUseCase`, `ObtenerSesionesCajaUseCase`). No hay alta, edicion ni baja
+  genericas: un turno es auditoria del dinero y `SesionCaja.eliminar()` responde 409. Sus rutas
+  `apertura`, `movimientos`, `cierre` y `estado` son las unicas fuera de los cinco verbos del
+  recurso (regla 25).
+- `MovimientoCajaJpaModel` expone `getFecC()`: la tabla no tiene otra fecha y es el instante del
+  movimiento que muestra el arqueo.
+- `VentaJpaModel.numeroTicket` usa `@Generated` de Hibernate (4.11, CAJ-14): es el unico valor
+  que asigna la base y no el mapper.
+- `Shared/Application/Inicializacion` depende de repositorios de todos los contextos, como la
+  autenticacion (4.12). No es un agregado ni tiene datasource propio.
+- `ISesionCajaRepository`: `obtenerAbierta`, `obtenerAbiertaParaActualizar`,
+  `obtenerAbiertaParaVenta`. `IVentaRepository`: `obtenerPorNumeroTicket`,
+  `obtenerPorSesionCaja`. `ITipoPagoRepository`: `obtenerPorNombre`, `obtenerVivos`. Y
+  `obtenerPorNombre` en `IRolRepository`, `ITipoRepository`, `ICategoriaRepository`,
+  `IUnidadRepository` e `ITipoDescuentoRepository`, que usa la siembra.
+- Operaciones restringidas a `Administrador` con `@RequiereRol` sobre el metodo: `crear`,
+  `actualizar` y `eliminar` de `usuario`, `rol` y `producto` (el precio se fija ahi);
+  `anular` de `venta`; `ajustar` de `existencia`; `actualizar` de `lote` (admite
+  `cantidadRestante` como ajuste de stock). `ProteccionDeEndpointsHttpTest` lo comprueba.
 - `Pedidos/Pedido` usa una operacion interna de otro contexto (`RegistrarAnulacionDeVentaUseCase`,
   de Ventas): cancelar un pedido anula su venta en la misma transaccion (ventas.md VEN-52).
   Es el unico caso en que un contexto invoca un caso de uso de otro.
@@ -1001,18 +1125,21 @@ publico justo para esto.
   operan sobre varios agregados del mismo tipo ya cargados por el caso de uso.
 - `Inventario/Lote` deja la linea `//String search = ...` comentada en su datasource porque la
   entidad no tiene campo de texto buscable.
-- Tests de negocio existentes (144): `Kaffehausv4ApplicationTests.contextLoads()`; de dominio
-  puro, sin Spring, `VentaTest` (12), `DescuentoTest` (5), `LoteTest` (23), `RecetaTest` (18),
-  `ExistenciaTest` (12), `ProduccionTest` (5), `MovimientoTest` (3), `ConversionTest` (6) y
-  `ProductoTest` (5); de integracion contra la BD real, `CrearVentaUseCaseIntegracionTest` (13),
+- Tests existentes (226): de dominio puro, sin Spring, `VentaTest` (16), `SesionCajaTest` (7),
+  `DescuentoTest` (5), `LoteTest` (23), `RecetaTest` (18), `ExistenciaTest` (12),
+  `ProduccionTest` (5), `MovimientoTest` (3), `ConversionTest` (6), `ProductoTest` (5) y
+  `JwtServiceTest` (19); de integracion contra la BD real, `CrearVentaUseCaseIntegracionTest`
+  (15), `CajaIntegracionTest` (7), `SembrarSistemaIntegracionTest` (3),
   `PedidoVentaIntegracionTest` (6), `CrearLoteUseCaseIntegracionTest` (8),
   `CrearRecetaUseCaseIntegracionTest` (9), `FlujoInventarioIntegracionTest` (7, incluida una
-  prueba de concurrencia de dos ventas simultaneas) y `AperturaInventarioIntegracionTest` (11),
-  todos
-  `@SpringBootTest` sin `@Transactional` de clase para poder observar el rollback del caso de
-  uso. Los de integracion de inventario y ventas necesitan el catalogo de la seccion 7 de
-  `databasev4.sql` en la base. Cualquier test nuevo va bajo `src/test/java/com/maestria/kaffehausv4/` espejando el
-  paquete de produccion.
+  prueba de concurrencia de dos ventas simultaneas), `AperturaInventarioIntegracionTest` (11) y
+  `AutenticacionServiceIntegracionTest` (15); de HTTP, `SeguridadHttpTest` (16) y
+  `ProteccionDeEndpointsHttpTest` (9); y `Kaffehausv4ApplicationTests.contextLoads()`. Los de
+  integracion son `@SpringBootTest` sin `@Transactional` de clase para poder observar el
+  rollback del caso de uso. Los que registran ventas usan `CajaDePrueba` (test), que ejecuta la
+  siembra (asi no dependen de una base sembrada a mano) y abre una caja si no hay ninguna;
+  `CajaIntegracionTest` se omite si la base ya tiene una caja abierta. Cualquier test nuevo va
+  bajo `src/test/java/com/maestria/kaffehausv4/` espejando el paquete de produccion.
 - El test de integracion necesita PostgreSQL levantado (`docker compose up -d`) y limpia en
   `@AfterEach` lo que siembra. Para borrar en el `@AfterEach` usa `deleteAll(...)` y no el
   `deleteBy...` derivado, que exige una transaccion abierta y alli no la hay.

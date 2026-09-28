@@ -54,6 +54,7 @@ public class UsuarioControllerV1 {
         this.eliminarUsuarioUseCase = eliminarUsuarioUseCase;
     }
 
+    @RequiereRol("Administrador")
     @PostMapping
     public ResponseEntity<UsuarioResponse> crear(@RequestBody Map<String, Object> body) {
         CrearUsuarioRequest request = CrearUsuarioRequest.createFromRequest(body);
@@ -82,6 +83,7 @@ public class UsuarioControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @PutMapping("/{id}")
     public ResponseEntity<UsuarioResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body) {
         ActualizarUsuarioRequest request = ActualizarUsuarioRequest.createFromRequest(body);
@@ -89,6 +91,7 @@ public class UsuarioControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarUsuarioUseCase.execute(id);

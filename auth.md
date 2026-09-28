@@ -12,8 +12,8 @@
    token** (7 dias), mas los datos basicos del usuario.
 2. En cada peticion manda `Authorization: Bearer <accessToken>`. `JwtAuthenticationFilter` lo
    valida y deja al usuario disponible para el controller.
-3. **El API esta cerrada por defecto**: cualquier ruta que no sea `/api/v1/auth/**` exige un
-   token valido. Para exigir ademas un rol concreto se anota el endpoint con `@RequiereRol`.
+3. **El API esta cerrada por defecto**: cualquier ruta que no sea `/api/v1/auth/**` (ni
+   `/api/v1/seed` mientras la siembra este habilitada, seccion 8) exige un token valido. Para exigir ademas un rol concreto se anota el endpoint con `@RequiereRol`.
 
 ---
 
@@ -237,6 +237,11 @@ Los roles **son filas de la tabla `rol`**. No hay catalogo en el codigo, asi que
 
 No hay que recompilar nada para crear el rol; solo para usarlo en una anotacion nueva.
 
+Hoy solo `Administrador` puede crear, editar o dar de baja usuarios, roles y productos (y con
+ellos los precios), anular ventas, ajustar existencias y corregir lotes con `PUT`. `Operador`
+opera el POS: vende, abre y cierra su caja, registra movimientos de efectivo, compras,
+aperturas, mermas y pedidos. La lista exacta esta en `arquitectura.md` 6.5.
+
 Dos consecuencias que conviene tener presentes:
 
 - **Renombrar una fila de `rol` rompe las anotaciones que la mencionan.** El nombre es parte del
@@ -289,6 +294,7 @@ Todo vive bajo `seguridad:` en `application.yaml` y llega por variable de entorn
 | `JWT_ACCESS_MINUTES` | `15` | Vigencia del access token |
 | `JWT_REFRESH_DAYS` | `7` | Vigencia del refresh token |
 | `GOOGLE_CLIENT_ID` | vacio | Client id de Google. Sin el, `/auth/google` responde `500` |
+| `SEED_HABILITADO` | `true` | `POST /api/v1/seed` publico para el primer arranque. En `false`, solo `Administrador` |
 
 La aplicacion **no arranca** si un secreto tiene menos de 32 caracteres o si los dos secretos son
 iguales: son fallos de configuracion que es mejor descubrir en el arranque que en produccion.
@@ -301,32 +307,26 @@ si se sospecha de una filtracion.
 
 ## 8. Primer arranque: el primer administrador
 
-Hay un huevo y una gallina que conviene conocer: para crear un usuario hay que llamar a
-`POST /api/v1/usuario`, que exige token, y para tener un token hace falta un usuario.
+Para crear un usuario hay que llamar a `POST /api/v1/usuario`, que exige token de
+`Administrador`, y para tener un token hace falta un usuario. Lo resuelve la siembra:
 
-La contrasena se guarda hasheada con PBKDF2 en el formato `pbkdf2$iteraciones$sal$hash`, asi que
-**no se puede insertar un usuario utilizable con un `INSERT` a mano**.
-
-En una base vacia, la forma mas corta de salir:
-
-1. Inserta al menos una fila en `rol` (por ejemplo `Administrador`).
-2. Abre temporalmente la creacion de usuarios, anadiendo una linea en `SecurityConfig`:
-
-   ```java
-   .requestMatchers(HttpMethod.POST, "/api/v1/usuario").permitAll()   // TEMPORAL
-   ```
-
-3. Arranca, crea el administrador:
+1. Ejecuta `databasev4.sql` sobre una base vacia.
+2. Arranca la aplicacion y llama una vez, sin token:
 
    ```bash
-   curl -X POST http://localhost:8081/api/v1/usuario \
-     -H "Content-Type: application/json" \
-     -d '{"nombres":"Ana","apellidos":"Perez Lopez","telefono":"70000000",
-          "carnet":"1234567","correo":"ana@kaffehaus.bo",
-          "contrasena":"su-contrasena","idRol":"<id del rol Administrador>"}'
+   curl -X POST http://localhost:8081/api/v1/seed
    ```
 
-4. **Quita esa linea** y vuelve a arrancar. A partir de ahi todo se hace con token.
+   Crea los roles `Administrador` y `Operador`, el usuario `admin@gmail.com` con contrasena
+   `admin` (hasheada con PBKDF2), los catalogos y el cliente 'Mostrador' (`arquitectura.md`
+   4.12). Es idempotente: repetirla no duplica nada ni reescribe la contrasena del
+   administrador.
+3. Entra con `admin@gmail.com` / `admin` y **cambia esa contrasena** (`PUT /api/v1/usuario/{id}`).
+4. En un despliegue real arranca despues con `SEED_HABILITADO=false`: la ruta deja de ser
+   publica y solo la alcanza un `Administrador`.
+
+La contrasena se guarda en el formato `pbkdf2$iteraciones$sal$hash`, asi que **no se puede
+insertar un usuario utilizable con un `INSERT` a mano**: usa la siembra o el CRUD.
 
 ---
 

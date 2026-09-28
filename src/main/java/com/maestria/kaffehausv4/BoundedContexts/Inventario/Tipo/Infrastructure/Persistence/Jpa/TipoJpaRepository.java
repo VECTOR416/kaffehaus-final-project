@@ -12,4 +12,5 @@ public interface TipoJpaRepository extends JpaRepository<TipoJpaModel, UUID>{
     Optional<TipoJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<TipoJpaModel> findByBorradoFalse(Pageable pageable);
     Page<TipoJpaModel> findByBorradoFalseAndNombreContainingIgnoreCase(String nombre, Pageable pageable);
+    Optional<TipoJpaModel> findFirstByNombreIgnoreCaseAndBorradoFalse(String nombre);
 }

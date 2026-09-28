@@ -12,4 +12,5 @@ public interface UnidadJpaRepository extends JpaRepository<UnidadJpaModel, UUID>
     Optional<UnidadJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<UnidadJpaModel> findByBorradoFalse(Pageable pageable);
     Page<UnidadJpaModel> findByBorradoFalseAndUnidadContainingIgnoreCase(String unidad, Pageable pageable);
+    Optional<UnidadJpaModel> findFirstByUnidadIgnoreCaseAndBorradoFalse(String unidad);
 }

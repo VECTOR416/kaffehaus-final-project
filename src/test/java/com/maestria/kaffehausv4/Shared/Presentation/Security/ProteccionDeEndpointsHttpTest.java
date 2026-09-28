@@ -9,7 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -22,10 +25,19 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Presentation.ExistenciaControllerV1;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Presentation.LoteControllerV1;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Presentation.ProductoControllerV1;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Presentation.RolControllerV1;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Presentation.UsuarioControllerV1;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Presentation.VentaControllerV1;
+
 /**
  * Proteccion de los endpoints de negocio: solo el login y los tokens (/api/v1/auth) quedan
  * abiertos; todo controller de un agregado exige sesion con rol Operador o Administrador, y el
- * usuario que opera sale siempre del token (@UsuarioEnSesion), nunca del cuerpo.
+ * usuario que opera sale siempre del token (@UsuarioEnSesion), nunca del cuerpo. Las
+ * operaciones criticas (usuarios, roles, productos y precios, anulaciones y ajustes de stock)
+ * se restringen ademas a Administrador sobre el metodo.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -97,5 +109,50 @@ class ProteccionDeEndpointsHttpTest {
                         .content("{\"idUsuario\": \"99999999-9999-9999-9999-999999999999\"}"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(ID_USUARIO));
+    }
+
+    /** Operaciones que solo un Administrador puede ejecutar, por controller y nombre de metodo. */
+    private static final Map<Class<?>, List<String>> SOLO_ADMINISTRADOR = Map.of(
+            UsuarioControllerV1.class, List.of("crear", "actualizar", "eliminar"),
+            RolControllerV1.class, List.of("crear", "actualizar", "eliminar"),
+            ProductoControllerV1.class, List.of("crear", "actualizar", "eliminar"),
+            VentaControllerV1.class, List.of("anular"),
+            ExistenciaControllerV1.class, List.of("ajustar"),
+            LoteControllerV1.class, List.of("actualizar"));
+
+    @Test
+    void lasOperacionesCriticasSeRestringenAAdministrador() {
+        SOLO_ADMINISTRADOR.forEach((controller, metodos) -> {
+            for (String nombre : metodos) {
+                Method metodo = Arrays.stream(controller.getDeclaredMethods())
+                        .filter(candidato -> candidato.getName().equals(nombre))
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError(controller.getSimpleName() + " no tiene el metodo " + nombre));
+                RequiereRol anotacion = metodo.getAnnotation(RequiereRol.class);
+                assertNotNull(anotacion, controller.getSimpleName() + "." + nombre + " no se restringe a Administrador");
+                assertEquals(Set.of("Administrador"), Set.of(anotacion.value()), controller.getSimpleName() + "." + nombre);
+            }
+        });
+    }
+
+    @Test
+    void unOperadorNoAnulaVentasYUnAdministradorSi() throws Exception {
+        String ruta = "/api/v1/venta/" + java.util.UUID.randomUUID() + "/anulacion";
+        String cuerpo = "{\"motivo\": \"prueba\"}";
+
+        mockMvc.perform(post(ruta).header("Authorization", conRol("Operador"))
+                        .contentType(MediaType.APPLICATION_JSON).content(cuerpo))
+                .andExpect(status().isForbidden());
+        // El Administrador pasa el guardia: la venta no existe y el usuario de prueba tampoco.
+        mockMvc.perform(post(ruta).header("Authorization", conRol("Administrador"))
+                        .contentType(MediaType.APPLICATION_JSON).content(cuerpo))
+                .andExpect(result -> assertFalse(result.getResponse().getStatus() == 403, "El Administrador debe pasar el guardia"));
+    }
+
+    @Test
+    void laSiembraDePrimerArranqueEsPublica() throws Exception {
+        mockMvc.perform(post("/api/v1/seed"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.existentes").isArray());
     }
 }

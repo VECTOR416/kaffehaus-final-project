@@ -24,6 +24,22 @@ como sistema de punto de venta en producción.
 
 ---
 
+## Actualización 2026-09-28 (caja y cobro)
+
+Este cambio (`plan-caja-y-pagos.md`, `arquitectura.md` 4.11 y 4.12) resolvió en el backend:
+
+| Punto | Estado |
+|---|---|
+| 2. Cobro y caja | **Resuelto.** Hay tipos de pago (Efectivo, Tarjeta, QR), pagos mixtos con cambio, sesión de caja única con fondo inicial, movimientos de efectivo y cierre con arqueo y desglose por tipo de pago |
+| 3. Facturación | **Parcial.** Hay número de ticket correlativo y `GET api/v1/venta/ticket/{n}`. Sigue sin haber factura ni NIT del comprador |
+| 4. Permisos | **Resuelto.** Usuarios, roles, productos y precios, anulaciones, ajustes de existencia y `PUT` de lote quedan solo para `Administrador` |
+| 5. Primer arranque | **Resuelto.** `POST api/v1/seed` siembra roles, administrador, catálogos, unidades y cliente 'Mostrador'. Por decisión del equipo no hay migraciones incrementales: se parte de `databasev4.sql` sobre una base vacía |
+
+Siguen pendientes el frontend (a cargo de otro equipo), la factura, los reportes y el resto de
+los puntos 6 a 16.
+
+---
+
 ## 1. Lo que ya funciona
 
 | Área | Estado |

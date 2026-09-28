@@ -47,9 +47,15 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Dos altas simultaneas con la misma clave de idempotencia (ventas.md VEN-66): la segunda
-     * choca con el indice unico y revierte; al reintentar recibe la venta de la primera. Otras
-     * violaciones de integridad siguen siendo un fallo del servidor.
+     * Dos indices unicos guardan reglas de negocio frente a peticiones simultaneas, y chocar con
+     * ellos es un conflicto, no un fallo del servidor:
+     *
+     * - uq_venta_clave_idempotencia (ventas.md VEN-66): dos altas con la misma clave; la segunda
+     *   revierte y al reintentar recibe la venta de la primera.
+     * - uq_sesion_caja_abierta (arquitectura.md 4.11, CAJ-20): dos aperturas de caja a la vez; solo una
+     *   queda abierta.
+     *
+     * Otras violaciones de integridad siguen siendo un fallo del servidor.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleIntegridad(DataIntegrityViolationException ex) {
@@ -59,6 +65,13 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT.value(),
                 "Domain Exception",
                 "Ya se esta registrando una venta con esa clave de idempotencia; reintenta"
+            );
+        }
+        if (detalle != null && detalle.contains("uq_sesion_caja_abierta")) {
+            return construirRespuesta(
+                HttpStatus.CONFLICT.value(),
+                "Domain Exception",
+                "Ya hay una caja abierta; cierrala antes de abrir otra"
             );
         }
         return handleRuntimeException(ex);

@@ -11,14 +11,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.ValueObjects.SesionCajaId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Datasources.IVentaDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ObtenerVentasRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.DetalleVenta;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.PagoVenta;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.Venta;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.DetalleVentaJpaMapper;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.DetalleVentaJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.DetalleVentaJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.PagoVentaJpaMapper;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.PagoVentaJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.PagoVentaJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.VentaJpaMapper;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.VentaJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa.VentaJpaRepository;
@@ -27,12 +32,12 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Shared.Infrastructure.Persistence.OffsetPageRequest;
 
 /**
- * Persistencia del agregado Venta completo: encabezado mas lineas.
+ * Persistencia del agregado Venta completo: encabezado, lineas y pagos.
  *
- * Maneja los dos JpaRepository porque ambas tablas pertenecen al mismo agregado; esto no
- * contradice la regla de no acoplar datasources entre agregados, ya que detalle_venta dejo
- * de ser uno. La atomicidad la aporta la @Transactional del caso de uso, que envuelve todas
- * las escrituras de este metodo en una sola transaccion de base de datos.
+ * Maneja los tres JpaRepository porque las tres tablas pertenecen al mismo agregado; esto no
+ * contradice la regla de no acoplar datasources entre agregados, ya que detalle_venta y
+ * pago_venta no son agregados. La atomicidad la aporta la @Transactional del caso de uso, que
+ * envuelve todas las escrituras de este metodo en una sola transaccion de base de datos.
  *
  * Aqui no hay DELETE: el sistema no usa borrado fisico. Las bajas, tanto de una linea como de
  * la venta entera, son UPDATE del campo 'borrado'.
@@ -42,25 +47,36 @@ public class VentaDatasourceImpl implements IVentaDatasource {
 
     private final VentaJpaRepository ventaJpaRepository;
     private final DetalleVentaJpaRepository detalleVentaJpaRepository;
+    private final PagoVentaJpaRepository pagoVentaJpaRepository;
 
     public VentaDatasourceImpl(
             VentaJpaRepository ventaJpaRepository,
-            DetalleVentaJpaRepository detalleVentaJpaRepository) {
+            DetalleVentaJpaRepository detalleVentaJpaRepository,
+            PagoVentaJpaRepository pagoVentaJpaRepository) {
         this.ventaJpaRepository = ventaJpaRepository;
         this.detalleVentaJpaRepository = detalleVentaJpaRepository;
+        this.pagoVentaJpaRepository = pagoVentaJpaRepository;
     }
 
+    /**
+     * El encabezado se guarda con saveAndFlush: el INSERT tiene que llegar a la base para que
+     * seq_numero_ticket asigne el numero de ticket y Hibernate lo relea (@Generated).
+     */
     @Override
     public Venta crear(Venta venta) {
-        VentaJpaModel model = VentaJpaMapper.toPersistence(venta);
-        VentaJpaModel modelGuardado = ventaJpaRepository.save(model);
+        VentaJpaModel modelGuardado = ventaJpaRepository.saveAndFlush(VentaJpaMapper.toPersistence(venta));
 
         List<DetalleVentaJpaModel> detalles = detalleVentaJpaRepository.saveAll(
                 venta.getDetalles().stream()
                         .map(detalle -> DetalleVentaJpaMapper.toPersistence(detalle, modelGuardado.getId()))
                         .collect(Collectors.toList()));
 
-        return VentaJpaMapper.toDomain(modelGuardado, detalles);
+        List<PagoVentaJpaModel> pagos = pagoVentaJpaRepository.saveAll(
+                venta.getPagos().stream()
+                        .map(pago -> PagoVentaJpaMapper.toPersistence(pago, modelGuardado.getId()))
+                        .collect(Collectors.toList()));
+
+        return VentaJpaMapper.toDomain(modelGuardado, detalles, pagos);
     }
 
     @Override
@@ -78,7 +94,12 @@ public class VentaDatasourceImpl implements IVentaDatasource {
                         .map(detalle -> conciliar(detalle, id))
                         .collect(Collectors.toList()));
 
-        return VentaJpaMapper.toDomain(modelGuardado, detalles);
+        List<PagoVentaJpaModel> pagos = pagoVentaJpaRepository.saveAll(
+                venta.getPagos().stream()
+                        .map(pago -> conciliar(pago, id))
+                        .collect(Collectors.toList()));
+
+        return VentaJpaMapper.toDomain(modelGuardado, detalles, pagos);
     }
 
     /**
@@ -101,12 +122,25 @@ public class VentaDatasourceImpl implements IVentaDatasource {
         return model;
     }
 
+    /** Misma politica que las lineas, para los pagos. */
+    private PagoVentaJpaModel conciliar(PagoVenta pago, UUID idVenta) {
+        if (pago.getId() == null) {
+            return PagoVentaJpaMapper.toPersistence(pago, idVenta);
+        }
+
+        PagoVentaJpaModel model = pagoVentaJpaRepository.findById(aUuid(pago.getId().getValue()))
+                .orElseThrow(() -> DomainException.throwException(404,
+                        "El pago de venta con id '" + pago.getId().getValue() + "' no existe"));
+
+        PagoVentaJpaMapper.copiarCambios(pago, model);
+
+        return model;
+    }
+
     @Override
     public Optional<Venta> obtenerPorId(VentaId ventaId) {
-        UUID id = aUuid(ventaId.getValue());
-
-        return ventaJpaRepository.findByIdAndBorradoFalse(id)
-                .map(model -> VentaJpaMapper.toDomain(model, detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(id)));
+        return ventaJpaRepository.findByIdAndBorradoFalse(aUuid(ventaId.getValue()))
+                .map(this::completa);
     }
 
     @Override
@@ -119,13 +153,7 @@ public class VentaDatasourceImpl implements IVentaDatasource {
 
         Page<VentaJpaModel> pagina = ventaJpaRepository.findByBorradoFalse(pageable);
 
-        Map<UUID, List<DetalleVentaJpaModel>> detallesPorVenta = detallesDe(pagina.getContent());
-
-        List<Venta> datos = pagina.getContent().stream()
-                .map(model -> VentaJpaMapper.toDomain(
-                        model,
-                        detallesPorVenta.getOrDefault(model.getId(), Collections.emptyList())))
-                .collect(Collectors.toList());
+        List<Venta> datos = completas(pagina.getContent());
 
         return new PaginatedResponse<>(
                 datos,
@@ -145,7 +173,7 @@ public class VentaDatasourceImpl implements IVentaDatasource {
 
         // La baja la decide el agregado: se reconstruye entero, se le pide eliminar y se
         // escriben tanto el encabezado como las lineas que el marco.
-        Venta venta = VentaJpaMapper.toDomain(model, detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(id));
+        Venta venta = completa(model);
         venta.eliminar();
 
         VentaJpaMapper.copiarCambios(venta, model);
@@ -160,21 +188,48 @@ public class VentaDatasourceImpl implements IVentaDatasource {
     @Override
     public Optional<Venta> obtenerPorClaveIdempotencia(String claveIdempotencia) {
         return ventaJpaRepository.findByClaveIdempotenciaAndBorradoFalse(claveIdempotencia)
-                .map(model -> VentaJpaMapper.toDomain(model, detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(model.getId())));
+                .map(this::completa);
     }
 
-    /** Resuelve los detalles de una pagina completa en una sola consulta, no una por venta. */
-    private Map<UUID, List<DetalleVentaJpaModel>> detallesDe(List<VentaJpaModel> ventas) {
+    @Override
+    public Optional<Venta> obtenerPorNumeroTicket(Long numeroTicket) {
+        return ventaJpaRepository.findByNumeroTicketAndBorradoFalse(numeroTicket)
+                .map(this::completa);
+    }
+
+    @Override
+    public List<Venta> obtenerPorSesionCaja(SesionCajaId sesionCajaId) {
+        return completas(ventaJpaRepository.findByIdSesionCajaAndBorradoFalse(aUuid(sesionCajaId.getValue())));
+    }
+
+    private Venta completa(VentaJpaModel model) {
+        return VentaJpaMapper.toDomain(
+                model,
+                detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(model.getId()),
+                pagoVentaJpaRepository.findByIdVentaAndBorradoFalse(model.getId()));
+    }
+
+    /** Resuelve lineas y pagos de varias ventas en dos consultas, no en dos por venta. */
+    private List<Venta> completas(List<VentaJpaModel> ventas) {
         if (ventas.isEmpty()) {
-            return Collections.emptyMap();
+            return Collections.emptyList();
         }
 
         List<UUID> idsVenta = ventas.stream()
                 .map(VentaJpaModel::getId)
                 .collect(Collectors.toList());
 
-        return detalleVentaJpaRepository.findByIdVentaInAndBorradoFalse(idsVenta).stream()
+        Map<UUID, List<DetalleVentaJpaModel>> detallesPorVenta = detalleVentaJpaRepository.findByIdVentaInAndBorradoFalse(idsVenta).stream()
                 .collect(Collectors.groupingBy(DetalleVentaJpaModel::getIdVenta));
+        Map<UUID, List<PagoVentaJpaModel>> pagosPorVenta = pagoVentaJpaRepository.findByIdVentaInAndBorradoFalse(idsVenta).stream()
+                .collect(Collectors.groupingBy(PagoVentaJpaModel::getIdVenta));
+
+        return ventas.stream()
+                .map(model -> VentaJpaMapper.toDomain(
+                        model,
+                        detallesPorVenta.getOrDefault(model.getId(), Collections.emptyList()),
+                        pagosPorVenta.getOrDefault(model.getId(), Collections.emptyList())))
+                .collect(Collectors.toList());
     }
 
     private static UUID aUuid(String valor) {

@@ -14,4 +14,7 @@ public interface IUnidadRepository {
     Optional<Unidad> obtenerPorId(UnidadId unidadId);
     PaginatedResponse<List<Unidad>> obtenerTodos(ObtenerUnidadesRequest obtenerUnidadesRequest);
     void eliminar(UnidadId unidadId);
+
+    /** Fila viva con ese nombre, sin distinguir mayusculas. La usa la siembra para no duplicar. */
+    Optional<Unidad> obtenerPorNombre(String nombre);
 }

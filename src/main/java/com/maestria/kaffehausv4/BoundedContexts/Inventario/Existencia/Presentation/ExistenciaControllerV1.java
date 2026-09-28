@@ -125,6 +125,7 @@ public class ExistenciaControllerV1 {
         return ResponseEntity.ok(registrarVencimientoUseCase.execute(id, request));
     }
 
+    @RequiereRol("Administrador")
     @PostMapping("/{id}/ajuste")
     public ResponseEntity<ExistenciaResponse> ajustar(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
         AjustarExistenciaRequest request = AjustarExistenciaRequest.createFromRequest(body, idUsuario);

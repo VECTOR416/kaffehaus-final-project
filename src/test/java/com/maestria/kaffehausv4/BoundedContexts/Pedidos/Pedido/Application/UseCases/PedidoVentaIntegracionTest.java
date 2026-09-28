@@ -49,6 +49,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Infrastructure.Pers
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.Persistence.Jpa.UsuarioJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Infrastructure.Persistence.Jpa.UsuarioJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.AnularVentaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.CajaDePrueba;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.CrearVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.AnularVentaUseCase;
@@ -63,7 +64,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * inventario (ventas.md VEN-50..VEN-53) contra la base real.
  *
  * Escenario: un sandwich de stock directo con una existencia abierta de 10 unidades. Requiere
- * el catalogo de la seccion 7 de databasev4.sql. Sin @Transactional de clase.
+ * el catalogo que siembra POST api/v1/seed (lo ejecuta CajaDePrueba). Sin @Transactional de clase.
  */
 @SpringBootTest
 class PedidoVentaIntegracionTest {
@@ -71,6 +72,7 @@ class PedidoVentaIntegracionTest {
     @Autowired private CrearPedidoUseCase crearPedidoUseCase;
     @Autowired private ActualizarPedidoUseCase actualizarPedidoUseCase;
     @Autowired private CrearVentaUseCase crearVentaUseCase;
+    @Autowired private CajaDePrueba cajaDePrueba;
     @Autowired private AnularVentaUseCase anularVentaUseCase;
     @Autowired private ObtenerVentaPorIdUseCase obtenerVentaPorIdUseCase;
 
@@ -95,6 +97,7 @@ class PedidoVentaIntegracionTest {
     private UUID idRol;
     private UUID idPersona;
     private UUID idUsuario;
+    private UUID idSesionCaja;
     private UUID idProveedor;
     private UUID idUnidad;
     private UUID idTipo;
@@ -235,6 +238,7 @@ class PedidoVentaIntegracionTest {
         existencia.setFecC(OffsetDateTime.now());
         existencia.setBorrado(false);
         existenciaJpaRepository.save(existencia);
+        idSesionCaja = cajaDePrueba.prepararCaja(idUsuario);
     }
 
     @AfterEach
@@ -253,6 +257,7 @@ class PedidoVentaIntegracionTest {
             detalleVentaJpaRepository.deleteAll(detalleVentaJpaRepository.findByIdVentaAndBorradoFalse(idVenta));
             ventaJpaRepository.deleteById(idVenta);
         }
+        cajaDePrueba.retirarCaja(idSesionCaja);
         detalleLoteJpaRepository.deleteById(idDetalle);
         loteJpaRepository.deleteById(idLote);
         estadoExistenciaJpaRepository.deleteById(idEstadoExistencia);
@@ -272,7 +277,8 @@ class PedidoVentaIntegracionTest {
     private VentaResponse venderSandwiches(String cantidad) {
         VentaResponse venta = crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(Map.of(
                 "idUsuario", idUsuario.toString(),
-                "detalles", List.of(Map.of("idProducto", idSandwich.toString(), "cantidad", cantidad))), idUsuario.toString()));
+                "detalles", List.of(Map.of("idProducto", idSandwich.toString(), "cantidad", cantidad)),
+                "pagos", cajaDePrueba.enEfectivo(aPagar("15.00", cantidad))), idUsuario.toString()));
         ventas.add(UUID.fromString(venta.getId()));
         return venta;
     }
@@ -379,5 +385,10 @@ class PedidoVentaIntegracionTest {
                 "idUsuario", idUsuario.toString(), "motivo", "Error de cobro"), idUsuario.toString()));
         DomainException sobreAnulada = assertThrows(DomainException.class, () -> pedirDomicilio(otra.getId()));
         assertEquals(409, sobreAnulada.getCodigo());
+    }
+
+    /** Total que cobra el sistema: todos los productos de la prueba tienen un unico precio y ningun descuento. */
+    private static String aPagar(String precio, String cantidad) {
+        return new BigDecimal(precio).multiply(new BigDecimal(cantidad)).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
     }
 }

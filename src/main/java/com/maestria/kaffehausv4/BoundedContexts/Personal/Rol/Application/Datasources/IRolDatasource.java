@@ -14,4 +14,7 @@ public interface IRolDatasource {
     Optional<Rol> obtenerPorId(RolId rolId);
     PaginatedResponse<List<Rol>> obtenerTodos(ObtenerRolesRequest obtenerRolesRequest);
     void eliminar(RolId rolId);
+
+    /** Los roles se resuelven por nombre (auth.md 5): la siembra busca asi los que ya existen. */
+    Optional<Rol> obtenerPorNombre(String nombre);
 }

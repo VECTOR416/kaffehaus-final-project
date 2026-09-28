@@ -12,16 +12,23 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Value
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.ValueObjects.EstadoVentaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.ValueObjects.SesionCajaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoPago.Domain.ValueObjects.TipoPagoId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
  * Raiz del agregado Venta (ventas.md).
  *
- * Venta contiene sus lineas (DetalleVenta) y es la unica puerta de entrada para crearlas. La
- * coleccion se expone como vista de solo lectura.
+ * Venta contiene sus lineas (DetalleVenta) y sus pagos (PagoVenta), y es la unica puerta de
+ * entrada para crear unas y otros. Ambas colecciones se exponen como vistas de solo lectura.
  *
- * El total NO se recibe desde fuera: es la suma de los subtotales de sus lineas vivas.
+ * El total NO se recibe desde fuera: es la suma de los subtotales de sus lineas vivas. Los
+ * pagos deben sumar exactamente ese total (CAJ-11).
+ *
+ * Toda venta pertenece a la sesion de caja abierta en la que se cobro (CAJ-01) y a un cliente,
+ * que es el cliente 'Mostrador' cuando no se identifica a nadie (CAJ-02). 'numeroTicket' lo
+ * asigna la base (seq_numero_ticket) y es nulo hasta guardarse.
  *
  * Una venta nace 'Completada' con su inventario ya descontado (VEN-01) y es inmutable en todo
  * lo que movio inventario (VEN-30): no se corrigen lineas, importes, fecha ni usuario, y no se
@@ -32,41 +39,50 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 public class Venta {
 
     private VentaId id;
+    private Long numeroTicket;
     private LocalDateTime fechaVenta;
     private BigDecimal total;
     private UsuarioId usuarioId;
     private ClienteId clienteId;
+    private SesionCajaId sesionCajaId;
     private EstadoVentaId estadoVentaId;
     private String claveIdempotencia;
     private String motivoAnulacion;
     private UsuarioId usuarioAnulacionId;
     private boolean borrado;
     private final List<DetalleVenta> detalles;
+    private final List<PagoVenta> pagos;
 
     private Venta(
         VentaId id,
+        Long numeroTicket,
         LocalDateTime fechaVenta,
         BigDecimal total,
         UsuarioId usuarioId,
         ClienteId clienteId,
+        SesionCajaId sesionCajaId,
         EstadoVentaId estadoVentaId,
         String claveIdempotencia,
         String motivoAnulacion,
         UsuarioId usuarioAnulacionId,
         boolean borrado,
-        List<DetalleVenta> detalles
+        List<DetalleVenta> detalles,
+        List<PagoVenta> pagos
     ){
         this.id = id;
+        this.numeroTicket = numeroTicket;
         this.fechaVenta = fechaVenta;
         this.total = total;
         this.usuarioId = usuarioId;
         this.clienteId = clienteId;
+        this.sesionCajaId = sesionCajaId;
         this.estadoVentaId = estadoVentaId;
         this.claveIdempotencia = claveIdempotencia;
         this.motivoAnulacion = motivoAnulacion;
         this.usuarioAnulacionId = usuarioAnulacionId;
         this.borrado = borrado;
         this.detalles = detalles != null ? new ArrayList<>(detalles) : new ArrayList<>();
+        this.pagos = pagos != null ? new ArrayList<>(pagos) : new ArrayList<>();
     }
 
     /**
@@ -75,34 +91,46 @@ public class Venta {
      */
     public static Venta restaurar(
         String id,
+        Long numeroTicket,
         LocalDateTime fechaVenta,
         BigDecimal total,
         UsuarioId usuarioId,
         ClienteId clienteId,
+        SesionCajaId sesionCajaId,
         EstadoVentaId estadoVentaId,
         String claveIdempotencia,
         String motivoAnulacion,
         UsuarioId usuarioAnulacionId,
         boolean borrado,
-        List<DetalleVenta> detalles
+        List<DetalleVenta> detalles,
+        List<PagoVenta> pagos
     ){
-        return new Venta(new VentaId(id), fechaVenta, total, usuarioId, clienteId, estadoVentaId,
-                claveIdempotencia, motivoAnulacion, usuarioAnulacionId, borrado, detalles);
+        return new Venta(new VentaId(id), numeroTicket, fechaVenta, total, usuarioId, clienteId, sesionCajaId, estadoVentaId,
+                claveIdempotencia, motivoAnulacion, usuarioAnulacionId, borrado, detalles, pagos);
     }
 
     /**
-     * Crea una venta 'Completada' sin lineas y con total en cero (VEN-01, VEN-02). Las lineas
-     * se incorporan despues con agregarDetalle(...), que mantiene el total en sincronia.
+     * Crea una venta 'Completada' sin lineas ni pagos y con total en cero (VEN-01, VEN-02). Las
+     * lineas se incorporan despues con agregarDetalle(...), que mantiene el total en sincronia,
+     * y los pagos con agregarPago(...). 'usuarioId' es el empleado que cobra; la sesion de caja
+     * y el cliente son obligatorios (CAJ-01, CAJ-02).
      */
     public static Venta crear(
         LocalDateTime fechaVenta,
         UsuarioId usuarioId,
         ClienteId clienteId,
+        SesionCajaId sesionCajaId,
         EstadoVentaId completada,
         String claveIdempotencia
     ){
-        return new Venta(null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, completada,
-                claveIdempotencia, null, null, false, null);
+        if (clienteId == null) {
+            throw DomainException.throwException(400, "Una venta requiere un cliente");
+        }
+        if (sesionCajaId == null) {
+            throw DomainException.throwException(409, "Una venta requiere una sesion de caja abierta");
+        }
+        return new Venta(null, null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, sesionCajaId, completada,
+                claveIdempotencia, null, null, false, null, null);
     }
 
     /** Unica via para incorporar una linea. Valida la linea y recalcula el total. */
@@ -114,6 +142,26 @@ public class Venta {
     ){
         this.detalles.add(DetalleVenta.crear(productoId, precioUnitario, cantidad, descuentoAplicado));
         recalcularTotal();
+    }
+
+    /**
+     * Unica via para incorporar un pago (CAJ-10). Como el dominio no conoce el catalogo
+     * 'tipo_pago', quien la usa le indica si el tipo es efectivo: solo el efectivo da cambio.
+     */
+    public void agregarPago(TipoPagoId tipoPagoId, boolean esEfectivo, BigDecimal monto, BigDecimal montoRecibido, String referencia) {
+        this.pagos.add(PagoVenta.crear(tipoPagoId, esEfectivo, monto, montoRecibido, referencia));
+    }
+
+    /**
+     * Invariante de cobro: los pagos vivos suman exactamente el total (CAJ-11). Se comprueba
+     * despues de incorporar lineas y pagos, antes de persistir.
+     */
+    public void validarPagos() {
+        BigDecimal pagado = getTotalPagado();
+        if (pagado.compareTo(this.total) != 0) {
+            throw DomainException.throwException(400,
+                    "La suma de los pagos (" + pagado + ") no coincide con el total de la venta (" + this.total + ")");
+        }
     }
 
     /** Registra el costo que el inventario informo al descontar una linea (VEN-23). */
@@ -204,10 +252,12 @@ public class Venta {
     }
 
     public VentaId getId() {return id;}
+    public Long getNumeroTicket() {return numeroTicket;}
     public LocalDateTime getFechaVenta() {return fechaVenta;}
     public BigDecimal getTotal() {return total;}
     public UsuarioId getUsuarioId() {return usuarioId;}
     public ClienteId getClienteId() {return clienteId;}
+    public SesionCajaId getSesionCajaId() {return sesionCajaId;}
     public EstadoVentaId getEstadoVentaId() {return estadoVentaId;}
     public String getClaveIdempotencia() {return claveIdempotencia;}
     public String getMotivoAnulacion() {return motivoAnulacion;}
@@ -230,5 +280,27 @@ public class Venta {
         return detalles.stream()
                 .filter(detalle -> !detalle.isBorrado())
                 .collect(Collectors.toList());
+    }
+
+    /** Todos los pagos, incluidos los dados de baja: es lo que la persistencia debe escribir. */
+    public List<PagoVenta> getPagos() {return Collections.unmodifiableList(pagos);}
+
+    public List<PagoVenta> getPagosActivos() {
+        return pagos.stream()
+                .filter(pago -> !pago.isBorrado())
+                .collect(Collectors.toList());
+    }
+
+    public BigDecimal getTotalPagado() {
+        return aEscalaMonetaria(getPagosActivos().stream()
+                .map(PagoVenta::getMonto)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
+
+    /** Cambio total entregado al cliente: solo lo genera el efectivo. */
+    public BigDecimal getCambio() {
+        return aEscalaMonetaria(getPagosActivos().stream()
+                .map(PagoVenta::getCambio)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 }
