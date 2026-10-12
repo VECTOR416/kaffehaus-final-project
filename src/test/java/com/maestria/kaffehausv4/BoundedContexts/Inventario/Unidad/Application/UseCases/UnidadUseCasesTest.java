@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.UseCases;
 
-import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;

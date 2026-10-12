@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Conversion.Application.UseCases;
 
-import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
