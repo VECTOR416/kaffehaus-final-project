@@ -43,7 +43,6 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 @Transactional
 public class DarDeBajaDetalleVencidoUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
-    private static final String TIPO_VENCIMIENTO = "Vencimiento";
     private static final String ESTADO_AGOTADA = "Agotada";
 
     private final ILoteRepository loteRepository;
@@ -98,8 +97,8 @@ public class DarDeBajaDetalleVencidoUseCase {
             throw DomainException.throwException(409, "El detalle de lote con id '" + idDetalleLote + "' no tiene unidades cerradas");
         }
 
-        TipoMovimiento vencimiento = tipoMovimientoRepository.obtenerPorNombre(TIPO_VENCIMIENTO)
-                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento '" + TIPO_VENCIMIENTO + "' no esta registrado"));
+        TipoMovimiento merma = tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.MERMA)
+                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento '" + TipoMovimiento.MERMA + "' no esta registrado"));
         EstadoExistencia agotada = estadoExistenciaRepository.obtenerPorNombre(ESTADO_AGOTADA)
                 .orElseThrow(() -> DomainException.throwException(404, "El estado de existencia '" + ESTADO_AGOTADA + "' no esta registrado"));
         String motivo = request.getMotivo() != null ? request.getMotivo() : "Vencimiento de unidades cerradas";
@@ -116,7 +115,7 @@ public class DarDeBajaDetalleVencidoUseCase {
             BigDecimal cantidad = existencia.darDeBajaTodo(ahora, agotada.getId());
             existenciaRepository.actualizar(existencia.getId(), existencia);
 
-            movimientoRepository.crear(Movimiento.crear(cantidad, ahora, motivo, existencia.getId(), vencimiento.getId(), usuarioId, null));
+            movimientoRepository.crear(Movimiento.crear(cantidad, ahora, motivo, existencia.getId(), merma.getId(), usuarioId, null));
             bajas.add(ExistenciaResponse.createFromAggregate(existencia, agotada, unidadRepository.obtenerPorId(existencia.getUnidadId()).orElse(null)));
         }
 

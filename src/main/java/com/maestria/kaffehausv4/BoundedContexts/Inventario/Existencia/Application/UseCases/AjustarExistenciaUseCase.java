@@ -30,15 +30,13 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
  * Ajuste por inventario fisico (inventario.md INV-43): lleva el contenido a lo contado y
- * registra la diferencia como 'Ajuste positivo' o 'Ajuste negativo' por su valor absoluto. Un
+ * registra la diferencia como un 'Ajuste' por su valor absoluto. Un
  * ajuste nunca revive una existencia agotada ni supera su contenido inicial.
  */
 @Service
 @Transactional
 public class AjustarExistenciaUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
-    private static final String TIPO_AJUSTE_POSITIVO = "Ajuste positivo";
-    private static final String TIPO_AJUSTE_NEGATIVO = "Ajuste negativo";
     private static final String ESTADO_AGOTADA = "Agotada";
 
     private final IExistenciaRepository existenciaRepository;
@@ -85,9 +83,9 @@ public class AjustarExistenciaUseCase {
         }
 
         existenciaRepository.actualizar(existencia.getId(), existencia);
-        TipoMovimiento tipoAjuste = tipo(diferencia.signum() > 0 ? TIPO_AJUSTE_POSITIVO : TIPO_AJUSTE_NEGATIVO);
         movimientoRepository.crear(Movimiento.crear(
-                diferencia.abs(), ahora, request.getMotivo(), existencia.getId(), tipoAjuste.getId(), usuarioId, null));
+                diferencia.abs(), ahora, request.getMotivo(), existencia.getId(), tipo(TipoMovimiento.AJUSTE).getId(),
+                usuarioId, null));
 
         recalcularStockDe(existencia);
         return toResponse(existencia);

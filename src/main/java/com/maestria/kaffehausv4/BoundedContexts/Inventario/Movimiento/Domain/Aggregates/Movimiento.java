@@ -18,9 +18,10 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * logica: esconderlo romperia la traza que explica el contenido actual de la existencia. Un
  * error se corrige registrando un movimiento compensatorio.
  *
- * La cantidad es siempre una magnitud positiva; la direccion (entrada o salida) la da el
- * tipo de movimiento. 'produccionId' solo se informa en los consumos de insumos y la entrada
- * del producto terminado de una produccion.
+ * La cantidad es siempre una magnitud positiva; el tipo de movimiento solo lo clasifica
+ * ('Receta', 'Ajuste', 'Merma') y la direccion (entrada o salida) se lee del motivo.
+ * 'produccionId' solo se informa en los consumos de insumos y la entrada del producto terminado
+ * de una produccion.
  */
 public class Movimiento {
     private MovimientoId id;

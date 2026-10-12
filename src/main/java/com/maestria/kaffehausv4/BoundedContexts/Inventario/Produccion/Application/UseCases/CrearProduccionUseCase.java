@@ -56,8 +56,6 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 @Transactional
 public class CrearProduccionUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
-    private static final String TIPO_CONSUMO_PRODUCCION = "Consumo produccion";
-    private static final String TIPO_INGRESO_PRODUCCION = "Ingreso produccion";
     private static final String ESTADO_ABIERTA = "Abierta";
 
     private final IProduccionRepository produccionRepository;
@@ -137,8 +135,8 @@ public class CrearProduccionUseCase {
             costo = costo.add(registrarSalidaDeInventarioUseCase.execute(RegistrarSalidaDeInventarioRequest.crear(
                     ingrediente.getProductoId().getValue(),
                     ingrediente.getCantidad().multiply(factor),
-                    TIPO_CONSUMO_PRODUCCION,
-                    TIPO_CONSUMO_PRODUCCION,
+                    TipoMovimiento.RECETA,
+                    TipoMovimiento.RECETA,
                     usuarioId.getValue(),
                     produccion.getId().getValue(),
                     "Consumo de la produccion '" + receta.getTitulo() + "'",
@@ -156,8 +154,8 @@ public class CrearProduccionUseCase {
             LocalDate fechaVencimiento) {
         EstadoExistencia abierta = estadoExistenciaRepository.obtenerPorNombre(ESTADO_ABIERTA)
                 .orElseThrow(() -> DomainException.throwException(404, "El estado de existencia '" + ESTADO_ABIERTA + "' no esta registrado"));
-        TipoMovimiento ingreso = tipoMovimientoRepository.obtenerPorNombre(TIPO_INGRESO_PRODUCCION)
-                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento '" + TIPO_INGRESO_PRODUCCION + "' no esta registrado"));
+        TipoMovimiento tipoReceta = tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.RECETA)
+                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento '" + TipoMovimiento.RECETA + "' no esta registrado"));
 
         BigDecimal cantidadReal = produccion.getCantidadReal();
         BigDecimal costoUnitario = costoInsumos.divide(cantidadReal, 2, RoundingMode.HALF_UP);
@@ -188,7 +186,7 @@ public class CrearProduccionUseCase {
                 produccion.getFechaProduccion(),
                 "Entrada de la produccion '" + receta.getTitulo() + "'",
                 existencia.getId(),
-                ingreso.getId(),
+                tipoReceta.getId(),
                 usuarioId,
                 produccion.getId()));
 

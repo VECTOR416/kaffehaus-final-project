@@ -10,9 +10,9 @@ import java.time.LocalDateTime;
  * por eso su factoria es crear(...) y no createFromRequest(Map).
  *
  * Lleva dos tipos de movimiento porque la salida puede tomar dos caminos: el de un producto
- * de stock directo, que sale de sus propias existencias ('Venta'), y el de los insumos que se
- * descuentan al explotar la receta de un producto bajo demanda ('Consumo venta'). En una
- * produccion ambos son el mismo. 'idProduccion' solo se informa en los consumos de una
+ * de stock directo, que sale de sus propias existencias ('Ajuste' en una venta), y el de los
+ * insumos que se descuentan al explotar la receta de un producto bajo demanda ('Receta'). En
+ * una produccion ambos son 'Receta'. 'idProduccion' solo se informa en los consumos de una
  * produccion.
  */
 public class RegistrarSalidaDeInventarioRequest {

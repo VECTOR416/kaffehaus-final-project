@@ -35,7 +35,6 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Infrastructu
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Infrastructure.Persistence.Jpa.ProductoJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Infrastructure.Persistence.Jpa.TipoJpaRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Infrastructure.Persistence.Jpa.TipoMovimientoJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Infrastructure.Persistence.Jpa.UnidadJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Infrastructure.Persistence.Jpa.UnidadJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.Aggregates.Cliente;
@@ -100,7 +99,6 @@ class CrearVentaUseCaseIntegracionTest {
     @Autowired private EstadoExistenciaJpaRepository estadoExistenciaJpaRepository;
     @Autowired private ExistenciaJpaRepository existenciaJpaRepository;
     @Autowired private MovimientoJpaRepository movimientoJpaRepository;
-    @Autowired private TipoMovimientoJpaRepository tipoMovimientoJpaRepository;
     @Autowired private DescuentoJpaRepository descuentoJpaRepository;
     @Autowired private TipoDescuentoJpaRepository tipoDescuentoJpaRepository;
     @Autowired private CajaDePrueba cajaDePrueba;
@@ -375,17 +373,13 @@ class CrearVentaUseCaseIntegracionTest {
         return existenciaJpaRepository.findById(idExistencia).orElseThrow().getContenidoActual();
     }
 
-    private long movimientosDeTipo(String nombreTipo) {
-        UUID idTipoMovimiento = tipoMovimientoJpaRepository.findAll().stream()
-                .filter(tipo -> nombreTipo.equals(tipo.getNombre()))
-                .findFirst().orElseThrow().getId();
+    private long movimientos() {
         List<UUID> existencias = existenciaJpaRepository.findAll().stream()
                 .filter(existencia -> detallesLote.contains(existencia.getIdDetalleLote()))
                 .map(ExistenciaJpaModel::getId)
                 .toList();
         return movimientoJpaRepository.findAll().stream()
                 .filter(movimiento -> existencias.contains(movimiento.getIdExistencia()))
-                .filter(movimiento -> idTipoMovimiento.equals(movimiento.getIdTipoMovimiento()))
                 .count();
     }
 
@@ -534,7 +528,7 @@ class CrearVentaUseCaseIntegracionTest {
         assertEquals("Prueba de anulacion", anulada.getMotivoAnulacion());
         assertEquals(idUsuario.toString(), anulada.getIdUsuarioAnulacion());
         assertEquals(0, new BigDecimal("8").compareTo(contenido(idExistenciaCafe)));
-        assertEquals(0, movimientosDeTipo("Devolucion venta"));
+        assertEquals(1, movimientos());
     }
 
     @Test
@@ -545,8 +539,7 @@ class CrearVentaUseCaseIntegracionTest {
 
         assertEquals(0, new BigDecimal("10").compareTo(contenido(idExistenciaCafe)));
         assertEquals(0, new BigDecimal("10").compareTo(contenido(idExistenciaTe)));
-        assertEquals(2, movimientosDeTipo("Venta"));
-        assertEquals(2, movimientosDeTipo("Devolucion venta"));
+        assertEquals(4, movimientos());
         assertEquals(0, new BigDecimal("10").compareTo(productoJpaRepository.findById(idProductoTe).orElseThrow().getStock()));
 
         DomainException otraVez = assertThrows(DomainException.class, () -> anular(venta.getId(), true));

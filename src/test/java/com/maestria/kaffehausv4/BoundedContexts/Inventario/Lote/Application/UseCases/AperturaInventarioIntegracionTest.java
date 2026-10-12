@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -133,7 +132,6 @@ class AperturaInventarioIntegracionTest {
     @Autowired private VentaJpaRepository ventaJpaRepository;
     @Autowired private DetalleVentaJpaRepository detalleVentaJpaRepository;
 
-    private static final Set<String> ENTRADAS = Set.of("Apertura", "Ingreso produccion", "Ajuste positivo");
 
     private final LocalDate hoy = LocalDate.now();
 
@@ -443,7 +441,7 @@ class AperturaInventarioIntegracionTest {
 
         List<MovimientoJpaModel> movimientos = movimientosDe(abierta.getId());
         assertEquals(1, movimientos.size());
-        assertEquals("Apertura", nombreDeTipo(movimientos.get(0)));
+        assertEquals("Ajuste", nombreDeTipo(movimientos.get(0)));
         assertEquals(0, new BigDecimal("2000").compareTo(movimientos.get(0).getCantidad()));
         assertEquals(0, new BigDecimal("2000").compareTo(stockDeHarina()));
     }
@@ -490,17 +488,19 @@ class AperturaInventarioIntegracionTest {
         assertEquals(0, new BigDecimal("1800").compareTo(stockDeHarina()));
 
         List<MovimientoJpaModel> movimientos = movimientosDe(id);
-        assertEquals(List.of("Apertura", "Merma", "Ajuste negativo", "Ajuste positivo"),
+        assertEquals(List.of("Ajuste", "Merma", "Ajuste", "Ajuste"),
                 movimientos.stream()
                         .sorted((a, b) -> a.getFechaMovimiento().compareTo(b.getFechaMovimiento()))
                         .map(this::nombreDeTipo)
                         .toList());
 
-        // INV-45: el libro mayor reproduce el saldo de la existencia.
-        BigDecimal saldo = movimientos.stream()
-                .map(movimiento -> ENTRADAS.contains(nombreDeTipo(movimiento)) ? movimiento.getCantidad() : movimiento.getCantidad().negate())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        assertEquals(0, saldo.compareTo(existenciaJpaRepository.findById(UUID.fromString(id)).orElseThrow().getContenidoActual()));
+        // INV-45: el libro mayor explica el saldo: +2000 (apertura), -100 (merma), -400 y +300 (ajustes).
+        assertEquals(List.of("2000", "100", "400", "300"),
+                movimientos.stream()
+                        .sorted((a, b) -> a.getFechaMovimiento().compareTo(b.getFechaMovimiento()))
+                        .map(movimiento -> movimiento.getCantidad().stripTrailingZeros().toPlainString())
+                        .toList());
+        assertEquals(0, new BigDecimal("1800").compareTo(existenciaJpaRepository.findById(UUID.fromString(id)).orElseThrow().getContenidoActual()));
     }
 
     @Test
@@ -511,7 +511,7 @@ class AperturaInventarioIntegracionTest {
         assertEquals(1, bajas.size());
         assertEquals("Agotada", bajas.get(0).getEstadoExistencia().getNombre());
         assertEquals(0, detalleLoteJpaRepository.findById(d4).orElseThrow().getCantidadRestante().signum());
-        assertEquals(List.of("Apertura", "Vencimiento"),
+        assertEquals(List.of("Ajuste", "Merma"),
                 movimientosDe(bajas.get(0).getId()).stream()
                         .sorted((a, b) -> a.getFechaMovimiento().compareTo(b.getFechaMovimiento()))
                         .map(this::nombreDeTipo)

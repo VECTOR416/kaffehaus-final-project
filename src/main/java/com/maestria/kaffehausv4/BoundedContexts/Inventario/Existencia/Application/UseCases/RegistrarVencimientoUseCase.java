@@ -37,7 +37,6 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 @Transactional
 public class RegistrarVencimientoUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
-    private static final String TIPO_VENCIMIENTO = "Vencimiento";
     private static final String ESTADO_AGOTADA = "Agotada";
 
     private final IExistenciaRepository existenciaRepository;
@@ -91,7 +90,7 @@ public class RegistrarVencimientoUseCase {
                 ahora,
                 request.getMotivo() != null ? request.getMotivo() : "Vencimiento",
                 existencia.getId(),
-                tipo(TIPO_VENCIMIENTO).getId(),
+                tipo(TipoMovimiento.MERMA).getId(),
                 usuarioId,
                 null));
 

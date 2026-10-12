@@ -4,7 +4,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,14 +27,14 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
  * Operacion interna: devuelve a inventario lo que descontaron unos movimientos de salida,
- * registrando por cada uno un compensatorio 'Devolucion venta' (ventas.md VEN-42). No tiene
- * endpoint; la invoca la anulacion con reintegro de una venta, dentro de su transaccion.
+ * registrando por cada uno un compensatorio del mismo tipo que la salida
+ * (ventas.md VEN-42). No tiene endpoint; la invoca la anulacion con reintegro de una venta, dentro de su transaccion.
  *
  * - Existencia viva y no agotada: se reintegra en la misma, sin superar su contenido inicial.
  * - Existencia agotada: no se revive (inventario.md INV-05); se abre una existencia nueva sobre
  *   el mismo detalle de lote, con la misma unidad y caducidad, y el compensatorio va a ella.
  * - Si lo reintegrado esta vencido, se registra y se da de baja de inmediato como
- *   'Vencimiento' (INV-42): el libro mayor cuadra sin devolver a la venta algo vencido.
+ *   'Merma' (INV-42): el libro mayor cuadra sin devolver a la venta algo vencido.
  *
  * Es todo o nada (VEN-43): si una parte no se puede reintegrar, lanza 409 y la transaccion del
  * llamador revierte entera. Bloquea las existencias en orden de id y recalcula al final el
@@ -45,8 +44,6 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 @Transactional
 public class RegistrarReintegroDeInventarioUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
-    private static final String TIPO_DEVOLUCION = "Devolucion venta";
-    private static final String TIPO_VENCIMIENTO = "Vencimiento";
     private static final String ESTADO_ABIERTA = "Abierta";
     private static final String ESTADO_AGOTADA = "Agotada";
 
@@ -76,17 +73,12 @@ public class RegistrarReintegroDeInventarioUseCase {
     }
 
     public void execute(RegistrarReintegroDeInventarioRequest request) {
-        Set<String> idsTiposSalida = request.getNombresTiposSalida().stream()
-                .map(nombre -> tipo(nombre).getId().getValue())
-                .collect(Collectors.toSet());
-        TipoMovimiento devolucion = tipo(TIPO_DEVOLUCION);
-        TipoMovimiento vencimiento = tipo(TIPO_VENCIMIENTO);
+        TipoMovimiento merma = tipo(TipoMovimiento.MERMA);
         EstadoExistencia abierta = estado(ESTADO_ABIERTA);
         EstadoExistencia agotada = estado(ESTADO_AGOTADA);
         UsuarioId usuarioId = new UsuarioId(request.getIdUsuario());
 
         List<Movimiento> salidas = movimientoRepository.obtenerPorMotivo(request.getMotivoOrigen()).stream()
-                .filter(movimiento -> idsTiposSalida.contains(movimiento.getTipoMovimientoId().getValue()))
                 .sorted(Comparator.comparing((Movimiento movimiento) -> movimiento.getExistenciaId().getValue())
                         .thenComparing(movimiento -> movimiento.getId().getValue()))
                 .toList();
@@ -115,14 +107,14 @@ public class RegistrarReintegroDeInventarioUseCase {
             }
 
             movimientoRepository.crear(Movimiento.crear(
-                    salida.getCantidad(), request.getFecha(), request.getMotivoReintegro(), destino.getId(), devolucion.getId(), usuarioId, null));
+                    salida.getCantidad(), request.getFecha(), request.getMotivoReintegro(), destino.getId(), salida.getTipoMovimientoId(), usuarioId, null));
 
             if (destino.estaVencida(request.getFecha().toLocalDate())) {
                 destino.consumir(salida.getCantidad(), request.getFecha(), agotada.getId());
                 existenciaRepository.actualizar(destino.getId(), destino);
                 movimientoRepository.crear(Movimiento.crear(
                         salida.getCantidad(), request.getFecha(), request.getMotivoReintegro() + " (vencido)",
-                        destino.getId(), vencimiento.getId(), usuarioId, null));
+                        destino.getId(), merma.getId(), usuarioId, null));
             }
 
             productosTocados.add(productoBaseDe(origen));

@@ -70,15 +70,13 @@ public class SembrarSistemaUseCase {
     static final String CONTRASENA_ADMINISTRADOR = "admin";
 
     private static final List<String> ROLES = List.of("Administrador", "Operador");
-    private static final List<String> TIPOS_MOVIMIENTO = List.of(
-            "Apertura", "Consumo produccion", "Ingreso produccion", "Venta", "Consumo venta",
-            "Merma", "Vencimiento", "Ajuste positivo", "Ajuste negativo", "Devolucion venta");
+    private static final List<String> TIPOS_MOVIMIENTO = List.of(TipoMovimiento.RECETA, TipoMovimiento.AJUSTE, TipoMovimiento.MERMA);
     private static final List<String> ESTADOS_EXISTENCIA = List.of("Abierta", "Agotada");
     private static final List<String> ESTADOS_VENTA = List.of("Completada", "Anulada");
     private static final List<String> TIPOS_DESCUENTO = List.of("Porcentaje", "Monto fijo");
     private static final List<String> ESTADOS_PEDIDO = List.of("Recibido", "En preparacion", "En camino", "Entregado", "Cancelado");
     private static final List<String> TIPOS_PAGO = List.of(TipoPago.EFECTIVO, "Tarjeta", "QR");
-    private static final List<String> TIPOS_PRODUCTO = List.of("Insumo", "Producto elaborado", "Reventa");
+    private static final List<String> TIPOS_PRODUCTO = List.of("Producto", "Insumo");
     private static final List<String> CATEGORIAS = List.of("Cafes", "Bebidas", "Pasteleria", "Insumos");
     private static final List<String[]> UNIDADES = List.of(
             new String[] {"Kilogramo", "kg"},

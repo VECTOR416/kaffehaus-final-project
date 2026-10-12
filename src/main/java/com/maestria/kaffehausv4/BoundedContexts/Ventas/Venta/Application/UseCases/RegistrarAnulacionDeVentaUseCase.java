@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases;
 
-import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +23,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  *
  * La venta pasa a 'Anulada' con su motivo y quien la anulo; lineas, importes, costos y
  * movimientos se conservan. Sin reintegro el inventario no cambia (VEN-41). Con reintegro, cada
- * salida de la venta recibe su compensatorio 'Devolucion venta' (VEN-42); si una parte no se
+ * salida de la venta recibe su compensatorio de entrada (VEN-42); si una parte no se
  * puede reintegrar, la anulacion entera falla y la venta sigue 'Completada' (VEN-43).
  */
 @Service
@@ -33,7 +32,6 @@ public class RegistrarAnulacionDeVentaUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
     private static final String ESTADO_COMPLETADA = "Completada";
     private static final String ESTADO_ANULADA = "Anulada";
-    private static final List<String> TIPOS_SALIDA_VENTA = List.of("Venta", "Consumo venta");
 
     private final IVentaRepository ventaRepository;
     private final IUsuarioRepository usuarioRepository;
@@ -69,7 +67,6 @@ public class RegistrarAnulacionDeVentaUseCase {
         if (request.isReintegrar()) {
             registrarReintegroDeInventarioUseCase.execute(RegistrarReintegroDeInventarioRequest.crear(
                     ventaAnulada.motivoDeMovimientos(),
-                    TIPOS_SALIDA_VENTA,
                     "Anulacion de la venta '" + ventaAnulada.getId().getValue() + "'",
                     request.getIdUsuario(),
                     request.getFecha()));

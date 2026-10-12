@@ -36,7 +36,6 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 @Transactional
 public class RegistrarMermaUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
-    private static final String TIPO_MERMA = "Merma";
     private static final String ESTADO_AGOTADA = "Agotada";
 
     private final IExistenciaRepository existenciaRepository;
@@ -79,7 +78,7 @@ public class RegistrarMermaUseCase {
         existenciaRepository.actualizar(existencia.getId(), existencia);
 
         movimientoRepository.crear(Movimiento.crear(
-                request.getCantidad(), ahora, request.getMotivo(), existencia.getId(), tipo(TIPO_MERMA).getId(), usuarioId, null));
+                request.getCantidad(), ahora, request.getMotivo(), existencia.getId(), tipo(TipoMovimiento.MERMA).getId(), usuarioId, null));
 
         recalcularStockDe(existencia);
         return toResponse(existencia);

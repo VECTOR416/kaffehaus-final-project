@@ -48,7 +48,6 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 public class RegistrarAperturaUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
     private static final String ESTADO_ABIERTA = "Abierta";
-    private static final String TIPO_APERTURA = "Apertura";
 
     /** Escala de NUMERIC(12, 4) en 'existencias'. */
     private static final int ESCALA_CONTENIDO = 4;
@@ -112,8 +111,8 @@ public class RegistrarAperturaUseCase {
 
         EstadoExistencia abierta = estadoExistenciaRepository.obtenerPorNombre(ESTADO_ABIERTA)
                 .orElseThrow(() -> DomainException.throwException(404, "El estado de existencia '" + ESTADO_ABIERTA + "' no esta registrado"));
-        TipoMovimiento apertura = tipoMovimientoRepository.obtenerPorNombre(TIPO_APERTURA)
-                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento '" + TIPO_APERTURA + "' no esta registrado"));
+        TipoMovimiento ajuste = tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.AJUSTE)
+                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento '" + TipoMovimiento.AJUSTE + "' no esta registrado"));
         UsuarioId usuarioId = new UsuarioId(request.getIdUsuario());
 
         Existencia existencia = existenciaRepository.crear(Existencia.crear(
@@ -132,7 +131,7 @@ public class RegistrarAperturaUseCase {
                 request.getFecha(),
                 "Apertura de '" + presentacion.getNombre() + "'",
                 existencia.getId(),
-                apertura.getId(),
+                ajuste.getId(),
                 usuarioId,
                 null));
 

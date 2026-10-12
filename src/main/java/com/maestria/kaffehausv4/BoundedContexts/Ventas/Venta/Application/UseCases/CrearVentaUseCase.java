@@ -14,6 +14,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Application.Repositories.IClienteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.Aggregates.Cliente;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId;
@@ -65,8 +66,6 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 public class CrearVentaUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
     private static final String ESTADO_COMPLETADA = "Completada";
-    private static final String TIPO_VENTA = "Venta";
-    private static final String TIPO_CONSUMO_VENTA = "Consumo venta";
 
     private final IVentaRepository ventaRepository;
     private final IUsuarioRepository usuarioRepository;
@@ -211,8 +210,8 @@ public class CrearVentaUseCase {
             BigDecimal costo = registrarSalidaDeInventarioUseCase.execute(RegistrarSalidaDeInventarioRequest.crear(
                     detalle.getProductoId().getValue(),
                     detalle.getCantidad(),
-                    TIPO_VENTA,
-                    TIPO_CONSUMO_VENTA,
+                    TipoMovimiento.AJUSTE,
+                    TipoMovimiento.RECETA,
                     venta.getUsuarioId().getValue(),
                     null,
                     venta.motivoDeMovimientos(),
