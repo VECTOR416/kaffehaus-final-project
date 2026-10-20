@@ -1,0 +1,70 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+KaffeHaus v4 is the REST backend for a café management system (inventory, sales/cash register, orders, staff). Java 21, Spring Boot 4.1.1 (Spring MVC, Spring Security 7 + own JWTs, Data JPA/Hibernate), PostgreSQL 16.
+
+**`arquitectura.md` is the architectural source of truth** (in Spanish). Read the relevant section before adding or changing a slice; section 6 ("Reglas para la IA") lists the hard rules and section 6.5 lists known deviations that must not be replicated or "fixed" unless asked. Its test inventory (end of 6.5) and references to `databasev4.sql` / `HELP.md` are stale: those files are not in the repo, and the integration/HTTP tests it lists were removed.
+
+## Commands
+
+On Windows use `mvnw.cmd` (or `./mvnw` from Git Bash).
+
+```bash
+docker compose up -d                 # PostgreSQL on localhost:5432 (db kaffehausdb, postgres/postgrespassword)
+./mvnw spring-boot:run               # API on port ${SERVER_PORT:8081}
+./mvnw test                          # all tests
+./mvnw test -Dtest=GuardiaDeRolesTest                 # one class
+./mvnw test -Dtest=GuardiaDeRolesTest#nombreDelMetodo  # one method
+./mvnw package -DskipTests
+```
+
+First run against an empty DB: start the app (`ddl-auto: update` creates tables) and call `POST /api/v1/seed` once (idempotent; public while `SEED_HABILITADO=true`). It seeds roles `Administrador`/`Operador`, the admin `admin@gmail.com` / `admin`, catalogs resolved by name, units/conversions, and the 'Mostrador' client.
+
+Config is env-overridable in `src/main/resources/application.yaml`: `JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ISSUER`, `JWT_ACCESS_MINUTES`, `JWT_REFRESH_DAYS`, `GOOGLE_CLIENT_ID`, `SEED_HABILITADO`, `SERVER_PORT`. The VS Code launch config reads a `.env` file.
+
+The current test suite is pure unit tests (JUnit 5 + Mockito, no Spring context, no DB), mirroring the production package under `src/test/java/com/maestria/kaffehausv4/`. Shared domain fixtures live in `Soporte/DatosDePrueba`.
+
+## Architecture
+
+Clean Architecture + tactical DDD, organized as **Bounded Contexts → vertical slice per aggregate**, each slice containing its own four layers:
+
+```
+com.maestria.kaffehausv4.BoundedContexts.<Contexto>.<Agregado>.{Domain, Application, Infrastructure, Presentation}
+```
+
+Contexts: `Inventario`, `Ventas`, `Personal`, `Pedidos`. Plus a cross-cutting `Shared` kernel (errors, `Validador`, pagination, password hashing, seeding, and all security). Package names are PascalCase on purpose.
+
+`Inventario/Tipo` is the reference slice: copy it literally when creating a new aggregate (procedure in arquitectura.md 6.4).
+
+### Dependency rule and the Repository → Datasource double indirection
+
+- `Domain` imports nothing from Spring/Jakarta/Infrastructure. `Application` may only use `@Service` and `@Transactional`.
+- Each aggregate has two ports with identical signatures: `Application/Repositories/I<X>Repository` (what use cases inject) and `Application/Datasources/I<X>Datasource`. `Infrastructure/Repositories/<X>RepositoryImpl` is pure delegation; `Infrastructure/Datasources/<X>DatasourceImpl` does the real JPA access, mapping, and pagination. Keep this even though it looks redundant.
+- Aggregates never carry JPA annotations. `<X>JpaModel` + static hand-written `<X>JpaMapper` (`toPersistence` generates the UUID and `fecC`, `copiarCambios` sets `fecU`, `toDomain` calls `<X>.restaurar`).
+- Cross-aggregate composition happens only in use cases (inject the other aggregate's `I*Repository`). Relationships are flat `UUID` columns; no JPA associations anywhere.
+
+### Request flow
+
+Controller receives a raw `@RequestBody Map<String, Object>` → `Crear<X>Request.createFromRequest(map[, idUsuarioEnSesion])` validates with `Shared/Application/Validation/Validador` → `<Verbo><X>UseCase.execute(...)` (`@Transactional`, single public method) → repository → datasource → `<X>Response.createFromAggregate(...)`. Lists use `skip/limit/search` query params, `Obtener<Plural>Request extends PaginationDTO`, `OffsetPageRequest` (never `PageRequest.of`), and return `PaginatedResponse`.
+
+Errors: throw `DomainException.throwException(codigo, "mensaje")` (returns the exception, so it fits `.orElseThrow(() -> ...)`); `codigo` is the HTTP status. `GlobalExceptionHandler` renders `ErrorResponse`. Messages in Spanish without accents.
+
+### Security
+
+Lives entirely in `Shared/Presentation/Security`; `org.springframework.security` and `io.jsonwebtoken` must not appear in any aggregate. Only `/api/v1/auth/**` (login, google, refresh) is open. Every aggregate controller must carry `@RequiereRol({"Operador", "Administrador"})` at class level; a method-level `@RequiereRol` overrides it. Roles are rows in the `rol` table, never enums/constants. The session user id is injected with `@UsuarioEnSesion String idUsuario` and passed into `createFromRequest`; the client never sends `idUsuario`. Passwords use `IHasheadorDeContrasena` (PBKDF2), not `PasswordEncoder`.
+
+### Non-obvious domain mechanics
+
+- **Soft delete only.** Every table/model/aggregate has `borrado`; reads filter `...BorradoFalse...`; `DELETE` endpoints persist an UPDATE. No `deleteById`/`deleteBy...` in `src/main`.
+- **Aggregates with child entities** (`Venta`, `Lote`, `Receta`, `SesionCaja`): children live in the root's `Domain/Aggregates/` package, have no repository/use case/controller, and are mutated only through root methods. A `PUT` with child collections reconciles by id (update / add / soft-delete missing) rather than replacing. Derived values (totals, subtotals, step sequence) are computed by the root, never accepted from the client. `RecetaDatasourceImpl` writes steps in two phases because of a partial unique index. Details in arquitectura.md 5.13.
+- **Internal use cases** (no controller, invoked by other use cases inside their transaction): `RegistrarSalidaDeInventarioUseCase` (FEFO consumption), `RegistrarAperturaUseCase`, `RecalcularStockUseCase`, `RegistrarReintegroDeInventarioUseCase`, `RegistrarAnulacionDeVentaUseCase`. Don't add new ones without documenting them in arquitectura.md 5.5.
+- **Locking:** reads that precede an inventory decrement use `@Lock(PESSIMISTIC_WRITE)` on derived methods prefixed `read...By`, exposed in ports as `...ParaActualizar` / `...ParaConsumo`; the cash-session read for a sale uses `PESSIMISTIC_READ` with `get...By` / `...ParaVenta`.
+
+### Implementation constraints worth remembering
+
+- No new `pom.xml` dependencies (no Lombok, MapStruct, Bean Validation, Swagger, loggers). No logging at all.
+- No `@Query`/JPQL/native SQL/Criteria: derived query methods only. No `@GeneratedValue`. `BigDecimal` for money and quantities.
+- Constructor injection only; aggregates and business DTOs have private constructors + static factories, no setters.
+- No new folders inside a slice; the structure in arquitectura.md 3.1 is closed.
+- Identifiers and comments in Spanish without accents; ports prefixed with `I`; controllers end in `ControllerV1` under `api/v1/<kebab-case>`.

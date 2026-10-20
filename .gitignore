@@ -33,3 +33,7 @@ build/
 .vscode/
 
 *.sql
+*.md
+!README.md
+!arquitectura.md
+!CLAUDE.md
