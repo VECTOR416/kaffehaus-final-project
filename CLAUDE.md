@@ -6,6 +6,8 @@ KaffeHaus v4 is the REST backend for a café management system (inventory, sales
 
 **`arquitectura.md` is the architectural source of truth** (in Spanish). Read the relevant section before adding or changing a slice; section 6 ("Reglas para la IA") lists the hard rules and section 6.5 lists known deviations that must not be replicated or "fixed" unless asked. Its test inventory (end of 6.5) and references to `databasev4.sql` / `HELP.md` are stale: those files are not in the repo, and the integration/HTTP tests it lists were removed.
 
+todos los cambios arquitectonicos que propongas y que no esten definidos en el archivo arquitectura.md deben ser explicados al usuario y deben tener su la aprobacion de este usuario para poder alterar el archivo `arquitectura.md` de esta forma no alteraras la fuente de la verdad de la arquitectura.
+
 ## Commands
 
 On Windows use `mvnw.cmd` (or `./mvnw` from Git Bash).
