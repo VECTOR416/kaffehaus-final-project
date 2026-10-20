@@ -8,6 +8,13 @@ KaffeHaus v4 is the REST backend for a café management system (inventory, sales
 
 todos los cambios arquitectonicos que propongas y que no esten definidos en el archivo arquitectura.md deben ser explicados al usuario y deben tener su la aprobacion de este usuario para poder alterar el archivo `arquitectura.md` de esta forma no alteraras la fuente de la verdad de la arquitectura.
 
+**`.rules/logica.md` es la fuente de la verdad de la logica de negocio** (decisiones de diseno numeradas y agrupadas por agregado). Reglas obligatorias:
+
+- Antes de cualquier cambio de codigo, lee las decisiones de los agregados afectados y verifica que el cambio no contradiga ninguna.
+- Las decisiones de `logica.md` no pueden contradecirse entre si. Si un cambio pedido, el codigo existente o `arquitectura.md` entran en conflicto con una decision, **detente y consulta al usuario** como resolverlo; no elijas tu una solucion. Solo despues de su respuesta actualiza `logica.md` (y el codigo).
+- Toda regla de negocio nueva o modificada que se acuerde con el usuario se registra en `logica.md` en la seccion de su agregado, con el siguiente numero libre. Los identificadores (`<AGREGADO>-NN`) son estables: no se renumeran ni se reutilizan; una decision que se retira se marca como derogada indicando la que la sustituye.
+- Los conflictos ya detectados y aun sin resolver estan en la seccion "Pendientes de decision" de `logica.md`; no los resuelvas por tu cuenta.
+
 ## Commands
 
 On Windows use `mvnw.cmd` (or `./mvnw` from Git Bash).
