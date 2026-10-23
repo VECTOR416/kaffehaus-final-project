@@ -20,8 +20,9 @@ todos los cambios arquitectonicos que propongas y que no esten definidos en el a
 On Windows use `mvnw.cmd` (or `./mvnw` from Git Bash).
 
 ```bash
-docker compose up -d                 # PostgreSQL on localhost:5432 (db kaffehausdb, postgres/postgrespassword)
-./mvnw spring-boot:run               # API on port ${SERVER_PORT:8081}
+cp .env.template .env                # once; fill in DB credentials and JWT secrets (.env is git-ignored)
+docker compose up -d                 # PostgreSQL on ${DB_PORT}, credentials from .env
+./mvnw spring-boot:run               # API on port ${SERVER_PORT}
 ./mvnw test                          # all tests
 ./mvnw test -Dtest=GuardiaDeRolesTest                 # one class
 ./mvnw test -Dtest=GuardiaDeRolesTest#nombreDelMetodo  # one method
@@ -30,7 +31,7 @@ docker compose up -d                 # PostgreSQL on localhost:5432 (db kaffehau
 
 First run against an empty DB: start the app with `SEED_HABILITADO=true` and `SEED_ADMIN_CONTRASENA=<password>` (`ddl-auto: update` creates tables, then `src/main/resources/schema.sql` adds the sequence, partial unique indexes, CHECKs and FKs) and call `POST /api/v1/seed` once (idempotent; public only while `SEED_HABILITADO=true`, which defaults to `false`; 409 if the admin does not exist yet and no password is configured). It seeds roles `Administrador`/`Operador`, the admin `admin@gmail.com` with that password, catalogs resolved by name, units/conversions, and the 'Mostrador' client. Restart without `SEED_HABILITADO` afterwards.
 
-Config is env-overridable in `src/main/resources/application.yaml`: `JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ISSUER`, `JWT_ACCESS_MINUTES`, `JWT_REFRESH_DAYS`, `GOOGLE_CLIENT_ID`, `SEED_HABILITADO`, `SEED_ADMIN_CONTRASENA`, `CORS_ORIGENES` (comma-separated origin patterns; bare `*` is rejected at startup), `DB_LOCK_TIMEOUT` (PostgreSQL `lock_timeout`, default `5s`), `SERVER_PORT`. The VS Code launch config reads a `.env` file.
+All configuration comes from environment variables; `src/main/resources/application.yaml` has no hardcoded values. `application.yaml` imports `.env` from the working directory (`spring.config.import: optional:file:.env[.properties]`, so `KEY=value` without quotes); OS environment variables take precedence. `docker-compose.yaml` and the VS Code launch config read the same `.env`. `.env.template` is the versioned list of variables. Required (startup fails without them): `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `DB_LOCK_TIMEOUT` (PostgreSQL `lock_timeout`), `SERVER_PORT`, `JWT_SECRET`, `JWT_REFRESH_SECRET` (>= 32 chars, distinct), `JWT_ISSUER`, `JWT_ACCESS_MINUTES`, `JWT_REFRESH_DAYS`, `CORS_ORIGENES` (comma-separated origin patterns; bare `*` is rejected at startup). Optional: `GOOGLE_CLIENT_ID` (empty disables Google login), `SEED_HABILITADO` (defaults to `false`, SIEMBRA-02), `SEED_ADMIN_CONTRASENA`. Tests do not read `.env`: `application-test.yaml` sets fixed test values.
 
 Tests mirror the production package under `src/test/java/com/maestria/kaffehausv4/`. Unit tests (JUnit 5 + Mockito, no Spring context, no DB) use the shared fixtures in `Soporte/DatosDePrueba`. Persistence tests (`*IntegracionTest`) extend `Soporte/PruebaConBaseDeDatos`: full context, profile `test`, H2 in memory in PostgreSQL mode (`src/test/resources/application-test.yaml` plus `h2/esquema-postgresql.sql` for the ticket sequence and the `movimientos` CHECKs; FKs are not reproduced), each test rolled back; `Soporte/EscenarioDeCafeteria` builds scenarios through the real use cases. H2 does not reproduce PostgreSQL partial unique indexes or row locks, so those are not covered.
 

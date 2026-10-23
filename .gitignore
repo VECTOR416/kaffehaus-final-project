@@ -40,3 +40,6 @@ build/
 !README.md
 !CLAUDE.md
 !.rules/**
+
+### Variables de entorno ###
+.env

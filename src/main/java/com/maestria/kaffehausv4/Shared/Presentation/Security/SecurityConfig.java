@@ -130,15 +130,15 @@ public class SecurityConfig implements WebMvcConfigurer {
      * filtros corren antes que Spring MVC: si el preflight OPTIONS no se resuelve aqui, el
      * navegador recibe un 401 antes de que MVC llegue a opinar.
      *
-     * Los origenes se enumeran en 'seguridad.cors.origenes-permitidos' (CORS_ORIGENES): por
-     * defecto solo los de desarrollo en localhost. Aunque la autenticacion viaja en la cabecera
+     * Los origenes se enumeran en 'seguridad.cors.origenes-permitidos' (CORS_ORIGENES), sin
+     * valor por defecto. Aunque la autenticacion viaja en la cabecera
      * Authorization y no en cookies, abrir la API a cualquier sitio no aporta nada, asi que el
      * comodin '*' a secas se rechaza al arrancar. Se admiten patrones acotados, como un puerto
      * cualquiera de localhost ('http://localhost:[*]') o los subdominios de un dominio propio.
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
-            @Value("${seguridad.cors.origenes-permitidos:http://localhost:[*],http://127.0.0.1:[*]}") String[] origenesPermitidos) {
+            @Value("${seguridad.cors.origenes-permitidos}") String[] origenesPermitidos) {
         List<String> origenes = Arrays.stream(origenesPermitidos)
                 .map(String::trim)
                 .filter(origen -> !origen.isEmpty())

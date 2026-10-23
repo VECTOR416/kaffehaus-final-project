@@ -22,6 +22,18 @@ spring:
       mode: always
       schema-locations: classpath:h2/esquema-postgresql.sql
 
+server:
+  port: 0
+
+# Valores fijos de prueba: application.yaml los exige del entorno y las pruebas no dependen del .env.
 seguridad:
+  jwt:
+    secreto-acceso: secreto-de-acceso-solo-para-pruebas-0123456789
+    secreto-refresco: secreto-de-refresco-solo-para-pruebas-0123456789
+    emisor: kaffehausv4-pruebas
+    minutos-de-acceso: 15
+    dias-de-refresco: 7
+  cors:
+    origenes-permitidos: http://localhost:[*]
   # Contrasena del administrador que siembra EscenarioDeCafeteria (logica.md SIEMBRA-02).
   seed-admin-contrasena: admin-de-prueba
