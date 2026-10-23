@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.Shared.Presentation.Security;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -82,7 +83,7 @@ public class SecurityConfig implements WebMvcConfigurer {
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
             EscritorDeErrorHttp escritorDeErrorHttp,
-            @Value("${seguridad.seed-habilitado:true}") boolean seedHabilitado) throws Exception {
+            @Value("${seguridad.seed-habilitado:false}") boolean seedHabilitado) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -129,14 +130,26 @@ public class SecurityConfig implements WebMvcConfigurer {
      * filtros corren antes que Spring MVC: si el preflight OPTIONS no se resuelve aqui, el
      * navegador recibe un 401 antes de que MVC llegue a opinar.
      *
-     * allowCredentials sigue en false y por eso el comodin de origen es aceptable: la
-     * autenticacion viaja en la cabecera Authorization, no en cookies. Si algun dia se pasa a
-     * cookies, hay que enumerar los dominios del frontend en allowedOriginPatterns.
+     * Los origenes se enumeran en 'seguridad.cors.origenes-permitidos' (CORS_ORIGENES): por
+     * defecto solo los de desarrollo en localhost. Aunque la autenticacion viaja en la cabecera
+     * Authorization y no en cookies, abrir la API a cualquier sitio no aporta nada, asi que el
+     * comodin '*' a secas se rechaza al arrancar. Se admiten patrones acotados, como un puerto
+     * cualquiera de localhost ('http://localhost:[*]') o los subdominios de un dominio propio.
      */
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${seguridad.cors.origenes-permitidos:http://localhost:[*],http://127.0.0.1:[*]}") String[] origenesPermitidos) {
+        List<String> origenes = Arrays.stream(origenesPermitidos)
+                .map(String::trim)
+                .filter(origen -> !origen.isEmpty())
+                .toList();
+        if (origenes.isEmpty() || origenes.contains("*")) {
+            throw new IllegalStateException(
+                    "seguridad.cors.origenes-permitidos (CORS_ORIGENES) debe enumerar los origenes del frontend; el comodin '*' no esta permitido");
+        }
+
         CorsConfiguration configuracion = new CorsConfiguration();
-        configuracion.setAllowedOriginPatterns(List.of("*"));
+        configuracion.setAllowedOriginPatterns(origenes);
         configuracion.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuracion.setAllowedHeaders(List.of("*"));
         configuracion.setAllowCredentials(false);

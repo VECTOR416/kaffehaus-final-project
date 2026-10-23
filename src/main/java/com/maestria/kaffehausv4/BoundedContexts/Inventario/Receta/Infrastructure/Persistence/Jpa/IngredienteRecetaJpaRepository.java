@@ -16,4 +16,7 @@ public interface IngredienteRecetaJpaRepository extends JpaRepository<Ingredient
 
     List<IngredienteRecetaJpaModel> findByIdRecetaAndBorradoFalse(UUID idReceta);
     List<IngredienteRecetaJpaModel> findByIdRecetaInAndBorradoFalse(Collection<UUID> idsReceta);
+
+    // Recetas que usan un producto (logica.md PRODUCTO-20).
+    List<IngredienteRecetaJpaModel> findByIdProductoAndBorradoFalse(UUID idProducto);
 }

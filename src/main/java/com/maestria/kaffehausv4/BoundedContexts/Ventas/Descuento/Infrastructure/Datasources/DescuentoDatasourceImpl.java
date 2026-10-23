@@ -18,6 +18,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.ValueObj
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaMapper;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.ValueObjects.TipoDescuentoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Shared.Infrastructure.Persistence.OffsetPageRequest;
@@ -104,5 +105,17 @@ public class DescuentoDatasourceImpl implements IDescuentoDatasource {
         } catch (IllegalArgumentException | NullPointerException e) {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
+    }
+
+    @Override
+    public boolean existeConTipoDescuento(TipoDescuentoId tipoDescuentoId) {
+        return descuentoJpaRepository.existsByIdTipoDescuentoAndBorradoFalse(aUuid(tipoDescuentoId.getValue()));
+    }
+
+    @Override
+    public List<Descuento> obtenerPorProducto(ProductoId productoId) {
+        return descuentoJpaRepository.findByIdProductoAndBorradoFalse(aUuid(productoId.getValue())).stream()
+                .map(DescuentoJpaMapper::toDomain)
+                .collect(Collectors.toList());
     }
 }

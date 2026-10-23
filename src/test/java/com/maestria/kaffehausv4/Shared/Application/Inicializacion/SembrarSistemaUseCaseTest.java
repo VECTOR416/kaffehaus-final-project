@@ -3,6 +3,7 @@ package com.maestria.kaffehausv4.Shared.Application.Inicializacion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -20,11 +21,15 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Application.Repositories.ICategoriaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.Aggregates.Categoria;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Conversion.Application.Repositories.IConversionRepository;
@@ -62,6 +67,9 @@ import com.maestria.kaffehausv4.Shared.Application.Crypto.IHasheadorDeContrasena
  */
 @ExtendWith(MockitoExtension.class)
 class SembrarSistemaUseCaseTest {
+
+    /** La que llega de SEED_ADMIN_CONTRASENA (logica.md SIEMBRA-02). */
+    private static final String CONTRASENA = "clave-inicial";
 
     @Mock private IRolRepository rolRepository;
     @Mock private IUsuarioRepository usuarioRepository;
@@ -150,7 +158,7 @@ class SembrarSistemaUseCaseTest {
         ArgumentCaptor<TipoMovimiento> sembrados = ArgumentCaptor.forClass(TipoMovimiento.class);
 
         // Act
-        useCase.execute();
+        useCase.execute(CONTRASENA);
 
         // Assert
         verify(tipoMovimientoRepository, times(7)).crear(sembrados.capture());
@@ -163,7 +171,7 @@ class SembrarSistemaUseCaseTest {
         ArgumentCaptor<Tipo> sembrados = ArgumentCaptor.forClass(Tipo.class);
 
         // Act
-        useCase.execute();
+        useCase.execute(CONTRASENA);
 
         // Assert
         verify(tipoRepository, times(2)).crear(sembrados.capture());
@@ -180,7 +188,7 @@ class SembrarSistemaUseCaseTest {
         ArgumentCaptor<TipoPago> tiposPago = ArgumentCaptor.forClass(TipoPago.class);
 
         // Act
-        useCase.execute();
+        useCase.execute(CONTRASENA);
 
         // Assert
         verify(estadoExistenciaRepository, times(2)).crear(estadosExistencia.capture());
@@ -202,7 +210,7 @@ class SembrarSistemaUseCaseTest {
         ArgumentCaptor<Categoria> sembradas = ArgumentCaptor.forClass(Categoria.class);
 
         // Act
-        useCase.execute();
+        useCase.execute(CONTRASENA);
 
         // Assert
         verify(categoriaRepository, times(4)).crear(sembradas.capture());
@@ -213,7 +221,7 @@ class SembrarSistemaUseCaseTest {
     @Test
     void siembraLasUnidadesEstandarYSusDosConversiones() {
         // Act
-        useCase.execute();
+        useCase.execute(CONTRASENA);
 
         // Assert
         assertEquals(java.util.Set.of("Kilogramo", "Gramo", "Litro", "Mililitro", "Unidad"), unidades.keySet());
@@ -239,13 +247,13 @@ class SembrarSistemaUseCaseTest {
         ArgumentCaptor<Persona> personas = ArgumentCaptor.forClass(Persona.class);
 
         // Act
-        useCase.execute();
+        useCase.execute(CONTRASENA);
 
         // Assert
         assertEquals(java.util.Set.of("Administrador", "Operador"), roles.keySet());
         verify(usuarioRepository).crear(administrador.capture());
         assertEquals("admin@gmail.com", administrador.getValue().getCorreo());
-        assertEquals("hash(admin)", administrador.getValue().getContrasena());
+        assertEquals("hash(" + CONTRASENA + ")", administrador.getValue().getContrasena());
         assertEquals(roles.get("Administrador").getId().getValue(), administrador.getValue().getRolId().getValue());
 
         verify(personaRepository, times(2)).crear(personas.capture());
@@ -262,7 +270,7 @@ class SembrarSistemaUseCaseTest {
         ArgumentCaptor<Persona> personas = ArgumentCaptor.forClass(Persona.class);
 
         // Act
-        useCase.execute();
+        useCase.execute(CONTRASENA);
 
         // Assert
         verify(clienteRepository).crear(mostrador.capture());
@@ -281,7 +289,7 @@ class SembrarSistemaUseCaseTest {
     @Test
     void laRespuestaListaTodoLoCreadoEnUnaBaseVacia() {
         // Act
-        SembrarSistemaResponse respuesta = useCase.execute();
+        SembrarSistemaResponse respuesta = useCase.execute(CONTRASENA);
 
         // Assert: 2 roles + admin + 7 + 2 + 2 + 2 + 5 + 3 + 2 + 4 catalogos + 5 unidades + 2 conversiones + mostrador.
         assertEquals(38, respuesta.getCreados().size());
@@ -293,6 +301,34 @@ class SembrarSistemaUseCaseTest {
         assertTrue(respuesta.getCreados().contains("Cliente 'Mostrador'"));
     }
 
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   "})
+    void sinContrasenaConfiguradaNiAdministradorResponde409YNoSiembraNada(String contrasena) {
+        // Act (logica.md SIEMBRA-02)
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(contrasena));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("SEED_ADMIN_CONTRASENA"));
+        verify(usuarioRepository, never()).crear(any());
+        verify(rolRepository, never()).crear(any());
+    }
+
+    @Test
+    void conElAdministradorYaCreadoNoHaceFaltaLaContrasena() {
+        // Arrange
+        when(usuarioRepository.obtenerPorCorreo("admin@gmail.com")).thenReturn(Optional.of(
+                Usuario.restaurar(id(), id(), "admin@gmail.com", "hash-cambiado-por-el-usuario", false, null)));
+
+        // Act
+        SembrarSistemaResponse respuesta = useCase.execute(null);
+
+        // Assert
+        assertTrue(respuesta.getExistentes().contains("Usuario 'admin@gmail.com'"));
+        verify(usuarioRepository, never()).crear(any());
+    }
+
     // ------------------------------------------------------------------ idempotencia
 
     @Test
@@ -302,7 +338,7 @@ class SembrarSistemaUseCaseTest {
                 Usuario.restaurar(id(), id(), "admin@gmail.com", "hash-cambiado-por-el-usuario", false, null)));
 
         // Act
-        SembrarSistemaResponse respuesta = useCase.execute();
+        SembrarSistemaResponse respuesta = useCase.execute(CONTRASENA);
 
         // Assert
         verify(usuarioRepository, never()).crear(any());
@@ -318,7 +354,7 @@ class SembrarSistemaUseCaseTest {
         ArgumentCaptor<TipoMovimiento> sembrados = ArgumentCaptor.forClass(TipoMovimiento.class);
 
         // Act
-        SembrarSistemaResponse respuesta = useCase.execute();
+        SembrarSistemaResponse respuesta = useCase.execute(CONTRASENA);
 
         // Assert
         verify(tipoMovimientoRepository, times(6)).crear(sembrados.capture());
@@ -332,7 +368,7 @@ class SembrarSistemaUseCaseTest {
         when(clienteRepository.obtenerPorId(any())).thenReturn(Optional.of(Cliente.restaurar(Cliente.ID_MOSTRADOR, Cliente.ID_MOSTRADOR, false)));
 
         // Act
-        SembrarSistemaResponse respuesta = useCase.execute();
+        SembrarSistemaResponse respuesta = useCase.execute(CONTRASENA);
 
         // Assert: solo se crea la persona del administrador.
         verify(clienteRepository, never()).crear(any());
@@ -347,7 +383,7 @@ class SembrarSistemaUseCaseTest {
                 Persona.restaurar(Cliente.ID_MOSTRADOR, "Cliente", "Casual / Mostrador", null, "0", false)));
 
         // Act
-        useCase.execute();
+        useCase.execute(CONTRASENA);
 
         // Assert
         verify(clienteRepository).crear(any());
@@ -357,8 +393,8 @@ class SembrarSistemaUseCaseTest {
     @Test
     void sembrarDosVecesNoDuplicaRolesUnidadesNiConversiones() {
         // Act
-        useCase.execute();
-        SembrarSistemaResponse segunda = useCase.execute();
+        useCase.execute(CONTRASENA);
+        SembrarSistemaResponse segunda = useCase.execute(CONTRASENA);
 
         // Assert
         verify(rolRepository, times(2)).crear(any());

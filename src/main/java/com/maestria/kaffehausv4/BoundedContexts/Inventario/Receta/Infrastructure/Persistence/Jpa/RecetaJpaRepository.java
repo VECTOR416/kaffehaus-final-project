@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Infrastructure.Persistence.Jpa;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,4 +14,7 @@ public interface RecetaJpaRepository extends JpaRepository<RecetaJpaModel, UUID>
     Page<RecetaJpaModel> findByBorradoFalse(Pageable pageable);
     Page<RecetaJpaModel> findByBorradoFalseAndTituloContainingIgnoreCase(String titulo, Pageable pageable);
     Optional<RecetaJpaModel> findFirstByIdProductoObtenidoAndBorradoFalseOrderByFecCDesc(UUID idProductoObtenido);
+
+    // Todas las vivas de un producto, la vigente primero (logica.md RECETA-06, RECETA-09).
+    List<RecetaJpaModel> findByIdProductoObtenidoAndBorradoFalseOrderByFecCDesc(UUID idProductoObtenido);
 }

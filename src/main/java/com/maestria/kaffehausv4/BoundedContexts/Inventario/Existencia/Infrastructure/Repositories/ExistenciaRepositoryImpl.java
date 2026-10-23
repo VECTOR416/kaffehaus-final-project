@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Infrastructure.Repositories;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -72,4 +73,13 @@ public class ExistenciaRepositoryImpl implements IExistenciaRepository{
         return this.existenciaDatasource.obtenerDetalleLoteDe(existenciaId);
     }
 
+    @Override
+    public boolean existenPorDetallesLote(List<DetalleLoteId> detalleLoteIds) {
+        return this.existenciaDatasource.existenPorDetallesLote(detalleLoteIds);
+    }
+
+    @Override
+    public List<Existencia> obtenerConContenidoQueVencenHasta(LocalDate fecha) {
+        return this.existenciaDatasource.obtenerConContenidoQueVencenHasta(fecha);
+    }
 }

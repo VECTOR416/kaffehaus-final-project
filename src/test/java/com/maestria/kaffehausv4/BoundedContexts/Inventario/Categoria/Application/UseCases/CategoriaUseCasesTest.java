@@ -30,6 +30,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Application
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Application.Dtos.ObtenerCategoriasRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Application.Repositories.ICategoriaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.Aggregates.Categoria;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 
 /** Pruebas unitarias de los casos de uso CRUD de Categoria. */
 @ExtendWith(MockitoExtension.class)
@@ -38,6 +39,7 @@ class CategoriaUseCasesTest {
     private static final String ID = "c7000000-0000-0000-0000-000000000001";
 
     @Mock private ICategoriaRepository repository;
+    @Mock private IProductoRepository productoRepository;
 
     private static Categoria cafes() {
         return Categoria.restaurar(ID, "Cafes", true, false);
@@ -107,7 +109,7 @@ class CategoriaUseCasesTest {
     @Test
     void eliminarDaDeBajaLaExistenteYRechazaLaInexistente() {
         // Arrange
-        EliminarCategoriaUseCase useCase = new EliminarCategoriaUseCase(repository);
+        EliminarCategoriaUseCase useCase = new EliminarCategoriaUseCase(repository, productoRepository);
         when(repository.obtenerPorId(any())).thenReturn(Optional.of(cafes())).thenReturn(Optional.empty());
 
         // Act
@@ -148,5 +150,21 @@ class CategoriaUseCasesTest {
         assertEquals(4, pagina.getSkip());
         assertEquals(9, pagina.getTotal());
         assertTrue(pagina.isHasMore());
+    }
+
+    @Test
+    void noSeDaDeBajaSiOtroRegistroVivoLoNecesita() {
+        // Arrange (logica.md GENERAL-18)
+        EliminarCategoriaUseCase useCase = new EliminarCategoriaUseCase(repository, productoRepository);
+        when(repository.obtenerPorId(any())).thenReturn(Optional.of(cafes()));
+        when(productoRepository.existeConCategoria(any())).thenReturn(true);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("productos vivos"));
+        verify(repository, never()).eliminar(any());
     }
 }

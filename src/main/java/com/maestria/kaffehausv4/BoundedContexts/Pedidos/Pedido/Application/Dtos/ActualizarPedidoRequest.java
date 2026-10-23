@@ -19,6 +19,8 @@ public class ActualizarPedidoRequest {
     private String descripcion;
     private String idEstado;
     private String idUsuario;
+    private String motivo;
+    private String referenciaReembolso;
 
     private ActualizarPedidoRequest(
         LocalDateTime fechaEntrega,
@@ -26,7 +28,9 @@ public class ActualizarPedidoRequest {
         BigDecimal longitud,
         String descripcion,
         String idEstado,
-        String idUsuario
+        String idUsuario,
+        String motivo,
+        String referenciaReembolso
     ) {
         this.fechaEntrega = fechaEntrega;
         this.latitud = latitud;
@@ -34,11 +38,15 @@ public class ActualizarPedidoRequest {
         this.descripcion = descripcion;
         this.idEstado = idEstado;
         this.idUsuario = idUsuario;
+        this.motivo = motivo;
+        this.referenciaReembolso = referenciaReembolso;
     }
 
     /**
      * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
      * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     * 'motivo' y 'referenciaReembolso' solo se usan al cancelar, porque anulan la venta (logica.md
+     * PEDIDO-09, VENTA-27).
      */
     public static ActualizarPedidoRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion){
         LocalDateTime fechaEntrega = Validador.fechaOpcional(request.get("fechaEntrega"), "fechaEntrega");
@@ -52,8 +60,10 @@ public class ActualizarPedidoRequest {
         }
         String idEstado = Validador.textoOpcional(request.get("idEstado"), "idEstado");
         String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
+        String motivo = Validador.textoOpcional(request.get("motivo"), "motivo");
+        String referenciaReembolso = Validador.textoOpcional(request.get("referenciaReembolso"), "referenciaReembolso");
 
-        return new ActualizarPedidoRequest(fechaEntrega, latitud, longitud, descripcion, idEstado, idUsuario);
+        return new ActualizarPedidoRequest(fechaEntrega, latitud, longitud, descripcion, idEstado, idUsuario, motivo, referenciaReembolso);
     }
 
     public LocalDateTime getFechaEntrega() {return fechaEntrega;}
@@ -62,4 +72,6 @@ public class ActualizarPedidoRequest {
     public String getDescripcion() {return descripcion;}
     public String getIdEstado() {return idEstado;}
     public String getIdUsuario() {return idUsuario;}
+    public String getMotivo() {return motivo;}
+    public String getReferenciaReembolso() {return referenciaReembolso;}
 }

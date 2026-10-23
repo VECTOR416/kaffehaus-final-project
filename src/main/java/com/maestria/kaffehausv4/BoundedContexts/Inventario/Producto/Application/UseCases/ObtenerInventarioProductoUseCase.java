@@ -39,6 +39,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * - MTS con presentaciones: saldos del producto base y de sus presentaciones. 'disponible'
  *   excluye lo vencido.
  * - MTS por unidades: sus unidades disponibles en lotes (logica.md PRODUCTO-17).
+ * - En un MTS, el stock fisico se separa en vigente y vencido a hoy (VENCIMIENTO-02).
  * - MTO: min(floor(saldo de cada insumo / lo que consume una unidad)), explotando
  *   recursivamente los insumos que son a su vez MTO. Sin receta viva, disponibilidad 0; un
  *   ciclo entre recetas es un error de datos (409).
@@ -79,6 +80,7 @@ public class ObtenerInventarioProductoUseCase {
             return InventarioProductoResponse.deStockDirecto(
                     producto,
                     saldos.abierto,
+                    saldos.abiertoVigente,
                     saldos.cerrado,
                     saldos.valor.setScale(2, RoundingMode.HALF_UP),
                     saldos.abiertoVigente,

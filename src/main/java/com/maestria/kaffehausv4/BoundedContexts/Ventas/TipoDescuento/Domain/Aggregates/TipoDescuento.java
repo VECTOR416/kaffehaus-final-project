@@ -1,8 +1,17 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.Aggregates;
 
+import java.util.List;
+
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.ValueObjects.TipoDescuentoId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 public class TipoDescuento {
+    /**
+     * Filas que el sistema reconoce por su nombre (logica.md GENERAL-04): no se renombran ni se dan
+     * de baja (GENERAL-19). Se pueden agregar otras filas, que no tienen semantica.
+     */
+    public static final List<String> NOMBRES_SEMANTICOS = List.of("Porcentaje", "Monto fijo");
+
     private TipoDescuentoId id;
     private String nombre;
     private boolean borrado;
@@ -34,11 +43,26 @@ public class TipoDescuento {
     public void actualizar(
         String nombre
     ){
-        this.nombre = nombre != null ? nombre : this.nombre;
+        if (nombre != null && esSemantico() && !nombre.equalsIgnoreCase(this.nombre)) {
+            throw DomainException.throwException(409,
+                    "El tipo de descuento '" + this.nombre + "' lo reconoce el sistema por su nombre y no se renombra");
+        }
+        if (nombre != null && !esSemantico()) {
+            this.nombre = nombre;
+        }
     }
 
     public void eliminar(){
+        if (esSemantico()) {
+            throw DomainException.throwException(409,
+                    "El tipo de descuento '" + this.nombre + "' lo reconoce el sistema por su nombre y no se da de baja");
+        }
         this.borrado = true;
+    }
+
+    /** Es una de las filas que el sistema reconoce por su nombre (GENERAL-19). */
+    public boolean esSemantico() {
+        return NOMBRES_SEMANTICOS.stream().anyMatch(semantico -> semantico.equalsIgnoreCase(this.nombre));
     }
 
     /**

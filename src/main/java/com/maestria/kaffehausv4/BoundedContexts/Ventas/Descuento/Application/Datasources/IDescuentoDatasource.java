@@ -8,6 +8,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Value
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dtos.ObtenerDescuentosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.Aggregates.Descuento;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.ValueObjects.DescuentoId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.ValueObjects.TipoDescuentoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 public interface IDescuentoDatasource {
@@ -22,4 +23,10 @@ public interface IDescuentoDatasource {
      * La venta elige entre ellos el mas favorable para el cliente.
      */
     List<Descuento> obtenerVigentes(ProductoId productoId, LocalDateTime fecha);
+
+    /** Hay un descuento vivo de ese tipo (logica.md GENERAL-18). */
+    boolean existeConTipoDescuento(TipoDescuentoId tipoDescuentoId);
+
+    /** Descuentos vivos de un producto, activos o no: los que caen con el (logica.md DESCUENTO-05). */
+    List<Descuento> obtenerPorProducto(ProductoId productoId);
 }

@@ -84,7 +84,7 @@ class TipoPagoUseCasesTest {
     void actualizarCambiaElNombreYGuarda() {
         // Arrange
         ActualizarTipoPagoUseCase useCase = new ActualizarTipoPagoUseCase(repository);
-        TipoPago actual = existente();
+        TipoPago actual = TipoPago.restaurar(ID, "Vale", false);
         when(repository.obtenerPorId(argThat(id -> ID.equals(id.getValue())))).thenReturn(Optional.of(actual));
         when(repository.actualizar(any(), any())).thenAnswer(llamada -> llamada.getArgument(1));
 

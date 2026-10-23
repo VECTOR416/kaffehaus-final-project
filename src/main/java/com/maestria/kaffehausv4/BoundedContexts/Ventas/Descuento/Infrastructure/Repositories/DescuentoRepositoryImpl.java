@@ -12,6 +12,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dto
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Repositories.IDescuentoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.Aggregates.Descuento;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.ValueObjects.DescuentoId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.ValueObjects.TipoDescuentoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 @Repository
@@ -53,4 +54,13 @@ public class DescuentoRepositoryImpl implements IDescuentoRepository{
         return this.descuentoDatasource.obtenerVigentes(productoId, fecha);
     }
 
+    @Override
+    public boolean existeConTipoDescuento(TipoDescuentoId tipoDescuentoId) {
+        return this.descuentoDatasource.existeConTipoDescuento(tipoDescuentoId);
+    }
+
+    @Override
+    public List<Descuento> obtenerPorProducto(ProductoId productoId) {
+        return this.descuentoDatasource.obtenerPorProducto(productoId);
+    }
 }

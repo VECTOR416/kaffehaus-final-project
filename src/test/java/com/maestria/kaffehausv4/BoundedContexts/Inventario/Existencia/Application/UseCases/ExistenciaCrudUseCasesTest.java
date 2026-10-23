@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -86,6 +86,7 @@ class ExistenciaCrudUseCasesTest {
         // Arrange
         ActualizarExistenciaUseCase useCase = new ActualizarExistenciaUseCase(existenciaRepository, loteRepository, estadoExistenciaRepository, unidadRepository);
         when(existenciaRepository.obtenerPorId(any())).thenReturn(Optional.of(abierta()));
+        laBolsaVence(LocalDate.of(2027, 6, 30));
 
         // Act
         ExistenciaResponse respuesta = useCase.execute(ID, ActualizarExistenciaRequest.createFromRequest(Map.of("fechaVencimiento", "2027-01-31")));
@@ -96,7 +97,42 @@ class ExistenciaCrudUseCasesTest {
         assertEquals("Abierta", respuesta.getEstadoExistencia().getNombre());
         assertEquals("Gramo", respuesta.getUnidad().getUnidad());
         verify(existenciaRepository).actualizar(argThat(id -> ID.equals(id.getValue())), any());
-        verifyNoInteractions(loteRepository);
+    }
+
+    /** La linea de lote de la que se abrio la existencia, con su vencimiento. */
+    private void laBolsaVence(LocalDate vence) {
+        when(loteRepository.obtenerPorDetalleId(any())).thenReturn(Optional.of(loteDeCompra("ce000000-0000-0000-0000-000000000003",
+                detalle(ID_DETALLE, "ce000000-0000-0000-0000-000000000004", "5", "4", "10", vence))));
+    }
+
+    @Test
+    void unaExistenciaNoVenceDespuesQueLaBolsaDeLaQueSalio() {
+        // Arrange (logica.md VENCIMIENTO-05)
+        ActualizarExistenciaUseCase useCase = new ActualizarExistenciaUseCase(existenciaRepository, loteRepository, estadoExistenciaRepository, unidadRepository);
+        when(existenciaRepository.obtenerPorId(any())).thenReturn(Optional.of(abierta()));
+        laBolsaVence(LocalDate.of(2027, 1, 15));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class,
+                () -> useCase.execute(ID, ActualizarExistenciaRequest.createFromRequest(Map.of("fechaVencimiento", "2027-01-31"))));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        verify(existenciaRepository, never()).actualizar(any(), any());
+    }
+
+    @Test
+    void siLaBolsaNoVenceCualquierFechaEsValida() {
+        // Arrange
+        ActualizarExistenciaUseCase useCase = new ActualizarExistenciaUseCase(existenciaRepository, loteRepository, estadoExistenciaRepository, unidadRepository);
+        when(existenciaRepository.obtenerPorId(any())).thenReturn(Optional.of(abierta()));
+        laBolsaVence(null);
+
+        // Act
+        ExistenciaResponse respuesta = useCase.execute(ID, ActualizarExistenciaRequest.createFromRequest(Map.of("fechaVencimiento", "2030-01-01")));
+
+        // Assert
+        assertEquals(LocalDate.of(2030, 1, 1), respuesta.getFechaVencimiento());
     }
 
     @ParameterizedTest

@@ -21,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Application.Dtos.ActualizarTipoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Application.Dtos.CrearTipoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Application.Dtos.ObtenerTiposRequest;
@@ -40,6 +41,7 @@ class TipoUseCasesTest {
     private static final String ID = "ca000002-0000-0000-0000-000000000001";
 
     @Mock private ITipoRepository repository;
+    @Mock private IProductoRepository productoRepository;
 
     private static Tipo existente() {
         return Tipo.restaurar(ID, "Producto", false);
@@ -141,7 +143,7 @@ class TipoUseCasesTest {
     @Test
     void eliminarDaDeBajaElRegistroExistente() {
         // Arrange
-        EliminarTipoUseCase useCase = new EliminarTipoUseCase(repository);
+        EliminarTipoUseCase useCase = new EliminarTipoUseCase(repository, productoRepository);
         when(repository.obtenerPorId(any())).thenReturn(Optional.of(existente()));
 
         // Act
@@ -154,7 +156,7 @@ class TipoUseCasesTest {
     @Test
     void eliminarUnoInexistenteRespondeNoEncontradoYNoBorra() {
         // Arrange
-        EliminarTipoUseCase useCase = new EliminarTipoUseCase(repository);
+        EliminarTipoUseCase useCase = new EliminarTipoUseCase(repository, productoRepository);
         when(repository.obtenerPorId(any())).thenReturn(Optional.empty());
 
         // Act
@@ -241,5 +243,21 @@ class TipoUseCasesTest {
         assertEquals(5, informada.getSkip());
         assertEquals(50, informada.getLimit());
         assertEquals("caf", informada.getSearch());
+    }
+
+    @Test
+    void noSeDaDeBajaSiOtroRegistroVivoLoNecesita() {
+        // Arrange (logica.md GENERAL-18)
+        EliminarTipoUseCase useCase = new EliminarTipoUseCase(repository, productoRepository);
+        when(repository.obtenerPorId(any())).thenReturn(Optional.of(existente()));
+        when(productoRepository.existeConTipo(any())).thenReturn(true);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("productos vivos"));
+        verify(repository, never()).eliminar(any());
     }
 }

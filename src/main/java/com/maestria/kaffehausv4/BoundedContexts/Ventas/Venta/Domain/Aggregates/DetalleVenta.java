@@ -116,6 +116,10 @@ public class DetalleVenta {
         if (cantidad == null || cantidad.signum() <= 0) {
             throw DomainException.throwException(400, "La cantidad del detalle de venta debe ser mayor a cero");
         }
+        // Se vende por unidades enteras (logica.md GENERAL-16): medio pan solo existe dentro de una receta.
+        if (cantidad.stripTrailingZeros().scale() > 0) {
+            throw DomainException.throwException(400, "La cantidad del detalle de venta debe ser un numero entero de unidades");
+        }
         if (descuento == null || descuento.signum() < 0) {
             throw DomainException.throwException(400, "El descuento aplicado del detalle de venta no puede ser negativo");
         }

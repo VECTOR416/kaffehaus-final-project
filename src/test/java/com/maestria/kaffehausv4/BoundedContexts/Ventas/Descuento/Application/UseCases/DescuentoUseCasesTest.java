@@ -29,8 +29,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dtos.ActualizarDescuentoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dtos.CrearDescuentoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dtos.DescuentoResponse;
@@ -114,6 +118,52 @@ class DescuentoUseCasesTest {
         assertEquals("Porcentaje", respuesta.getTipoDescuento().getNombre());
         assertEquals(ID_CAFE, respuesta.getIdProducto());
         assertEquals(LocalDateTime.of(2026, 10, 1, 0, 0), respuesta.getFechaInicio());
+    }
+
+    @Test
+    void soloLoQueSeVendeAdmiteDescuentos() {
+        // Arrange (logica.md DESCUENTO-05): un insumo no vendible y un producto base con presentaciones.
+        String idSal = "0f000000-0000-0000-0000-000000000003";
+        String idHarina = "0f000000-0000-0000-0000-000000000004";
+        when(productoRepository.obtenerPorId(argThat(id -> id != null && idSal.equals(id.getValue())))).thenReturn(Optional.of(
+                Producto.restaurar(idSal, "Sal", BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, false, true, new UnidadId(ID_UNIDAD),
+                        new TipoId(ID_TIPO), new CategoriaId(ID_CATEGORIA), null, false)));
+        when(productoRepository.obtenerPorId(argThat(id -> id != null && idHarina.equals(id.getValue()))))
+                .thenReturn(Optional.of(productoDirecto(idHarina, "Harina")));
+        when(productoRepository.obtenerPresentaciones(argThat(id -> id != null && idHarina.equals(id.getValue()))))
+                .thenReturn(List.of(presentacion("0f000000-0000-0000-0000-000000000005", "Bolsa de harina", idHarina)));
+        Map<String, Object> deSal = alta("10", ID_PORCENTAJE);
+        deSal.put("idProducto", idSal);
+        Map<String, Object> deHarina = alta("10", ID_PORCENTAJE);
+        deHarina.put("idProducto", idHarina);
+
+        // Act
+        DomainException noVendible = assertThrows(DomainException.class, () -> crear().execute(CrearDescuentoRequest.createFromRequest(deSal)));
+        DomainException conPresentaciones = assertThrows(DomainException.class,
+                () -> crear().execute(CrearDescuentoRequest.createFromRequest(deHarina)));
+
+        // Assert
+        assertEquals(409, noVendible.getCodigo());
+        assertEquals(409, conPresentaciones.getCodigo());
+        verify(descuentoRepository, never()).crear(any());
+    }
+
+    @Test
+    void cambiarleElProductoExigeQueElNuevoSeVenda() {
+        // Arrange
+        hayDescuentoDel10PorCiento();
+        String idSal = "0f000000-0000-0000-0000-000000000003";
+        when(productoRepository.obtenerPorId(argThat(id -> id != null && idSal.equals(id.getValue())))).thenReturn(Optional.of(
+                Producto.restaurar(idSal, "Sal", BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, false, true, new UnidadId(ID_UNIDAD),
+                        new TipoId(ID_TIPO), new CategoriaId(ID_CATEGORIA), null, false)));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class,
+                () -> actualizar().execute(ID_DESCUENTO, ActualizarDescuentoRequest.createFromRequest(Map.of("idProducto", idSal))));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        verify(descuentoRepository, never()).actualizar(any(), any());
     }
 
     @Test

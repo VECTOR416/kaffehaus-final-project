@@ -27,6 +27,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Dtos.Ob
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Dtos.RolResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Repositories.IRolRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.Aggregates.Rol;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
@@ -43,6 +44,7 @@ class RolUseCasesTest {
     private static final String ID = "ca000005-0000-0000-0000-000000000001";
 
     @Mock private IRolRepository repository;
+    @Mock private IUsuarioRepository usuarioRepository;
 
     private static Rol existente() {
         return Rol.restaurar(ID, "Administrador", false);
@@ -76,7 +78,7 @@ class RolUseCasesTest {
     void actualizarCambiaElNombreYGuarda() {
         // Arrange
         ActualizarRolUseCase useCase = new ActualizarRolUseCase(repository);
-        Rol actual = existente();
+        Rol actual = Rol.restaurar(ID, "Supervisor", false);
         when(repository.obtenerPorId(argThat(id -> ID.equals(id.getValue())))).thenReturn(Optional.of(actual));
         when(repository.actualizar(any(), any())).thenAnswer(llamada -> llamada.getArgument(1));
 
@@ -123,7 +125,7 @@ class RolUseCasesTest {
     @Test
     void eliminarDaDeBajaElRegistroExistente() {
         // Arrange
-        EliminarRolUseCase useCase = new EliminarRolUseCase(repository);
+        EliminarRolUseCase useCase = new EliminarRolUseCase(repository, usuarioRepository);
         when(repository.obtenerPorId(any())).thenReturn(Optional.of(existente()));
 
         // Act
@@ -136,7 +138,7 @@ class RolUseCasesTest {
     @Test
     void eliminarUnoInexistenteRespondeNoEncontradoYNoBorra() {
         // Arrange
-        EliminarRolUseCase useCase = new EliminarRolUseCase(repository);
+        EliminarRolUseCase useCase = new EliminarRolUseCase(repository, usuarioRepository);
         when(repository.obtenerPorId(any())).thenReturn(Optional.empty());
 
         // Act
@@ -223,5 +225,21 @@ class RolUseCasesTest {
         assertEquals(5, informada.getSkip());
         assertEquals(50, informada.getLimit());
         assertEquals("caf", informada.getSearch());
+    }
+
+    @Test
+    void noSeDaDeBajaSiOtroRegistroVivoLoNecesita() {
+        // Arrange (logica.md GENERAL-18)
+        EliminarRolUseCase useCase = new EliminarRolUseCase(repository, usuarioRepository);
+        when(repository.obtenerPorId(any())).thenReturn(Optional.of(Rol.restaurar(ID, "Catalogo propio", false)));
+        when(usuarioRepository.contarPorRol(any())).thenReturn(1L);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("usuarios vivos"));
+        verify(repository, never()).eliminar(any());
     }
 }

@@ -25,6 +25,6 @@ public class AnularVentaUseCase {
 
     public VentaResponse execute(String ventaId, AnularVentaRequest request) {
         return registrarAnulacionDeVentaUseCase.execute(RegistrarAnulacionDeVentaRequest.crear(
-                ventaId, request.getIdUsuario(), request.getMotivo(), request.isReintegrar(), LocalDateTime.now()));
+                ventaId, request.getIdUsuario(), request.getMotivo(), request.isReintegrar(), request.getReferenciaReembolso(), LocalDateTime.now()));
     }
 }

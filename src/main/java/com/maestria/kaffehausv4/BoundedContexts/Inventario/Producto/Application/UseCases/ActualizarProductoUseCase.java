@@ -21,6 +21,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Value
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.Repositories.IUnidadRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates.Unidad;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Repositories.IDescuentoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.Aggregates.Descuento;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 @Service
@@ -31,18 +33,21 @@ public class ActualizarProductoUseCase {
     private final ITipoRepository tipoRepository;
     private final ICategoriaRepository categoriaRepository;
     private final ILoteRepository loteRepository;
+    private final IDescuentoRepository descuentoRepository;
 
     public ActualizarProductoUseCase(
             IProductoRepository productoRepository,
             IUnidadRepository unidadRepository,
             ITipoRepository tipoRepository,
             ICategoriaRepository categoriaRepository,
-            ILoteRepository loteRepository) {
+            ILoteRepository loteRepository,
+            IDescuentoRepository descuentoRepository) {
         this.productoRepository = productoRepository;
         this.unidadRepository = unidadRepository;
         this.tipoRepository = tipoRepository;
         this.categoriaRepository = categoriaRepository;
         this.loteRepository = loteRepository;
+        this.descuentoRepository = descuentoRepository;
     }
 
     public ProductoResponse execute(String productoId, ActualizarProductoRequest actualizarProductoRequest) {
@@ -78,6 +83,7 @@ public class ActualizarProductoUseCase {
         }
 
         exigirSinInventarioSiCambiaSuManejo(producto, actualizarProductoRequest);
+        boolean dejaDeSerVendible = producto.isVendible() && Boolean.FALSE.equals(actualizarProductoRequest.getVendible());
 
         producto.actualizar(
                 actualizarProductoRequest.getNombre(),
@@ -91,6 +97,12 @@ public class ActualizarProductoUseCase {
                 productoPadreId);
 
         Producto productoActualizado = productoRepository.actualizar(id, producto);
+        // Lo que no se vende no tiene descuentos (logica.md DESCUENTO-05).
+        if (dejaDeSerVendible) {
+            descuentoRepository.obtenerPorProducto(id).stream()
+                    .map(Descuento::getId)
+                    .forEach(descuentoRepository::eliminar);
+        }
 
         return toResponse(productoActualizado);
     }
@@ -141,9 +153,21 @@ public class ActualizarProductoUseCase {
             throw DomainException.throwException(409,
                     "El producto '" + padre.getNombre() + "' es una presentacion y no puede ser producto base de otra");
         }
+        exigirQueElPadreTengaStock(padre);
         if (!productoRepository.obtenerPresentaciones(producto.getId()).isEmpty()) {
             throw DomainException.throwException(409,
                     "El producto '" + producto.getNombre() + "' es producto base de otras presentaciones y no puede tener padre");
+        }
+    }
+
+    /**
+     * Un MTO no tiene inventario propio, asi que no es producto base de presentaciones (logica.md
+     * PRODUCTO-18): lo que se compra de el no tendria a que stock sumar.
+     */
+    static void exigirQueElPadreTengaStock(Producto padre) {
+        if (!padre.isEsStockDirecto()) {
+            throw DomainException.throwException(409,
+                    "El producto '" + padre.getNombre() + "' se prepara bajo demanda (MTO) y no puede tener presentaciones");
         }
     }
 

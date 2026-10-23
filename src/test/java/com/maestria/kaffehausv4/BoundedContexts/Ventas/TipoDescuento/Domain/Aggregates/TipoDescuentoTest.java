@@ -3,12 +3,15 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.Agg
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /** Pruebas de dominio puro de TipoDescuento: catalogo de tipos de descuento y su semantica. */
 class TipoDescuentoTest {
@@ -40,7 +43,7 @@ class TipoDescuentoTest {
     @Test
     void actualizarCambiaElNombre() {
         // Arrange
-        TipoDescuento tipo = TipoDescuento.restaurar(ID, "Porcentaje", false);
+        TipoDescuento tipo = TipoDescuento.restaurar(ID, "Dos por uno", false);
 
         // Act
         tipo.actualizar("Monto fijo");
@@ -64,14 +67,14 @@ class TipoDescuentoTest {
     @Test
     void eliminarEsUnaBajaLogicaQueConservaLosDatos() {
         // Arrange
-        TipoDescuento tipo = TipoDescuento.restaurar(ID, "Porcentaje", false);
+        TipoDescuento tipo = TipoDescuento.restaurar(ID, "Dos por uno", false);
 
         // Act
         tipo.eliminar();
 
         // Assert
         assertTrue(tipo.isBorrado());
-        assertEquals("Porcentaje", tipo.getNombre());
+        assertEquals("Dos por uno", tipo.getNombre());
     }
 
     @ParameterizedTest
@@ -101,5 +104,24 @@ class TipoDescuentoTest {
 
         // Assert
         assertFalse(aplicable);
+    }
+
+    @Test
+    void unaFilaSemanticaNoSeRenombraNiSeDaDeBaja() {
+        // Arrange (logica.md GENERAL-19)
+        TipoDescuento semantica = TipoDescuento.restaurar(ID, "Porcentaje", false);
+
+        // Act
+        DomainException renombrar = assertThrows(DomainException.class, () -> semantica.actualizar("Otro nombre"));
+        DomainException darDeBaja = assertThrows(DomainException.class, semantica::eliminar);
+        semantica.actualizar("PORCENTAJE");
+
+        // Assert
+        assertEquals(409, renombrar.getCodigo());
+        assertEquals(409, darDeBaja.getCodigo());
+        assertEquals("Porcentaje", semantica.getNombre());
+        assertFalse(semantica.isBorrado());
+        assertTrue(semantica.esSemantico());
+        assertFalse(TipoDescuento.restaurar(ID, "Dos por uno", false).esSemantico());
     }
 }

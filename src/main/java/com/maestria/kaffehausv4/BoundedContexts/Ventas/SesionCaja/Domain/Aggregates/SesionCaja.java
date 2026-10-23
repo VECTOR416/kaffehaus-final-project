@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.Aggreg
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -102,10 +103,18 @@ public class SesionCaja {
      * Ingreso o egreso menor de efectivo. Solo en una caja abierta. Un egreso no puede dejar el
      * efectivo esperado por debajo de cero (logica.md SESIONCAJA-10); 'ventasEnEfectivo' es lo
      * cobrado en efectivo hasta ahora en las ventas completadas de esta sesion.
+     *
+     * Cualquiera que atienda registra un ingreso, pero sacar dinero es cosa del titular, que
+     * responde por la caja, o de un Administrador (SESIONCAJA-15): si no, 403.
      */
-    public void registrarMovimiento(UsuarioId usuarioId, String tipo, BigDecimal monto, String motivo, BigDecimal ventasEnEfectivo) {
+    public void registrarMovimiento(UsuarioId usuarioId, String tipo, BigDecimal monto, String motivo, BigDecimal ventasEnEfectivo, boolean esAdministrador) {
         exigirAbierta();
-        agregar(MovimientoCaja.crear(usuarioId, tipo, monto, motivo), ventasEnEfectivo);
+        MovimientoCaja movimiento = MovimientoCaja.crear(usuarioId, tipo, monto, motivo);
+        if (!movimiento.esIngreso() && !esAdministrador && !esTitular(usuarioId)) {
+            throw AutorizacionException.throwException(403,
+                    "Solo el titular de la sesion de caja o un Administrador registran un egreso");
+        }
+        agregar(movimiento, ventasEnEfectivo);
     }
 
     /**
@@ -134,7 +143,7 @@ public class SesionCaja {
      * diferencia de la que responde el titular.
      */
     public void exigirQuePuedaCerrar(UsuarioId usuarioId, boolean esAdministrador) {
-        if (!esAdministrador && !this.usuarioId.getValue().equals(usuarioId.getValue())) {
+        if (!esAdministrador && !esTitular(usuarioId)) {
             throw AutorizacionException.throwException(403,
                     "Solo el titular de la sesion de caja o un Administrador pueden cerrarla");
         }
@@ -179,6 +188,18 @@ public class SesionCaja {
 
     public boolean estaAbierta() {
         return ABIERTA.equals(this.estado);
+    }
+
+    /**
+     * Turno abierto en un dia anterior (logica.md SESIONCAJA-17): sigue operativo, porque hay
+     * turnos que pasan la medianoche, pero el frontend debe pedir cerrarlo.
+     */
+    public boolean abiertaDesdeDiaAnterior(LocalDate hoy) {
+        return estaAbierta() && this.fechaApertura != null && this.fechaApertura.toLocalDate().isBefore(hoy);
+    }
+
+    private boolean esTitular(UsuarioId usuarioId) {
+        return this.usuarioId.getValue().equals(usuarioId.getValue());
     }
 
     private void exigirAbierta() {

@@ -100,7 +100,7 @@ class RegistrarAnulacionDeVentaUseCaseTest {
     private Venta hayVentaEn(EstadoVenta estado, PagoVenta... pagos) {
         Venta venta = Venta.restaurar(ID_VENTA, 7L, AHORA.minusHours(1), new BigDecimal("20.00"), new UsuarioId(ID_USUARIO),
                 new ClienteId(Cliente.ID_MOSTRADOR), new SesionCajaId(ID_CAJA_DE_LA_VENTA), estado.getId(),
-                null, null, null, false,
+                null, null, null, null, false,
                 new ArrayList<>(List.of(DetalleVenta.restaurar("83000000-0000-0000-0000-000000000001", new ProductoId(ID_PAN),
                         new BigDecimal("10.00"), new BigDecimal("2"), new BigDecimal("20.00"), new BigDecimal("0.00"), true, false))),
                 new ArrayList<>(List.of(pagos)));
@@ -129,7 +129,7 @@ class RegistrarAnulacionDeVentaUseCaseTest {
     }
 
     private static RegistrarAnulacionDeVentaRequest anulacion(String motivo, boolean reintegrar) {
-        return RegistrarAnulacionDeVentaRequest.crear(ID_VENTA, ID_USUARIO, motivo, reintegrar, AHORA);
+        return RegistrarAnulacionDeVentaRequest.crear(ID_VENTA, ID_USUARIO, motivo, reintegrar, null, AHORA);
     }
 
     @Test
@@ -255,6 +255,34 @@ class RegistrarAnulacionDeVentaUseCaseTest {
     }
 
     @Test
+    void laReferenciaDelReembolsoConTarjetaQuedaEnLaVentaSinTocarLaCaja() {
+        // Arrange (logica.md VENTA-27)
+        hayVentaEn(COMPLETADA, pago(ID_TARJETA, "20.00"));
+
+        // Act
+        VentaResponse respuesta = useCase.execute(RegistrarAnulacionDeVentaRequest.crear(
+                ID_VENTA, ID_USUARIO, "Reclamo", false, "POS-REV-0042", AHORA));
+
+        // Assert
+        assertEquals("POS-REV-0042", respuesta.getReferenciaReembolso());
+        verifyNoInteractions(sesionCajaRepository);
+    }
+
+    @Test
+    void laReferenciaDelReembolsoNoPasaDe255Caracteres() {
+        // Arrange
+        hayVentaEn(COMPLETADA, pago(ID_TARJETA, "20.00"));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(RegistrarAnulacionDeVentaRequest.crear(
+                ID_VENTA, ID_USUARIO, "Reclamo", false, "x".repeat(256), AHORA)));
+
+        // Assert
+        assertEquals(400, error.getCodigo());
+        verify(ventaRepository, never()).actualizar(any(), any());
+    }
+
+    @Test
     void laCajaSeTocaAntesQueElInventario() {
         // Arrange (GENERAL-15)
         hayVentaEn(COMPLETADA, pago(ID_EFECTIVO, "20.00"));
@@ -373,7 +401,8 @@ class RegistrarAnulacionDeVentaUseCaseTest {
         // Arrange
         RegistrarAnulacionDeVentaUseCase interno = org.mockito.Mockito.mock(RegistrarAnulacionDeVentaUseCase.class);
         AnularVentaUseCase fachada = new AnularVentaUseCase(interno);
-        AnularVentaRequest peticion = AnularVentaRequest.createFromRequest(Map.of("motivo", "Cobro duplicado", "reintegrar", true), ID_USUARIO);
+        AnularVentaRequest peticion = AnularVentaRequest.createFromRequest(
+                Map.of("motivo", "Cobro duplicado", "reintegrar", true, "referenciaReembolso", "QR-1"), ID_USUARIO);
         ArgumentCaptor<RegistrarAnulacionDeVentaRequest> enviado = ArgumentCaptor.forClass(RegistrarAnulacionDeVentaRequest.class);
 
         // Act
@@ -385,6 +414,7 @@ class RegistrarAnulacionDeVentaUseCaseTest {
         assertEquals(ID_USUARIO, enviado.getValue().getIdUsuario());
         assertEquals("Cobro duplicado", enviado.getValue().getMotivo());
         assertTrue(enviado.getValue().isReintegrar());
+        assertEquals("QR-1", enviado.getValue().getReferenciaReembolso());
     }
 
     @Test

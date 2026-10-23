@@ -95,10 +95,15 @@ public class CrearLoteUseCase {
 
     /**
      * Un lote compra presentaciones o productos por unidades; un producto base con presentaciones
-     * se compra a traves de una de ellas (logica.md LOTE-13).
+     * se compra a traves de una de ellas (logica.md LOTE-13), y un MTO no se compra: no tiene
+     * inventario propio (PRODUCTO-18).
      */
     static void exigirQueSeCompre(Producto producto, IProductoRepository productoRepository) {
-        if (producto.isEsStockDirecto() && !productoRepository.obtenerPresentaciones(producto.getId()).isEmpty()) {
+        if (!producto.isEsStockDirecto()) {
+            throw DomainException.throwException(400,
+                    "El producto '" + producto.getNombre() + "' se prepara bajo demanda (MTO) y no se compra: se compran sus insumos");
+        }
+        if (!productoRepository.obtenerPresentaciones(producto.getId()).isEmpty()) {
             throw DomainException.throwException(400,
                     "El producto '" + producto.getNombre() + "' tiene presentaciones: compra una de ellas o registra una presentacion para comprarlo suelto");
         }

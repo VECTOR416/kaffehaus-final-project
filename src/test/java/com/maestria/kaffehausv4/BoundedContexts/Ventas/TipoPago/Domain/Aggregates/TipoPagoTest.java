@@ -3,12 +3,15 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoPago.Domain.Aggregat
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /** Pruebas de dominio puro de TipoPago: catalogo de formas de pago. */
 class TipoPagoTest {
@@ -40,7 +43,7 @@ class TipoPagoTest {
     @Test
     void actualizarCambiaElNombre() {
         // Arrange
-        TipoPago tipo = TipoPago.restaurar(ID, "Efectivo", false);
+        TipoPago tipo = TipoPago.restaurar(ID, "Vale", false);
 
         // Act
         tipo.actualizar("Tarjeta");
@@ -64,14 +67,14 @@ class TipoPagoTest {
     @Test
     void eliminarEsUnaBajaLogicaQueConservaLosDatos() {
         // Arrange
-        TipoPago tipo = TipoPago.restaurar(ID, "Efectivo", false);
+        TipoPago tipo = TipoPago.restaurar(ID, "Vale", false);
 
         // Act
         tipo.eliminar();
 
         // Assert
         assertTrue(tipo.isBorrado());
-        assertEquals("Efectivo", tipo.getNombre());
+        assertEquals("Vale", tipo.getNombre());
     }
 
     @ParameterizedTest
@@ -97,5 +100,24 @@ class TipoPagoTest {
 
         // Assert
         assertFalse(esEfectivo);
+    }
+
+    @Test
+    void unaFilaSemanticaNoSeRenombraNiSeDaDeBaja() {
+        // Arrange (logica.md GENERAL-19)
+        TipoPago semantica = TipoPago.restaurar(ID, "Efectivo", false);
+
+        // Act
+        DomainException renombrar = assertThrows(DomainException.class, () -> semantica.actualizar("Otro nombre"));
+        DomainException darDeBaja = assertThrows(DomainException.class, semantica::eliminar);
+        semantica.actualizar("EFECTIVO");
+
+        // Assert
+        assertEquals(409, renombrar.getCodigo());
+        assertEquals(409, darDeBaja.getCodigo());
+        assertEquals("Efectivo", semantica.getNombre());
+        assertFalse(semantica.isBorrado());
+        assertTrue(semantica.esSemantico());
+        assertFalse(TipoPago.restaurar(ID, "Vale", false).esSemantico());
     }
 }

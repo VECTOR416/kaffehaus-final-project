@@ -1,6 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Infrastructure.Persistence.Jpa;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -37,4 +38,11 @@ public interface ExistenciaJpaRepository extends JpaRepository<ExistenciaJpaMode
     // Todas las vivas, con o sin contenido, para el pesaje (logica.md EXISTENCIA-16).
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<ExistenciaJpaModel> readByIdDetalleLoteInAndBorradoFalseOrderByIdAsc(Collection<UUID> idsDetalleLote);
+
+    // Baja de un lote sin usar (logica.md LOTE-26): cualquier existencia viva, agotada o no.
+    boolean existsByIdDetalleLoteInAndBorradoFalse(Collection<UUID> idsDetalleLote);
+
+    // Alerta de vencimiento (logica.md VENCIMIENTO-04). Las que no vencen no entran: NULL no cumple <=.
+    List<ExistenciaJpaModel> findByBorradoFalseAndContenidoActualGreaterThanAndFechaVencimientoLessThanEqualOrderByFechaVencimientoAscIdAsc(
+            BigDecimal contenidoMinimo, LocalDate fecha);
 }

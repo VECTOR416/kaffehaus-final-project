@@ -84,7 +84,7 @@ class EstadoExistenciaUseCasesTest {
     void actualizarCambiaElNombreYGuarda() {
         // Arrange
         ActualizarEstadoExistenciaUseCase useCase = new ActualizarEstadoExistenciaUseCase(repository);
-        EstadoExistencia actual = existente();
+        EstadoExistencia actual = EstadoExistencia.restaurar(ID, "En revision", false);
         when(repository.obtenerPorId(argThat(id -> ID.equals(id.getValue())))).thenReturn(Optional.of(actual));
         when(repository.actualizar(any(), any())).thenAnswer(llamada -> llamada.getArgument(1));
 

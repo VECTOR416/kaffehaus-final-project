@@ -38,9 +38,13 @@ en cuatro bounded contexts (`Inventario`, `Ventas`, `Personal`, `Pedidos`) y un 
 - **Clase de arranque**: `Kaffehausv4Application` (`@SpringBootApplication`, sin configuracion extra)
 - **Configuracion**: `src/main/resources/application.yaml`, unico archivo, sobreescribible por
   variables de entorno (`JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ISSUER`, `JWT_ACCESS_MINUTES`,
-  `JWT_REFRESH_DAYS`, `GOOGLE_CLIENT_ID`, `SEED_HABILITADO`, `SERVER_PORT`). Datasource
-  `localhost:5432/kaffehausdb`, `spring.jpa.hibernate.ddl-auto: update`, dialecto
-  `PostgreSQLDialect`. El esquema y sus limites se describen en 4.20.
+  `JWT_REFRESH_DAYS`, `GOOGLE_CLIENT_ID`, `SEED_HABILITADO`, `SEED_ADMIN_CONTRASENA`,
+  `CORS_ORIGENES`, `DB_LOCK_TIMEOUT`, `SERVER_PORT`). Datasource `localhost:5432/kaffehausdb`,
+  `spring.jpa.hibernate.ddl-auto: update`, dialecto `PostgreSQLDialect`. Cada conexion del pool
+  ejecuta `SET lock_timeout` (`spring.datasource.hikari.connection-init-sql`, por defecto 5 s):
+  ninguna operacion espera un bloqueo de fila indefinidamente, y al vencer la espera
+  `GlobalExceptionHandler` responde 409 "reintenta" (4.16, 5.7). El esquema y sus limites se
+  describen en 4.20.
 
 ---
 
@@ -146,7 +150,8 @@ kaffehausv4/
     │   │       ├── Personal/<Agregado>/
     │   │       └── Pedidos/<Agregado>/
     │   └── resources/
-    │       └── application.yaml                 # Unico archivo de configuracion
+    │       ├── application.yaml                 # Unico archivo de configuracion
+    │       └── schema.sql                       # Esquema fuera de las entidades (4.20)
     └── test/
         ├── java/com/maestria/kaffehausv4/       # Espeja el paquete de produccion (4.21)
         │   └── Soporte/                         # DatosDePrueba, PruebaConBaseDeDatos, EscenarioDeCafeteria
@@ -720,7 +725,7 @@ entera en este paquete y es **la capa mas externa**. Es el unico paquete que imp
 
 | Pieza | Responsabilidad |
 |---|---|
-| `SecurityConfig` | `@EnableWebSecurity`. Cadena stateless, sin CSRF; `/api/v1/auth/**` abierto y el resto autenticado (`anyRequest().authenticated()`); CORS (`corsConfigurationSource`, dentro de la cadena porque el preflight se resuelve antes de Spring MVC); registro del interceptor y del resolvedor |
+| `SecurityConfig` | `@EnableWebSecurity`. Cadena stateless, sin CSRF; `/api/v1/auth/**` abierto y el resto autenticado (`anyRequest().authenticated()`); CORS (`corsConfigurationSource`, dentro de la cadena porque el preflight se resuelve antes de Spring MVC) con los origenes enumerados en `seguridad.cors.origenes-permitidos` (`CORS_ORIGENES`, por defecto `localhost` en cualquier puerto): admite patrones acotados y rechaza al arrancar el comodin `*` a secas; registro del interceptor y del resolvedor |
 | `JwtAuthenticationFilter` | `OncePerRequestFilter`. **Unico sitio donde se valida un token entrante**. Deja al usuario en el `SecurityContext` |
 | `JwtService` | `@Component`. Unico punto que conoce jjwt: firma, claims y vigencia |
 | `RequiereRol` | Anotacion de clase o metodo con nombres de rol tal como estan en la tabla `rol`. La del metodo manda sobre la de la clase |
@@ -763,13 +768,18 @@ lo que falta; la respuesta lista lo `creados` y lo `existentes`. Que se siembra 
 - Depende de repositorios de todos los contextos, como la autenticacion. No es un agregado ni
   tiene datasource propio.
 - El controller no lleva `@RequiereRol`: la ruta es publica mientras `seguridad.seed-habilitado`
-  (`SEED_HABILITADO`, por defecto `true`) sea verdadero; en `false`, solo la alcanza un
-  `Administrador`.
+  (`SEED_HABILITADO`, por defecto `false`) sea verdadero; en `false`, solo la alcanza un
+  `Administrador`. Se activa solo para la primera siembra de una base nueva.
+- La contrasena del administrador inicial sale de `seguridad.seed-admin-contrasena`
+  (`SEED_ADMIN_CONTRASENA`, sin valor por defecto). La lee el controller con `@Value` y la pasa a
+  `SembrarSistemaUseCase.execute(contrasena)`, porque la capa de aplicacion no lee configuracion
+  (2.2). Que pasa si falta lo fija `logica.md` (SIEMBRA-02).
 - Una fila que un flujo reconoce por nombre (5.6) debe estar en la siembra.
 
-Primer arranque: `docker compose up -d`, levantar la aplicacion (`ddl-auto: update` crea las
-tablas y despues el script de 4.20 crea el resto del esquema) y llamar una vez a
-`POST api/v1/seed`.
+Primer arranque: `docker compose up -d`, levantar la aplicacion con `SEED_HABILITADO=true` y
+`SEED_ADMIN_CONTRASENA` definidos (`ddl-auto: update` crea las tablas y despues el script de 4.20
+crea el resto del esquema), llamar una vez a `POST api/v1/seed` y volver a arrancar sin
+`SEED_HABILITADO`.
 
 ### 4.20 Esquema de base de datos
 
@@ -778,7 +788,7 @@ tablas y despues el script de 4.20 crea el resto del esquema) y llamar una vez a
   las bases existentes.
 - Todas las tablas tienen `borrado`, `fec_c` y `fec_u` (4.10). PK `UUID` generada por el mapper.
 - Hay objetos de esquema **que no se derivan de las entidades** y de los que dependen piezas del
-  codigo. Estan versionados en `src/main/resources/db/esquema-postgresql.sql`:
+  codigo. Estan versionados en `src/main/resources/schema.sql`:
   - `seq_numero_ticket` y el valor por defecto de `venta.numero_ticket` (el modelo lo mapea con
     `@Generated` e `insertable/updatable = false`, y `VentaDatasourceImpl.crear` usa
     `saveAndFlush` para releerlo).
@@ -788,19 +798,25 @@ tablas y despues el script de 4.20 crea el resto del esquema) y llamar una vez a
     existente) y las restricciones `chk_movimiento_sujeto` (exactamente una de `id_existencia` e
     `id_detalle_lote`), `chk_movimiento_documento` (no `id_produccion` e `id_venta` a la vez) y
     `chk_movimiento_cantidad` (`cantidad >= 0`).
+  - Las claves foraneas de todas las columnas UUID que apuntan a otra tabla (las relaciones son
+    columnas planas sin asociaciones JPA, 2.4, asi que Hibernate no las crea). Se declaran
+    `DEFERRABLE INITIALLY DEFERRED NOT VALID`: se comprueban al confirmar la transaccion, porque sin
+    asociaciones Hibernate no ordena los `INSERT` por dependencia, y no revisan las filas
+    historicas, para que una base con huerfanas de antes siga arrancando. Sin `ON DELETE`: el
+    borrado es siempre logico. Usan los nombres del script antiguo para reemplazar las que existan.
 - **El script** lo ejecuta la inicializacion SQL de Spring Boot (`spring.sql.init.mode: always`)
   en cada arranque, despues de Hibernate (`spring.jpa.defer-datasource-initialization: true`).
   Por eso cada sentencia es idempotente (`IF NOT EXISTS`, y los `CHECK` con `DROP CONSTRAINT IF
-  EXISTS` seguido de `ADD CONSTRAINT`). No admite bloques `DO $$ ... $$`, porque Spring separa las
+  EXISTS` seguido de `ADD CONSTRAINT`, igual que las FK). No admite bloques `DO $$ ... $$`, porque Spring separa las
   sentencias por `;`. Si una sentencia falla, la aplicacion no arranca. No siembra filas: los
   datos iniciales son de la siembra (4.19).
 - Un objeto de esquema nuevo que no salga de las entidades se agrega a ese script y, si las
   pruebas lo necesitan y H2 lo admite, tambien a `src/test/resources/h2/esquema-postgresql.sql`,
   que el perfil `test` ejecuta en su lugar. Ese script crea la secuencia del ticket y las
   restricciones de `movimientos`; los indices parciales no se pueden reproducir en H2.
-- Sin versionar siguen las restricciones del script antiguo (`chk_lote_origen`,
-  `chk_distintas_unidades` y otras `CHECK` de importes y saldos) y las FK con `ON DELETE
-  RESTRICT`, como `existencias.id_detalle_lote` (7.5).
+- Sin versionar siguen las demas restricciones del script antiguo (`chk_lote_origen`,
+  `chk_distintas_unidades` y otras `CHECK` de importes y saldos) (7.5). Las FK no se reproducen en
+  H2.
 - Un indice unico parcial se usa cuando hay unicidad bajo borrado logico: una fila dada de baja
   conserva sus valores y una `UNIQUE CONSTRAINT` normal impediria reutilizarlos.
 
@@ -1204,28 +1220,34 @@ necesita una regla nueva, se acuerda y se registra alli primero.
 - `pasos_receta` es la unica tabla con indice unico parcial por una coleccion ordenada, y
   `RecetaDatasourceImpl` el unico datasource que escribe en dos fases (5.9).
 - Slices con casos de uso ademas de los cinco: `Lote` (`ObtenerDetallesAperturablesUseCase`,
-  `AbrirDetalleLoteUseCase`), `Producto` (`ObtenerInventarioProductoUseCase`,
-  `RegistrarPesajeUseCase`, `RecalcularStockUseCase`), `Existencia` (`RegistrarAperturaUseCase`),
+  `AbrirDetalleLoteUseCase`, `DarDeBajaVencidoDetalleLoteUseCase`, `ObtenerVencimientosUseCase`),
+  `Producto` (`ObtenerInventarioProductoUseCase`, `RegistrarPesajeUseCase`,
+  `RecalcularStockUseCase`), `Existencia` (`RegistrarAperturaUseCase`,
+  `DarDeBajaVencidaExistenciaUseCase`),
   `Movimiento` (`RegistrarSalidaDeInventarioUseCase`, `RegistrarReintegroDeInventarioUseCase`),
   `Venta` (`AnularVentaUseCase`, `RegistrarAnulacionDeVentaUseCase`, `ObtenerVentaPorTicketUseCase`).
 - Puertos con metodos fuera del CRUD, cada uno con la misma firma en su `I*Datasource`:
   - `ILoteRepository`: `obtenerPorDetalleId`, `obtenerPorDetalleIdParaActualizar`,
     `obtenerPorIdParaActualizar`, `obtenerPorIdsParaActualizar` (bloqueo por la raiz, 5.7),
     `obtenerPorProductos`, `obtenerPorProductosSinCargar`, `obtenerProductoDeDetalle`,
-    `obtenerLoteDeDetalle` (estos tres ultimos con proyecciones, 5.7).
+    `obtenerLoteDeDetalle` (estos tres ultimos con proyecciones, 5.7),
+    `obtenerConUnidadesQueVencenHasta`.
   - `IExistenciaRepository`: `obtenerDisponiblesPorDetallesLote`, `obtenerDisponiblesParaConsumo`,
     `obtenerVivasParaPesaje`, `obtenerPorIdParaActualizar`, `obtenerDetalleLoteDe` (con proyeccion,
-    5.7).
+    5.7), `existenPorDetallesLote`, `obtenerConContenidoQueVencenHasta`.
 - Proyecciones de interfaz (5.7): `DetalleLoteLecturaProyeccion`, `LoteLecturaProyeccion` y
   `ExistenciaDetalleLoteProyeccion`. Son las unicas interfaces en
   `Infrastructure/Persistence/Jpa/` ademas de los `JpaRepository`.
-  - `IProductoRepository`: `obtenerPresentaciones`, `obtenerPorIdParaActualizar`, `actualizarStock`.
-  - `IRecetaRepository.obtenerPorProductoObtenido`; `IConversionRepository.obtenerVivas`.
+  - `IProductoRepository`: `obtenerPresentaciones`, `obtenerPorIdParaActualizar`, `actualizarStock`,
+    `existeConTipo`, `existeConCategoria`, `existeConUnidad`.
+  - `IRecetaRepository`: `obtenerPorProductoObtenido`, `obtenerVivasPorProductoObtenido`,
+    `obtenerPorIngrediente`. `IConversionRepository.obtenerVivas`.
   - `IMovimientoRepository`: `obtenerPorExistencias`, `obtenerPorVenta`.
   - `ISesionCajaRepository`: `obtenerAbierta`, `obtenerAbiertaParaActualizar`,
     `obtenerAbiertaParaVenta`.
   - `IVentaRepository`: `obtenerPorClaveIdempotencia`, `obtenerPorNumeroTicket`,
-    `obtenerPorSesionCaja`. `IDescuentoRepository.obtenerVigentes`.
+    `obtenerPorSesionCaja`. `IDescuentoRepository`: `obtenerVigentes`, `obtenerPorProducto`,
+    `existeConTipoDescuento`. `IUsuarioRepository.contarPorRol`.
     `IPedidoRepository.obtenerPorVentaId`. `ITipoPagoRepository.obtenerVivos`.
   - `obtenerPorNombre` en `ITipoMovimientoRepository`, `IEstadoExistenciaRepository`,
     `IEstadoVentaRepository`, `IEstadoPedidoRepository`, `ITipoPagoRepository`, `IRolRepository`,
@@ -1241,10 +1263,11 @@ necesita una regla nueva, se acuerda y se registra alli primero.
 
 Desajustes conocidos entre este documento y el repositorio. No se resuelven sin consultar.
 
-- **Esquema fuera de las entidades versionado solo en parte** (4.20): la secuencia del ticket,
-  los indices unicos y parciales y las restricciones de `movimientos` estan en
-  `db/esquema-postgresql.sql`; las demas `CHECK` del script antiguo y las FK con `ON DELETE
-  RESTRICT` aun no. Una base creada desde cero no las tiene.
+- **Esquema fuera de las entidades versionado casi entero** (4.20): la secuencia del ticket, los
+  indices unicos y parciales, las restricciones de `movimientos` y las claves foraneas estan en
+  `schema.sql`; las demas `CHECK` del script antiguo (importes, saldos, origen del lote) aun no.
+  Una base creada desde cero no las tiene. Las FK son `NOT VALID`: las filas huerfanas anteriores
+  no se detectan hasta que alguien valide la restriccion (`ALTER TABLE ... VALIDATE CONSTRAINT`).
 - **Proteccion de controllers sin test** (4.21): ningun test comprueba que cada controller declare
   `@RequiereRol`.
 - **Citas a secciones antiguas de este archivo** en comentarios del codigo y de los tests. Se

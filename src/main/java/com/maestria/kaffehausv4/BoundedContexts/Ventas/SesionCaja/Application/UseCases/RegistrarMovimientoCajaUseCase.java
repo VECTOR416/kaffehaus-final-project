@@ -7,7 +7,10 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Repositories.IRolRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.Aggregates.Rol;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.Aggregates.Usuario;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Application.Repositories.IEstadoVentaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.Aggregates.EstadoVenta;
@@ -37,6 +40,7 @@ public class RegistrarMovimientoCajaUseCase {
 
     private final ISesionCajaRepository sesionCajaRepository;
     private final IUsuarioRepository usuarioRepository;
+    private final IRolRepository rolRepository;
     private final IVentaRepository ventaRepository;
     private final IEstadoVentaRepository estadoVentaRepository;
     private final ITipoPagoRepository tipoPagoRepository;
@@ -44,11 +48,13 @@ public class RegistrarMovimientoCajaUseCase {
     public RegistrarMovimientoCajaUseCase(
             ISesionCajaRepository sesionCajaRepository,
             IUsuarioRepository usuarioRepository,
+            IRolRepository rolRepository,
             IVentaRepository ventaRepository,
             IEstadoVentaRepository estadoVentaRepository,
             ITipoPagoRepository tipoPagoRepository) {
         this.sesionCajaRepository = sesionCajaRepository;
         this.usuarioRepository = usuarioRepository;
+        this.rolRepository = rolRepository;
         this.ventaRepository = ventaRepository;
         this.estadoVentaRepository = estadoVentaRepository;
         this.tipoPagoRepository = tipoPagoRepository;
@@ -56,13 +62,17 @@ public class RegistrarMovimientoCajaUseCase {
 
     public SesionCajaResponse execute(RegistrarMovimientoCajaRequest request) {
         UsuarioId usuarioId = new UsuarioId(request.getIdUsuario());
-        usuarioRepository.obtenerPorId(usuarioId)
+        Usuario usuario = usuarioRepository.obtenerPorId(usuarioId)
                 .orElseThrow(() -> DomainException.throwException(404, "El usuario con id '" + request.getIdUsuario() + "' no existe"));
+        // Un egreso en una caja ajena es solo de Administrador (logica.md SESIONCAJA-15).
+        boolean esAdministrador = rolRepository.obtenerPorId(usuario.getRolId())
+                .map(rol -> Rol.ADMINISTRADOR.equalsIgnoreCase(rol.getNombre()))
+                .orElse(false);
 
         SesionCaja sesionCaja = sesionCajaRepository.obtenerAbiertaParaActualizar()
                 .orElseThrow(() -> DomainException.throwException(409, "No hay una caja abierta en la que registrar el movimiento"));
 
-        sesionCaja.registrarMovimiento(usuarioId, request.getTipo(), request.getMonto(), request.getMotivo(), ventasEnEfectivo(sesionCaja));
+        sesionCaja.registrarMovimiento(usuarioId, request.getTipo(), request.getMonto(), request.getMotivo(), ventasEnEfectivo(sesionCaja), esAdministrador);
 
         return SesionCajaResponse.createFromAggregate(sesionCajaRepository.actualizar(sesionCaja.getId(), sesionCaja));
     }

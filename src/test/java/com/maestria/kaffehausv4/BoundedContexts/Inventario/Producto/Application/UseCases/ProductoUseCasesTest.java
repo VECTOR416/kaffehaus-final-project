@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases;
 
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.AHORA;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_CATEGORIA;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_OTRA_UNIDAD;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_TIPO;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -56,6 +58,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ProductoResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Repositories.IRecetaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Application.Repositories.ITipoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.Aggregates.Tipo;
@@ -63,6 +66,9 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObje
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.Repositories.IUnidadRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates.Unidad;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Repositories.IDescuentoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.Aggregates.Descuento;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.ValueObjects.TipoDescuentoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
@@ -87,6 +93,7 @@ class ProductoUseCasesTest {
     @Mock private IExistenciaRepository existenciaRepository;
     @Mock private IConversionRepository conversionRepository;
     @Mock private IRecetaRepository recetaRepository;
+    @Mock private IDescuentoRepository descuentoRepository;
 
     @BeforeEach
     void prepararCatalogos() {
@@ -186,6 +193,30 @@ class ProductoUseCasesTest {
         }
 
         @Test
+        void unMtoNoPuedeSerPresentacionNiProductoBase() {
+            // Arrange (logica.md PRODUCTO-18)
+            hayProducto(productoDirecto(ID_HARINA, "Harina"));
+            hayProducto(productoBajoDemanda(ID_PAN, "Sandwich"));
+            Map<String, Object> mtoConPadre = alta();
+            mtoConPadre.put("esStockDirecto", false);
+            mtoConPadre.put("idProductoPadre", ID_HARINA);
+            Map<String, Object> hijoDeUnMto = alta();
+            hijoDeUnMto.put("idProductoPadre", ID_PAN);
+
+            // Act
+            DomainException comoPresentacion = assertThrows(DomainException.class,
+                    () -> useCase.execute(CrearProductoRequest.createFromRequest(mtoConPadre)));
+            DomainException comoBase = assertThrows(DomainException.class,
+                    () -> useCase.execute(CrearProductoRequest.createFromRequest(hijoDeUnMto)));
+
+            // Assert
+            assertEquals(409, comoPresentacion.getCodigo());
+            assertEquals(409, comoBase.getCodigo());
+            assertTrue(comoBase.getMensaje().contains("no puede tener presentaciones"));
+            verify(productoRepository, never()).crear(any());
+        }
+
+        @Test
         void validaQueExistanUnidadTipoCategoriaYProductoPadre() {
             // Arrange
             Map<String, Object> sinUnidad = alta();
@@ -242,7 +273,8 @@ class ProductoUseCasesTest {
 
         @BeforeEach
         void crearCasoDeUso() {
-            useCase = new ActualizarProductoUseCase(productoRepository, unidadRepository, tipoRepository, categoriaRepository, loteRepository);
+            useCase = new ActualizarProductoUseCase(productoRepository, unidadRepository, tipoRepository, categoriaRepository, loteRepository,
+                    descuentoRepository);
             lenient().when(unidadRepository.obtenerPorId(argThat(id -> id != null && ID_OTRA_UNIDAD.equals(id.getValue()))))
                     .thenReturn(Optional.of(Unidad.restaurar(ID_OTRA_UNIDAD, "Kilogramo", "kg", false, false)));
         }
@@ -324,6 +356,48 @@ class ProductoUseCasesTest {
             assertFalse(respuesta.isVendible());
             assertTrue(respuesta.isEsStockDirecto());
             verify(productoRepository).actualizar(argThat(id -> ID_HARINA.equals(id.getValue())), any());
+        }
+
+        @Test
+        void elNuevoPadreNoPuedeSerUnMto() {
+            // Arrange (logica.md PRODUCTO-18)
+            hayProducto(productoDirecto(ID_MASA, "Masa"));
+            hayProducto(productoBajoDemanda(ID_PAN, "Sandwich"));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class,
+                    () -> useCase.execute(ID_MASA, ActualizarProductoRequest.createFromRequest(Map.of("idProductoPadre", ID_PAN))));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            verify(productoRepository, never()).actualizar(any(), any());
+        }
+
+        @Test
+        void alDejarDeSerVendibleSusDescuentosSeDanDeBaja() {
+            // Arrange (logica.md DESCUENTO-05)
+            hayProducto(productoDirecto(ID_HARINA, "Harina"));
+            Descuento promo = Descuento.restaurar("d7000000-0000-0000-0000-0000000000f1", new BigDecimal("10"), AHORA, AHORA.plusDays(5),
+                    true, new ProductoId(ID_HARINA), new TipoDescuentoId("d7000000-0000-0000-0000-0000000000f2"), false);
+            when(descuentoRepository.obtenerPorProducto(any())).thenReturn(List.of(promo));
+
+            // Act
+            useCase.execute(ID_HARINA, ActualizarProductoRequest.createFromRequest(Map.of("vendible", false)));
+
+            // Assert
+            verify(descuentoRepository).eliminar(argThat(id -> "d7000000-0000-0000-0000-0000000000f1".equals(id.getValue())));
+        }
+
+        @Test
+        void siSigueSiendoVendibleNoTocaSusDescuentos() {
+            // Arrange
+            hayProducto(productoDirecto(ID_HARINA, "Harina"));
+
+            // Act
+            useCase.execute(ID_HARINA, ActualizarProductoRequest.createFromRequest(Map.of("precio", "11")));
+
+            // Assert
+            verifyNoInteractions(descuentoRepository);
         }
 
         @Test
@@ -425,19 +499,127 @@ class ProductoUseCasesTest {
     @Nested
     class EliminarYConsultar {
 
+        private EliminarProductoUseCase eliminar() {
+            return new EliminarProductoUseCase(productoRepository, loteRepository, existenciaRepository, recetaRepository, descuentoRepository);
+        }
+
+        /** El producto que se da de baja se lee bloqueado (logica.md PRODUCTO-20). */
+        private void hayProductoBloqueado(Producto producto) {
+            lenient().when(productoRepository.obtenerPorIdParaActualizar(argThat(id -> id != null && producto.getId().getValue().equals(id.getValue()))))
+                    .thenReturn(Optional.of(producto));
+        }
+
         @Test
         void eliminarDaDeBajaElExistenteYRechazaElInexistente() {
             // Arrange
-            EliminarProductoUseCase useCase = new EliminarProductoUseCase(productoRepository);
-            hayProducto(productoDirecto(ID_HARINA, "Harina"));
+            hayProductoBloqueado(productoDirecto(ID_HARINA, "Harina"));
 
             // Act
-            useCase.execute(ID_HARINA);
-            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_INEXISTENTE));
+            eliminar().execute(ID_HARINA);
+            DomainException error = assertThrows(DomainException.class, () -> eliminar().execute(ID_INEXISTENTE));
 
             // Assert
             verify(productoRepository, times(1)).eliminar(argThat(id -> ID_HARINA.equals(id.getValue())));
             assertEquals(404, error.getCodigo());
+        }
+
+        @Test
+        void unProductoConStockNoSeDaDeBaja() {
+            // Arrange (logica.md PRODUCTO-20)
+            hayProductoBloqueado(Producto.restaurar(ID_HARINA, "Harina", new BigDecimal("5.00"), BigDecimal.ONE, BigDecimal.ZERO,
+                    true, true, new UnidadId(ID_UNIDAD), new TipoId(ID_TIPO), new CategoriaId(ID_CATEGORIA), null, false));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> eliminar().execute(ID_HARINA));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            assertTrue(error.getMensaje().contains("tiene stock"));
+            verify(productoRepository, never()).eliminar(any());
+        }
+
+        @Test
+        void unProductoConUnidadesEnLotesNoSeDaDeBaja() {
+            // Arrange
+            hayProductoBloqueado(productoDirecto(ID_PAN, "Pan"));
+            when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of(loteDeCompra("d7000000-0000-0000-0000-0000000000a1",
+                    detalle("d7000000-0000-0000-0000-0000000000a2", ID_PAN, "5", "0.5", "10", null))));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> eliminar().execute(ID_PAN));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            assertTrue(error.getMensaje().contains("unidades en lotes"));
+        }
+
+        @Test
+        void unaPresentacionConExistenciasAbiertasConContenidoNoSeDaDeBaja() {
+            // Arrange: la bolsa ya no tiene unidades cerradas, pero su existencia abierta si contenido.
+            hayProductoBloqueado(presentacion(ID_BOLSA, "Bolsa de harina", ID_HARINA));
+            when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of(loteDeCompra("d7000000-0000-0000-0000-0000000000a1",
+                    detalle("d7000000-0000-0000-0000-0000000000a2", ID_BOLSA, "1", "0", "10", null))));
+            when(existenciaRepository.obtenerDisponiblesPorDetallesLote(anyList())).thenReturn(List.of(
+                    existencia("d7000000-0000-0000-0000-0000000000c1", "d7000000-0000-0000-0000-0000000000a2", "1000", "300", null)));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> eliminar().execute(ID_BOLSA));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            assertTrue(error.getMensaje().contains("existencias abiertas"));
+        }
+
+        @Test
+        void unProductoBaseConPresentacionesVivasNoSeDaDeBaja() {
+            // Arrange
+            hayProductoBloqueado(productoDirecto(ID_HARINA, "Harina"));
+            when(productoRepository.obtenerPresentaciones(argThat(id -> ID_HARINA.equals(id.getValue()))))
+                    .thenReturn(List.of(presentacion(ID_BOLSA, "Bolsa de harina", ID_HARINA)));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> eliminar().execute(ID_HARINA));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            assertTrue(error.getMensaje().contains("presentaciones vivas"));
+        }
+
+        @Test
+        void unIngredienteDeUnaRecetaVivaNoSeDaDeBaja() {
+            // Arrange
+            hayProductoBloqueado(productoDirecto(ID_HARINA, "Harina"));
+            when(recetaRepository.obtenerPorIngrediente(any())).thenReturn(List.of(receta("d7000000-0000-0000-0000-0000000000d1", ID_PAN, "10",
+                    ingrediente("d7000000-0000-0000-0000-0000000000e1", ID_HARINA, "4000"))));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> eliminar().execute(ID_HARINA));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            assertTrue(error.getMensaje().contains("es ingrediente de la receta 'Receta de prueba'"));
+            verify(productoRepository, never()).eliminar(any());
+        }
+
+        @Test
+        void alDarloDeBajaCaenSusRecetasYSusDescuentos() {
+            // Arrange: lo agotado no impide la baja; lo que cuelga de el cae con el.
+            hayProductoBloqueado(productoBajoDemanda(ID_PAN, "Sandwich"));
+            when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of(loteDeCompra("d7000000-0000-0000-0000-0000000000a1",
+                    detalle("d7000000-0000-0000-0000-0000000000a2", ID_PAN, "5", "0", "10", null))));
+            when(recetaRepository.obtenerVivasPorProductoObtenido(any())).thenReturn(List.of(receta("d7000000-0000-0000-0000-0000000000d1", ID_PAN, "1",
+                    ingrediente("d7000000-0000-0000-0000-0000000000e1", ID_HARINA, "100"))));
+            when(descuentoRepository.obtenerPorProducto(any())).thenReturn(List.of(Descuento.restaurar("d7000000-0000-0000-0000-0000000000f1",
+                    new BigDecimal("10"), AHORA, AHORA.plusDays(5), true, new ProductoId(ID_PAN),
+                    new TipoDescuentoId("d7000000-0000-0000-0000-0000000000f2"), false)));
+
+            // Act
+            eliminar().execute(ID_PAN);
+
+            // Assert
+            verify(recetaRepository).eliminar(argThat(id -> "d7000000-0000-0000-0000-0000000000d1".equals(id.getValue())));
+            verify(descuentoRepository).eliminar(argThat(id -> "d7000000-0000-0000-0000-0000000000f1".equals(id.getValue())));
+            verify(productoRepository).eliminar(argThat(id -> ID_PAN.equals(id.getValue())));
         }
 
         @Test
@@ -542,6 +724,16 @@ class ProductoUseCasesTest {
             assertEquals(0, new BigDecimal("400").compareTo(inventario.getDisponible()));
             assertEquals(0, new BigDecimal("2400").compareTo(inventario.getDisponibleTrasAbrir()));
             assertEquals(ID_UNIDAD, inventario.getIdUnidad());
+        }
+
+        @Test
+        void separaElStockFisicoEnVigenteYVencido() {
+            // Act (logica.md VENCIMIENTO-02): 400 g abiertos vigentes y 1000 g abiertos vencidos.
+            InventarioProductoResponse inventario = useCase.execute(ID_HARINA);
+
+            // Assert
+            assertEquals(0, new BigDecimal("400").compareTo(inventario.getStockVigente()));
+            assertEquals(0, new BigDecimal("1000").compareTo(inventario.getStockVencido()));
         }
 
         @Test

@@ -83,7 +83,9 @@ public class Producto {
         CategoriaId categoriaId,
         ProductoId productoPadreId
     ){
-        return new Producto(null, nombre, BigDecimal.ZERO.setScale(2), precio, stockMinimo, vendible, esStockDirecto, unidadActualId, tipoId, categoriaId, productoPadreId, false);
+        Producto producto = new Producto(null, nombre, BigDecimal.ZERO.setScale(2), precio, stockMinimo, vendible, esStockDirecto, unidadActualId, tipoId, categoriaId, productoPadreId, false);
+        producto.exigirQueUnBajoDemandaNoSeaPresentacion();
+        return producto;
     }
 
     public void actualizar(
@@ -106,6 +108,19 @@ public class Producto {
         this.tipoId = tipoId != null ? tipoId : this.tipoId;
         this.categoriaId = categoriaId != null ? categoriaId : this.categoriaId;
         this.productoPadreId = productoPadreId != null ? productoPadreId : this.productoPadreId;
+        exigirQueUnBajoDemandaNoSeaPresentacion();
+    }
+
+    /**
+     * Un MTO no tiene inventario propio (logica.md PRODUCTO-18): no es la forma de compra de otro
+     * producto. Que tampoco sea producto base de presentaciones lo comprueba el caso de uso, que
+     * conoce a las demas.
+     */
+    private void exigirQueUnBajoDemandaNoSeaPresentacion() {
+        if (!this.esStockDirecto && this.productoPadreId != null) {
+            throw DomainException.throwException(409,
+                    "El producto '" + this.nombre + "' se prepara bajo demanda (MTO) y no puede ser presentacion de otro");
+        }
     }
 
     public void eliminar(){

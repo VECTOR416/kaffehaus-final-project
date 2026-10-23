@@ -209,6 +209,34 @@ class ProduccionUseCasesTest {
     }
 
     @Test
+    void unProductoBaseConPresentacionesNoSeProduceDirecto() {
+        // Arrange (logica.md PRODUCCION-13)
+        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of(presentacion("cf000000-0000-0000-0000-0000000000b1", "Pan en bolsa", ID_PAN)));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> crear.execute(produccion("20", "18")));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("tiene presentaciones"));
+        verify(produccionRepository, never()).crear(any());
+        verifyNoInteractions(registrarSalidaDeInventarioUseCase);
+    }
+
+    @Test
+    void loProducidoSeCuentaEnUnidadesEnteras() {
+        // Act (logica.md GENERAL-16)
+        DomainException esperada = assertThrows(DomainException.class, () -> crear.execute(produccion("20.5", "18")));
+        DomainException real = assertThrows(DomainException.class, () -> crear.execute(produccion("20", "17.5")));
+
+        // Assert
+        assertEquals(400, esperada.getCodigo());
+        assertEquals(400, real.getCodigo());
+        verify(produccionRepository, never()).crear(any());
+        verifyNoInteractions(registrarSalidaDeInventarioUseCase);
+    }
+
+    @Test
     void siFaltaUnInsumoElErrorSePropagaYNoSeAbreElProductoTerminado() {
         // Arrange
         when(registrarSalidaDeInventarioUseCase.execute(any())).thenThrow(DomainException.throwException(409, "Stock insuficiente de 'Harina'"));

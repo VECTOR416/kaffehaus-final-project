@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
@@ -21,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.Dtos.ActualizarUnidadRequest;
@@ -37,6 +39,7 @@ class UnidadUseCasesTest {
     private static final String ID = "c8000000-0000-0000-0000-000000000001";
 
     @Mock private IUnidadRepository repository;
+    @Mock private IProductoRepository productoRepository;
 
     private static Unidad gramo() {
         return Unidad.restaurar(ID, "Gramo", "g", false, false);
@@ -102,7 +105,7 @@ class UnidadUseCasesTest {
     @Test
     void eliminarDaDeBajaLaExistenteYRechazaLaInexistente() {
         // Arrange
-        EliminarUnidadUseCase useCase = new EliminarUnidadUseCase(repository);
+        EliminarUnidadUseCase useCase = new EliminarUnidadUseCase(repository, productoRepository);
         when(repository.obtenerPorId(any())).thenReturn(Optional.of(gramo())).thenReturn(Optional.empty());
 
         // Act
@@ -142,5 +145,21 @@ class UnidadUseCasesTest {
         assertEquals("Gramo", pagina.getData().get(0).getUnidad());
         assertEquals(1, pagina.getTotal());
         assertFalse(pagina.isHasMore());
+    }
+
+    @Test
+    void noSeDaDeBajaSiOtroRegistroVivoLoNecesita() {
+        // Arrange (logica.md GENERAL-18)
+        EliminarUnidadUseCase useCase = new EliminarUnidadUseCase(repository, productoRepository);
+        when(repository.obtenerPorId(any())).thenReturn(Optional.of(gramo()));
+        when(productoRepository.existeConUnidad(any())).thenReturn(true);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("productos vivos"));
+        verify(repository, never()).eliminar(any());
     }
 }

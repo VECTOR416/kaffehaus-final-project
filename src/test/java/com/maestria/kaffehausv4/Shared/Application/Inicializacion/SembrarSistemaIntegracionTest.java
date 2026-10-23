@@ -32,8 +32,8 @@ class SembrarSistemaIntegracionTest extends PruebaConBaseDeDatos {
     @Test
     void sobreUnaBaseVaciaSiembraTodoYUnaSegundaVezNoCreaNada() {
         // Act
-        SembrarSistemaResponse primera = sembrarSistemaUseCase.execute();
-        SembrarSistemaResponse segunda = sembrarSistemaUseCase.execute();
+        SembrarSistemaResponse primera = sembrarSistemaUseCase.execute("clave-inicial");
+        SembrarSistemaResponse segunda = sembrarSistemaUseCase.execute("clave-inicial");
 
         // Assert
         assertEquals(38, primera.getCreados().size());
@@ -45,18 +45,18 @@ class SembrarSistemaIntegracionTest extends PruebaConBaseDeDatos {
     @Test
     void elAdministradorQuedaConSuContrasenaHasheadaYElMostradorConSuIdFijo() {
         // Act
-        sembrarSistemaUseCase.execute();
+        sembrarSistemaUseCase.execute("clave-inicial");
 
         // Assert
         Usuario admin = usuarioRepository.obtenerPorCorreo(SembrarSistemaUseCase.CORREO_ADMINISTRADOR).orElseThrow();
-        assertTrue(hasheadorDeContrasena.coincide("admin", admin.getContrasena()));
+        assertTrue(hasheadorDeContrasena.coincide("clave-inicial", admin.getContrasena()));
         assertTrue(clienteRepository.obtenerPorId(new ClienteId(Cliente.ID_MOSTRADOR)).isPresent());
     }
 
     @Test
     void losCatalogosQueElFlujoResuelvePorNombreQuedanRegistrados() {
         // Act
-        sembrarSistemaUseCase.execute();
+        sembrarSistemaUseCase.execute("clave-inicial");
 
         // Assert
         for (String tipo : new String[] {TipoMovimiento.PRODUCCION, TipoMovimiento.AJUSTE, TipoMovimiento.MERMA, TipoMovimiento.APERTURA}) {

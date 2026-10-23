@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Repositories;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -88,4 +89,8 @@ public class LoteRepositoryImpl implements ILoteRepository{
         this.loteDatasource.eliminar(loteId);
     }
 
+    @Override
+    public List<Lote> obtenerConUnidadesQueVencenHasta(LocalDate fecha) {
+        return this.loteDatasource.obtenerConUnidadesQueVencenHasta(fecha);
+    }
 }

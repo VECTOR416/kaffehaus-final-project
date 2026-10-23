@@ -3,9 +3,12 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application
 import java.util.List;
 import java.util.Optional;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ObtenerProductosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 public interface IProductoRepository {
@@ -26,4 +29,13 @@ public interface IProductoRepository {
 
     /** Persiste solo el stock proyectado, sin tocar el resto de campos. */
     void actualizarStock(Producto producto);
+
+    /** Hay un producto vivo de ese tipo (logica.md GENERAL-18). */
+    boolean existeConTipo(TipoId tipoId);
+
+    /** Hay un producto vivo de esa categoria (logica.md GENERAL-18). */
+    boolean existeConCategoria(CategoriaId categoriaId);
+
+    /** Hay un producto vivo cuya unidad actual es esa (logica.md GENERAL-18). */
+    boolean existeConUnidad(UnidadId unidadId);
 }

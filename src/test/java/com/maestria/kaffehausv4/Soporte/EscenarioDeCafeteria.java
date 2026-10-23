@@ -33,6 +33,8 @@ import com.maestria.kaffehausv4.Shared.Application.Inicializacion.SembrarSistema
  */
 @Component
 public class EscenarioDeCafeteria {
+    /** Contrasena del administrador que siembra el escenario (logica.md SIEMBRA-02). */
+    public static final String CONTRASENA_ADMINISTRADOR = "admin-de-prueba";
 
     private final SembrarSistemaUseCase sembrarSistemaUseCase;
     private final CrearProductoUseCase crearProductoUseCase;
@@ -75,7 +77,7 @@ public class EscenarioDeCafeteria {
 
     /** Siembra la base y devuelve el id del administrador, que firma las operaciones. */
     public String sembrar() {
-        sembrarSistemaUseCase.execute();
+        sembrarSistemaUseCase.execute(CONTRASENA_ADMINISTRADOR);
         idAdministrador = usuarioRepository.obtenerPorCorreo(SembrarSistemaUseCase.CORREO_ADMINISTRADOR)
                 .orElseThrow().getId().getValue();
         return idAdministrador;

@@ -3,6 +3,9 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.U
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.AHORA;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_PERSONA;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_ROL;
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_ROL_OPERADOR;
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ROL_ADMINISTRADOR;
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ROL_OPERADOR;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_USUARIO;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.usuario;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -46,6 +50,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dt
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.EstadoCajaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.ObtenerSesionesCajaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.RecaudacionPorTipoPagoResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.RecaudacionPorUsuarioResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.RegistrarMovimientoCajaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.SesionCajaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Repositories.ISesionCajaRepository;
@@ -69,6 +74,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 @ExtendWith(MockitoExtension.class)
 class SesionCajaUseCasesTest {
 
+    private static final String ID_OTRO_CAJERO = "96000000-0000-0000-0000-000000000001";
     private static final String ID_CAJA = "90000000-0000-0000-0000-000000000001";
     private static final String ID_OTRO_USUARIO = "90000000-0000-0000-0000-0000000000aa";
     private static final String ID_EFECTIVO = "91000000-0000-0000-0000-000000000001";
@@ -104,7 +110,7 @@ class SesionCajaUseCasesTest {
 
     private Venta venta(String id, EstadoVenta estado, String total, PagoVenta... pagos) {
         return Venta.restaurar(id, 1L, AHORA.minusHours(1), new BigDecimal(total), new UsuarioId(ID_USUARIO),
-                new ClienteId(Cliente.ID_MOSTRADOR), new SesionCajaId(ID_CAJA), estado.getId(), null, null, null, false,
+                new ClienteId(Cliente.ID_MOSTRADOR), new SesionCajaId(ID_CAJA), estado.getId(), null, null, null, null, false,
                 new ArrayList<>(), new ArrayList<>(List.of(pagos)));
     }
 
@@ -225,8 +231,10 @@ class SesionCajaUseCasesTest {
 
         @BeforeEach
         void crearCasoDeUso() {
-            useCase = new RegistrarMovimientoCajaUseCase(sesionCajaRepository, usuarioRepository, ventaRepository,
+            useCase = new RegistrarMovimientoCajaUseCase(sesionCajaRepository, usuarioRepository, rolRepository, ventaRepository,
                     estadoVentaRepository, tipoPagoRepository);
+            // Por defecto firma el titular de la caja, con rol Operador.
+            lenient().when(rolRepository.obtenerPorId(any())).thenReturn(Optional.of(ROL_OPERADOR));
 
             lenient().when(estadoVentaRepository.obtenerPorNombre("Completada")).thenReturn(Optional.of(COMPLETADA));
             lenient().when(tipoPagoRepository.obtenerVivos()).thenReturn(List.of(
@@ -329,6 +337,53 @@ class SesionCajaUseCasesTest {
             assertEquals(400, porMonto.getCodigo());
             assertTrue(caja.getMovimientosActivos().isEmpty());
             verify(sesionCajaRepository, never()).actualizar(any(), any());
+        }
+
+        @Test
+        void unOperadorQueNoEsTitularNoRegistraUnEgreso() {
+            // Arrange (logica.md SESIONCAJA-15)
+            SesionCaja caja = cajaAbierta();
+            when(sesionCajaRepository.obtenerAbiertaParaActualizar()).thenReturn(Optional.of(caja));
+            when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuario(ID_OTRO_CAJERO, "luis@kaffe.com", ID_ROL_OPERADOR)));
+
+            // Act
+            AutorizacionException error = assertThrows(AutorizacionException.class,
+                    () -> useCase.execute(RegistrarMovimientoCajaRequest.createFromRequest(
+                            Map.of("tipo", "EGRESO", "monto", "5", "motivo", "Taxi"), ID_OTRO_CAJERO)));
+
+            // Assert
+            assertEquals(403, error.getCodigo());
+            assertTrue(caja.getMovimientosActivos().isEmpty());
+            verify(sesionCajaRepository, never()).actualizar(any(), any());
+        }
+
+        @Test
+        void unOperadorQueNoEsTitularSiRegistraUnIngreso() {
+            // Arrange
+            when(sesionCajaRepository.obtenerAbiertaParaActualizar()).thenReturn(Optional.of(cajaAbierta()));
+            when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuario(ID_OTRO_CAJERO, "luis@kaffe.com", ID_ROL_OPERADOR)));
+
+            // Act
+            SesionCajaResponse respuesta = useCase.execute(RegistrarMovimientoCajaRequest.createFromRequest(
+                    Map.of("tipo", "INGRESO", "monto", "5", "motivo", "Cambio"), ID_OTRO_CAJERO));
+
+            // Assert
+            assertEquals(new BigDecimal("5.00"), respuesta.getTotalIngresos());
+        }
+
+        @Test
+        void unAdministradorRegistraUnEgresoEnLaCajaDeOtro() {
+            // Arrange
+            when(sesionCajaRepository.obtenerAbiertaParaActualizar()).thenReturn(Optional.of(cajaAbierta()));
+            when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuario(ID_OTRO_CAJERO, "jefa@kaffe.com", ID_ROL)));
+            when(rolRepository.obtenerPorId(any())).thenReturn(Optional.of(ROL_ADMINISTRADOR));
+
+            // Act
+            SesionCajaResponse respuesta = useCase.execute(RegistrarMovimientoCajaRequest.createFromRequest(
+                    Map.of("tipo", "EGRESO", "monto", "5", "motivo", "Gas"), ID_OTRO_CAJERO));
+
+            // Assert
+            assertEquals(new BigDecimal("5.00"), respuesta.getTotalEgresos());
         }
 
         @Test
@@ -469,6 +524,38 @@ class SesionCajaUseCasesTest {
         }
 
         @Test
+        void elArqueoDesglosaLoVendidoPorCadaCajero() {
+            // Arrange (logica.md SESIONCAJA-16): el titular vende 30 en efectivo y 50 con tarjeta;
+            // otro cajero vende 20 en efectivo. La venta anulada no cuenta.
+            when(sesionCajaRepository.obtenerAbiertaParaActualizar()).thenReturn(Optional.of(cajaAbierta()));
+            Venta delOtro = Venta.restaurar("95000000-0000-0000-0000-000000000003", 2L, AHORA.minusMinutes(30), new BigDecimal("20.00"),
+                    new UsuarioId(ID_OTRO_CAJERO), new ClienteId(Cliente.ID_MOSTRADOR), new SesionCajaId(ID_CAJA), COMPLETADA.getId(),
+                    null, null, null, null, false, new ArrayList<>(), new ArrayList<>(List.of(pago(ID_EFECTIVO, "20.00", "20.00"))));
+            when(ventaRepository.obtenerPorSesionCaja(any())).thenReturn(List.of(
+                    venta("95000000-0000-0000-0000-000000000001", COMPLETADA, "80.00",
+                            pago(ID_EFECTIVO, "30.00", "30.00"), pago(ID_TARJETA, "50.00", "50.00")),
+                    delOtro,
+                    venta("95000000-0000-0000-0000-000000000002", ANULADA, "40.00", pago(ID_EFECTIVO, "40.00", "40.00"))));
+            when(usuarioRepository.obtenerPorId(argThat(id -> id != null && ID_OTRO_CAJERO.equals(id.getValue()))))
+                    .thenReturn(Optional.of(usuario(ID_OTRO_CAJERO, "luis@kaffe.com", ID_ROL_OPERADOR)));
+
+            // Act
+            ArqueoCajaResponse arqueo = useCase.execute(cierre("150"));
+
+            // Assert
+            assertEquals(2, arqueo.getRecaudacionPorUsuario().size());
+            RecaudacionPorUsuarioResponse titular = arqueo.getRecaudacionPorUsuario().get(0);
+            assertEquals(ID_USUARIO, titular.getIdUsuario());
+            assertEquals(new BigDecimal("80.00"), titular.getTotalVendido());
+            assertEquals(new BigDecimal("30.00"), titular.getEfectivo());
+            assertEquals(1, titular.getCantidadVentas());
+            RecaudacionPorUsuarioResponse otro = arqueo.getRecaudacionPorUsuario().get(1);
+            assertEquals("luis@kaffe.com", otro.getCorreo());
+            assertEquals(new BigDecimal("20.00"), otro.getTotalVendido());
+            assertEquals(new BigDecimal("20.00"), otro.getEfectivo());
+        }
+
+        @Test
         void quienNoEsTitularNiAdministradorNoPuedeCerrar() {
             // Arrange: la caja la abrio otro usuario y quien cierra es Operador.
             SesionCaja ajena = SesionCaja.restaurar(ID_CAJA, new UsuarioId(ID_OTRO_USUARIO), AHORA.minusHours(4), null,
@@ -589,6 +676,8 @@ class SesionCajaUseCasesTest {
             assertEquals(ID_USUARIO, estado.getIdResponsable());
             assertEquals("Ana Rojas", estado.getNombreResponsable());
             assertEquals(new BigDecimal("100.00"), estado.getMontoApertura());
+            // La caja de prueba se abrio el 12/10/2026, antes de hoy (logica.md SESIONCAJA-17).
+            assertTrue(estado.isAbiertaDesdeDiaAnterior());
         }
 
         @Test

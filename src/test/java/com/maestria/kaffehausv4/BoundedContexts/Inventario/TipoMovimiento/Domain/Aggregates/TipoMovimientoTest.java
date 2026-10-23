@@ -3,9 +3,12 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domai
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
+
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /** Pruebas de dominio puro de TipoMovimiento: catalogo que clasifica los movimientos de inventario. */
 class TipoMovimientoTest {
@@ -78,5 +81,18 @@ class TipoMovimientoTest {
         assertEquals("Ajuste", TipoMovimiento.AJUSTE);
         assertEquals("Merma", TipoMovimiento.MERMA);
         assertEquals("Apertura", TipoMovimiento.APERTURA);
+    }
+
+    @Test
+    void losSieteTiposDeMovimiento22NoSeRenombranNiSeDanDeBaja() {
+        // logica.md GENERAL-19: el antiguo 'Receta' ya no tiene semantica.
+        for (String nombre : TipoMovimiento.NOMBRES_SEMANTICOS) {
+            TipoMovimiento tipo = TipoMovimiento.restaurar(ID, nombre, false);
+
+            assertEquals(409, assertThrows(DomainException.class, () -> tipo.actualizar("Otro")).getCodigo());
+            assertEquals(409, assertThrows(DomainException.class, tipo::eliminar).getCodigo());
+        }
+        assertEquals(7, TipoMovimiento.NOMBRES_SEMANTICOS.size());
+        assertFalse(TipoMovimiento.restaurar(ID, "Receta", false).esSemantico());
     }
 }

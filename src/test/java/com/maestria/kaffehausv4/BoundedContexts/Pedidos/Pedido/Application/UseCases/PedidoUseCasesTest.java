@@ -33,6 +33,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.EstadoPedido.Application.Repositories.IEstadoPedidoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.EstadoPedido.Domain.Aggregates.EstadoPedido;
@@ -45,6 +46,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Repos
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.Aggregates.Pedido;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.Aggregates.Cliente;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Repositories.IRolRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Application.Repositories.IEstadoVentaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.Aggregates.EstadoVenta;
@@ -80,6 +83,8 @@ class PedidoUseCasesTest {
     @Mock private IVentaRepository ventaRepository;
     @Mock private IEstadoPedidoRepository estadoPedidoRepository;
     @Mock private IEstadoVentaRepository estadoVentaRepository;
+    @Mock private IUsuarioRepository usuarioRepository;
+    @Mock private IRolRepository rolRepository;
     @Mock private RegistrarAnulacionDeVentaUseCase registrarAnulacionDeVentaUseCase;
 
     @BeforeEach
@@ -91,6 +96,9 @@ class PedidoUseCasesTest {
         lenient().when(estadoPedidoRepository.obtenerPorNombre("Recibido")).thenReturn(Optional.of(RECIBIDO));
         lenient().when(estadoVentaRepository.obtenerPorNombre("Completada")).thenReturn(Optional.of(COMPLETADA));
         lenient().when(pedidoRepository.obtenerPorVentaId(any())).thenReturn(Optional.empty());
+        // Por defecto quien opera es el usuario de prueba, Administrador (PEDIDO-09).
+        lenient().when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuario()));
+        lenient().when(rolRepository.obtenerPorId(any())).thenReturn(Optional.of(ROL_ADMINISTRADOR));
         lenient().when(pedidoRepository.actualizar(any(), any())).thenAnswer(llamada -> llamada.getArgument(1));
         lenient().when(pedidoRepository.crear(any())).thenAnswer(llamada -> {
             Pedido nuevo = llamada.getArgument(0);
@@ -102,7 +110,7 @@ class PedidoUseCasesTest {
     private void hayVentaEn(EstadoVenta estado) {
         lenient().when(ventaRepository.obtenerPorId(any())).thenReturn(Optional.of(Venta.restaurar(ID_VENTA, 3L, AHORA, new BigDecimal("20.00"),
                 new UsuarioId(ID_USUARIO), new ClienteId(Cliente.ID_MOSTRADOR), new SesionCajaId("0d300000-0000-0000-0000-000000000001"),
-                estado.getId(), null, null, null, false, new ArrayList<>(), new ArrayList<>())));
+                estado.getId(), null, null, null, null, false, new ArrayList<>(), new ArrayList<>())));
     }
 
     private Pedido hayPedidoEn(EstadoPedido estado) {
@@ -127,11 +135,17 @@ class PedidoUseCasesTest {
     }
 
     private ActualizarPedidoUseCase actualizar() {
-        return new ActualizarPedidoUseCase(pedidoRepository, estadoPedidoRepository, registrarAnulacionDeVentaUseCase);
+        return new ActualizarPedidoUseCase(pedidoRepository, estadoPedidoRepository, usuarioRepository, rolRepository,
+                registrarAnulacionDeVentaUseCase);
     }
 
     private static ActualizarPedidoRequest pasarA(EstadoPedido estado) {
         return ActualizarPedidoRequest.createFromRequest(Map.of("idEstado", estado.getId().getValue()), ID_USUARIO);
+    }
+
+    /** Cancelar exige motivo (logica.md PEDIDO-09). */
+    private static ActualizarPedidoRequest cancelar(String motivo) {
+        return ActualizarPedidoRequest.createFromRequest(Map.of("idEstado", CANCELADO.getId().getValue(), "motivo", motivo), ID_USUARIO);
     }
 
     // ------------------------------------------------------------------ crear
@@ -277,7 +291,7 @@ class PedidoUseCasesTest {
         ArgumentCaptor<RegistrarAnulacionDeVentaRequest> anulacion = ArgumentCaptor.forClass(RegistrarAnulacionDeVentaRequest.class);
 
         // Act
-        PedidoResponse respuesta = actualizar().execute(ID_PEDIDO, pasarA(CANCELADO));
+        PedidoResponse respuesta = actualizar().execute(ID_PEDIDO, cancelar("El cliente no estaba"));
 
         // Assert
         assertEquals("Cancelado", respuesta.getEstado().getNombre());
@@ -285,7 +299,65 @@ class PedidoUseCasesTest {
         assertEquals(ID_VENTA, anulacion.getValue().getIdVenta());
         assertEquals(ID_USUARIO, anulacion.getValue().getIdUsuario());
         assertTrue(anulacion.getValue().isReintegrar());
-        assertTrue(anulacion.getValue().getMotivo().contains(ID_PEDIDO));
+        assertEquals("El cliente no estaba", anulacion.getValue().getMotivo());
+    }
+
+    @Test
+    void unOperadorNoCancelaUnPedidoPorqueAnulariaSuVenta() {
+        // Arrange (logica.md PEDIDO-09, GENERAL-17)
+        hayPedidoEn(RECIBIDO);
+        when(rolRepository.obtenerPorId(any())).thenReturn(Optional.of(ROL_OPERADOR));
+
+        // Act
+        AutorizacionException error = assertThrows(AutorizacionException.class,
+                () -> actualizar().execute(ID_PEDIDO, cancelar("El cliente no estaba")));
+
+        // Assert
+        assertEquals(403, error.getCodigo());
+        verifyNoInteractions(registrarAnulacionDeVentaUseCase);
+        verify(pedidoRepository, never()).actualizar(any(), any());
+    }
+
+    @Test
+    void unOperadorSiAvanzaUnPedidoPorLosDemasEstados() {
+        // Arrange: solo la cancelacion es de Administrador (PEDIDO-09).
+        hayPedidoEn(RECIBIDO);
+        lenient().when(rolRepository.obtenerPorId(any())).thenReturn(Optional.of(ROL_OPERADOR));
+
+        // Act
+        PedidoResponse respuesta = actualizar().execute(ID_PEDIDO, pasarA(EN_PREPARACION));
+
+        // Assert
+        assertEquals("En preparacion", respuesta.getEstado().getNombre());
+    }
+
+    @Test
+    void cancelarSinMotivoResponde400() {
+        // Arrange
+        hayPedidoEn(RECIBIDO);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> actualizar().execute(ID_PEDIDO, pasarA(CANCELADO)));
+
+        // Assert
+        assertEquals(400, error.getCodigo());
+        assertTrue(error.getMensaje().contains("motivo"));
+        verifyNoInteractions(registrarAnulacionDeVentaUseCase);
+    }
+
+    @Test
+    void laReferenciaDelReembolsoPasaALaAnulacionDeLaVenta() {
+        // Arrange (logica.md VENTA-27)
+        hayPedidoEn(EN_CAMINO);
+        ArgumentCaptor<RegistrarAnulacionDeVentaRequest> anulacion = ArgumentCaptor.forClass(RegistrarAnulacionDeVentaRequest.class);
+
+        // Act
+        actualizar().execute(ID_PEDIDO, ActualizarPedidoRequest.createFromRequest(Map.of(
+                "idEstado", CANCELADO.getId().getValue(), "motivo", "Pedido duplicado", "referenciaReembolso", "QR-REV-77"), ID_USUARIO));
+
+        // Assert
+        verify(registrarAnulacionDeVentaUseCase).execute(anulacion.capture());
+        assertEquals("QR-REV-77", anulacion.getValue().getReferenciaReembolso());
     }
 
     @ParameterizedTest
@@ -296,7 +368,7 @@ class PedidoUseCasesTest {
         ArgumentCaptor<RegistrarAnulacionDeVentaRequest> anulacion = ArgumentCaptor.forClass(RegistrarAnulacionDeVentaRequest.class);
 
         // Act
-        actualizar().execute(ID_PEDIDO, pasarA(CANCELADO));
+        actualizar().execute(ID_PEDIDO, cancelar("Se arrepintio"));
 
         // Assert
         verify(registrarAnulacionDeVentaUseCase).execute(anulacion.capture());
@@ -310,7 +382,7 @@ class PedidoUseCasesTest {
         when(registrarAnulacionDeVentaUseCase.execute(any())).thenThrow(DomainException.throwException(409, "La venta esta anulada"));
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> actualizar().execute(ID_PEDIDO, pasarA(CANCELADO)));
+        DomainException error = assertThrows(DomainException.class, () -> actualizar().execute(ID_PEDIDO, cancelar("Duplicado")));
 
         // Assert
         assertEquals(409, error.getCodigo());

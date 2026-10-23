@@ -55,6 +55,9 @@ public class VentaJpaModel {
     @Column(name = "id_usuario_anulacion")
     private UUID idUsuarioAnulacion;
 
+    @Column(name = "referencia_reembolso")
+    private String referenciaReembolso;
+
     @Column(name = "fec_c", nullable = false)
     private OffsetDateTime fecC;
 
@@ -87,6 +90,8 @@ public class VentaJpaModel {
     public void setMotivoAnulacion(String motivoAnulacion) {this.motivoAnulacion = motivoAnulacion;}
     public UUID getIdUsuarioAnulacion() {return idUsuarioAnulacion;}
     public void setIdUsuarioAnulacion(UUID idUsuarioAnulacion) {this.idUsuarioAnulacion = idUsuarioAnulacion;}
+    public String getReferenciaReembolso() {return referenciaReembolso;}
+    public void setReferenciaReembolso(String referenciaReembolso) {this.referenciaReembolso = referenciaReembolso;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}

@@ -32,6 +32,10 @@ import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Dtos.
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Dtos.CrearPedidoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.UseCases.ActualizarPedidoUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.UseCases.CrearPedidoUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Repositories.IRolRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dtos.CrearUsuarioRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.UseCases.CrearUsuarioUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.UseCases.EliminarUsuarioUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.ArqueoCajaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.CerrarSesionCajaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.RegistrarMovimientoCajaRequest;
@@ -47,6 +51,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCase
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.CrearVentaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ObtenerVentaPorTicketUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Soporte.EscenarioDeCafeteria;
 import com.maestria.kaffehausv4.Soporte.PruebaConBaseDeDatos;
@@ -75,6 +80,9 @@ class FlujoVentaYCajaIntegracionTest extends PruebaConBaseDeDatos {
     @Autowired private IMovimientoRepository movimientoRepository;
     @Autowired private ITipoMovimientoRepository tipoMovimientoRepository;
     @Autowired private ISesionCajaRepository sesionCajaRepository;
+    @Autowired private CrearUsuarioUseCase crearUsuarioUseCase;
+    @Autowired private EliminarUsuarioUseCase eliminarUsuarioUseCase;
+    @Autowired private IRolRepository rolRepository;
 
     private String usuario;
     private String gaseosa;
@@ -317,9 +325,106 @@ class FlujoVentaYCajaIntegracionTest extends PruebaConBaseDeDatos {
         String cancelado = estadoPedidoRepository.obtenerPorNombre("Cancelado").orElseThrow().getId().getValue();
 
         // Act
-        actualizarPedidoUseCase.execute(idPedido, ActualizarPedidoRequest.createFromRequest(Map.of("idEstado", cancelado), usuario));
+        actualizarPedidoUseCase.execute(idPedido, ActualizarPedidoRequest.createFromRequest(Map.of("idEstado", cancelado, "motivo", "El cliente no estaba"), usuario));
 
         // Assert
         assertEquals(0, new BigDecimal("10").compareTo(escenario.stock(gaseosa)));
+    }
+
+    /** Un cajero con rol Operador, que no es el titular de la caja (la abrio el administrador). */
+    private String operador() {
+        Map<String, Object> datos = new HashMap<>();
+        datos.put("nombres", "Luis");
+        datos.put("apellidos", "Paz");
+        datos.put("carnet", "OP-1");
+        datos.put("correo", "luis@kaffe.com");
+        datos.put("contrasena", "clave-luis");
+        datos.put("idRol", rolRepository.obtenerPorNombre("Operador").orElseThrow().getId().getValue());
+        return crearUsuarioUseCase.execute(CrearUsuarioRequest.createFromRequest(datos)).getId();
+    }
+
+    @Test
+    void seVendePorUnidadesEnteras() {
+        // Act (logica.md GENERAL-16)
+        DomainException error = assertThrows(DomainException.class, () -> vender("10", de(gaseosa, "1.5")));
+
+        // Assert
+        assertEquals(400, error.getCodigo());
+        assertEquals(0, new BigDecimal("10").compareTo(escenario.stock(gaseosa)));
+    }
+
+    @Test
+    void unCajeroQueNoEsTitularRegistraIngresosPeroNoEgresos() {
+        // Arrange (logica.md SESIONCAJA-15)
+        String cajero = operador();
+
+        // Act
+        registrarMovimientoCajaUseCase.execute(RegistrarMovimientoCajaRequest.createFromRequest(
+                Map.of("tipo", "INGRESO", "monto", "20", "motivo", "Cambio"), cajero));
+        AutorizacionException error = assertThrows(AutorizacionException.class, () -> registrarMovimientoCajaUseCase.execute(
+                RegistrarMovimientoCajaRequest.createFromRequest(Map.of("tipo", "EGRESO", "monto", "5", "motivo", "Taxi"), cajero)));
+
+        // Assert
+        assertEquals(403, error.getCodigo());
+        assertEquals(1, sesionCajaRepository.obtenerAbierta().orElseThrow().getMovimientosActivos().size());
+    }
+
+    @Test
+    void elArqueoDesglosaLoVendidoPorCadaCajero() {
+        // Arrange (logica.md SESIONCAJA-16): el administrador vende 2 gaseosas y el cajero 1.
+        String cajero = operador();
+        vender("10", de(gaseosa, "2"));
+        Map<String, Object> datos = new HashMap<>();
+        datos.put("detalles", List.of(de(gaseosa, "1")));
+        datos.put("pagos", List.of(Map.of("idTipoPago", efectivo, "monto", "5", "montoRecibido", "5")));
+        crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(datos, cajero));
+
+        // Act
+        ArqueoCajaResponse arqueo = cerrarSesionCajaUseCase.execute(
+                CerrarSesionCajaRequest.createFromRequest(Map.of("montoCierreDeclarado", "115"), usuario));
+
+        // Assert
+        assertEquals(2, arqueo.getRecaudacionPorUsuario().size());
+        assertEquals(0, new BigDecimal("10").compareTo(arqueo.getRecaudacionPorUsuario().get(0).getTotalVendido()));
+        assertEquals("luis@kaffe.com", arqueo.getRecaudacionPorUsuario().get(1).getCorreo());
+        assertEquals(0, new BigDecimal("5").compareTo(arqueo.getRecaudacionPorUsuario().get(1).getEfectivo()));
+    }
+
+    @Test
+    void unOperadorNoCancelaUnPedidoPorqueAnulariaSuVenta() {
+        // Arrange (logica.md PEDIDO-09)
+        String cajero = operador();
+        VentaResponse venta = vender("15", de(gaseosa, "3"));
+        Map<String, Object> pedido = new HashMap<>();
+        pedido.put("fechaEntrega", LocalDateTime.now().plusHours(2).toString());
+        pedido.put("latitud", "-17.78");
+        pedido.put("longitud", "-63.18");
+        pedido.put("idVenta", venta.getId());
+        String idPedido = crearPedidoUseCase.execute(CrearPedidoRequest.createFromRequest(pedido)).getId();
+        String cancelado = estadoPedidoRepository.obtenerPorNombre("Cancelado").orElseThrow().getId().getValue();
+
+        // Act
+        AutorizacionException error = assertThrows(AutorizacionException.class, () -> actualizarPedidoUseCase.execute(idPedido,
+                ActualizarPedidoRequest.createFromRequest(Map.of("idEstado", cancelado, "motivo", "No llego"), cajero)));
+
+        // Assert
+        assertEquals(403, error.getCodigo());
+        assertEquals(0, new BigDecimal("7").compareTo(escenario.stock(gaseosa)));
+    }
+
+    @Test
+    void niElUltimoAdministradorNiElTitularDeLaCajaSeDanDeBaja() {
+        // Arrange (logica.md USUARIO-04): el administrador sembrado es el unico y abrio la caja.
+        String cajero = operador();
+
+        // Act
+        DomainException ultimoAdministrador = assertThrows(DomainException.class, () -> eliminarUsuarioUseCase.execute(usuario, cajero));
+        DomainException aSiMismo = assertThrows(DomainException.class, () -> eliminarUsuarioUseCase.execute(cajero, cajero));
+        eliminarUsuarioUseCase.execute(cajero, usuario);
+
+        // Assert
+        assertEquals(409, ultimoAdministrador.getCodigo());
+        assertTrue(ultimoAdministrador.getMensaje().contains("ultimo Administrador"));
+        assertEquals(409, aSiMismo.getCodigo());
     }
 }

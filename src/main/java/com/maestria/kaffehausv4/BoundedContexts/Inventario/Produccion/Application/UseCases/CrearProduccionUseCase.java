@@ -80,6 +80,12 @@ public class CrearProduccionUseCase {
             throw DomainException.throwException(409,
                     "El producto '" + productoObtenido.getNombre() + "' se prepara bajo demanda (MTO): se descuenta al venderse y no se produce por lotes");
         }
+        // Lo producido entra como unidades de un lote; un producto base con presentaciones solo
+        // tiene existencias, asi que se produce a traves de una presentacion (logica.md PRODUCCION-13).
+        if (!productoRepository.obtenerPresentaciones(productoObtenido.getId()).isEmpty()) {
+            throw DomainException.throwException(409,
+                    "El producto '" + productoObtenido.getNombre() + "' tiene presentaciones: produce una de ellas, como al comprarlo");
+        }
 
         UsuarioId usuarioId = new UsuarioId(crearProduccionRequest.getIdUsuario());
         usuarioRepository.obtenerPorId(usuarioId)

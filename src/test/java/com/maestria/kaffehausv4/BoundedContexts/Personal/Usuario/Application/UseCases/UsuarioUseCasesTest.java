@@ -13,6 +13,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +41,9 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dto
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dtos.UsuarioResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.Aggregates.Usuario;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Repositories.ISesionCajaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.Aggregates.SesionCaja;
 
 /**
  * Pruebas unitarias de los casos de uso de Usuario. El hasheador de contrasenas es un doble:
@@ -55,6 +60,7 @@ class UsuarioUseCasesTest {
     @Mock private IPersonaRepository personaRepository;
     @Mock private IRolRepository rolRepository;
     @Mock private IHasheadorDeContrasena hasheadorDeContrasena;
+    @Mock private ISesionCajaRepository sesionCajaRepository;
 
     private static final String ID_PERSONA = "ab000000-0000-0000-0000-000000000001";
     private static final String ID_PERSONA_NUEVA = "ab000000-0000-0000-0000-0000000000ff";
@@ -257,14 +263,22 @@ class UsuarioUseCasesTest {
 
     // ------------------------------------------------------------------ eliminar
 
+    /** Quien pide las bajas en estas pruebas: otro usuario, Administrador. */
+    private static final String ID_ADMIN_EN_SESION = "ad000000-0000-0000-0000-0000000000a1";
+
+    private EliminarUsuarioUseCase eliminar() {
+        return new EliminarUsuarioUseCase(usuarioRepository, rolRepository, sesionCajaRepository);
+    }
+
     @Test
     void eliminarDaDeBajaElUsuarioExistente() {
         // Arrange
-        EliminarUsuarioUseCase useCase = new EliminarUsuarioUseCase(usuarioRepository);
+        EliminarUsuarioUseCase useCase = eliminar();
         when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuarioExistente()));
+        lenient().when(rolRepository.obtenerPorId(any())).thenReturn(Optional.of(Rol.restaurar(ID_ROL, Rol.OPERADOR, false)));
 
         // Act
-        useCase.execute(ID_USUARIO);
+        useCase.execute(ID_USUARIO, ID_ADMIN_EN_SESION);
 
         // Assert
         verify(usuarioRepository).eliminar(argThat(id -> ID_USUARIO.equals(id.getValue())));
@@ -273,14 +287,74 @@ class UsuarioUseCasesTest {
     @Test
     void eliminarUnUsuarioInexistenteRespondeNoEncontradoYNoBorra() {
         // Arrange
-        EliminarUsuarioUseCase useCase = new EliminarUsuarioUseCase(usuarioRepository);
+        EliminarUsuarioUseCase useCase = eliminar();
         when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.empty());
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_USUARIO));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_USUARIO, ID_ADMIN_EN_SESION));
 
         // Assert
         assertEquals(404, error.getCodigo());
+        verify(usuarioRepository, never()).eliminar(any());
+    }
+
+    @Test
+    void nadieSeDaDeBajaASiMismo() {
+        // Arrange (logica.md USUARIO-04)
+        when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuarioExistente()));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> eliminar().execute(ID_USUARIO, ID_USUARIO));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        verify(usuarioRepository, never()).eliminar(any());
+    }
+
+    @Test
+    void elUltimoAdministradorVivoNoSeDaDeBaja() {
+        // Arrange
+        when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuarioExistente()));
+        when(rolRepository.obtenerPorId(any())).thenReturn(Optional.of(Rol.restaurar(ID_ROL, Rol.ADMINISTRADOR, false)));
+        when(usuarioRepository.contarPorRol(any())).thenReturn(1L);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> eliminar().execute(ID_USUARIO, ID_ADMIN_EN_SESION));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("ultimo Administrador"));
+        verify(usuarioRepository, never()).eliminar(any());
+    }
+
+    @Test
+    void unAdministradorSiSeDaDeBajaSiQuedaOtro() {
+        // Arrange
+        when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuarioExistente()));
+        when(rolRepository.obtenerPorId(any())).thenReturn(Optional.of(Rol.restaurar(ID_ROL, Rol.ADMINISTRADOR, false)));
+        when(usuarioRepository.contarPorRol(any())).thenReturn(2L);
+
+        // Act
+        eliminar().execute(ID_USUARIO, ID_ADMIN_EN_SESION);
+
+        // Assert
+        verify(usuarioRepository).eliminar(any());
+    }
+
+    @Test
+    void elTitularDeLaCajaAbiertaNoSeDaDeBaja() {
+        // Arrange
+        when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuarioExistente()));
+        when(rolRepository.obtenerPorId(any())).thenReturn(Optional.of(Rol.restaurar(ID_ROL, Rol.OPERADOR, false)));
+        when(sesionCajaRepository.obtenerAbierta()).thenReturn(Optional.of(
+                SesionCaja.abrir(new UsuarioId(ID_USUARIO), new BigDecimal("100"), LocalDateTime.of(2026, 10, 12, 8, 0))));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> eliminar().execute(ID_USUARIO, ID_ADMIN_EN_SESION));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("titular de la caja abierta"));
         verify(usuarioRepository, never()).eliminar(any());
     }
 

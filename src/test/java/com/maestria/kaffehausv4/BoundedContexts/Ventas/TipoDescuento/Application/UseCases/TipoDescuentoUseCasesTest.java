@@ -21,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Repositories.IDescuentoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Application.Dtos.ActualizarTipoDescuentoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Application.Dtos.CrearTipoDescuentoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Application.Dtos.ObtenerTiposDescuentoRequest;
@@ -40,6 +41,7 @@ class TipoDescuentoUseCasesTest {
     private static final String ID = "ca000007-0000-0000-0000-000000000001";
 
     @Mock private ITipoDescuentoRepository repository;
+    @Mock private IDescuentoRepository descuentoRepository;
 
     private static TipoDescuento existente() {
         return TipoDescuento.restaurar(ID, "Porcentaje", false);
@@ -84,7 +86,7 @@ class TipoDescuentoUseCasesTest {
     void actualizarCambiaElNombreYGuarda() {
         // Arrange
         ActualizarTipoDescuentoUseCase useCase = new ActualizarTipoDescuentoUseCase(repository);
-        TipoDescuento actual = existente();
+        TipoDescuento actual = TipoDescuento.restaurar(ID, "Dos por uno", false);
         when(repository.obtenerPorId(argThat(id -> ID.equals(id.getValue())))).thenReturn(Optional.of(actual));
         when(repository.actualizar(any(), any())).thenAnswer(llamada -> llamada.getArgument(1));
 
@@ -141,7 +143,7 @@ class TipoDescuentoUseCasesTest {
     @Test
     void eliminarDaDeBajaElRegistroExistente() {
         // Arrange
-        EliminarTipoDescuentoUseCase useCase = new EliminarTipoDescuentoUseCase(repository);
+        EliminarTipoDescuentoUseCase useCase = new EliminarTipoDescuentoUseCase(repository, descuentoRepository);
         when(repository.obtenerPorId(any())).thenReturn(Optional.of(existente()));
 
         // Act
@@ -154,7 +156,7 @@ class TipoDescuentoUseCasesTest {
     @Test
     void eliminarUnoInexistenteRespondeNoEncontradoYNoBorra() {
         // Arrange
-        EliminarTipoDescuentoUseCase useCase = new EliminarTipoDescuentoUseCase(repository);
+        EliminarTipoDescuentoUseCase useCase = new EliminarTipoDescuentoUseCase(repository, descuentoRepository);
         when(repository.obtenerPorId(any())).thenReturn(Optional.empty());
 
         // Act
@@ -241,5 +243,21 @@ class TipoDescuentoUseCasesTest {
         assertEquals(5, informada.getSkip());
         assertEquals(50, informada.getLimit());
         assertEquals("caf", informada.getSearch());
+    }
+
+    @Test
+    void noSeDaDeBajaSiOtroRegistroVivoLoNecesita() {
+        // Arrange (logica.md GENERAL-18)
+        EliminarTipoDescuentoUseCase useCase = new EliminarTipoDescuentoUseCase(repository, descuentoRepository);
+        when(repository.obtenerPorId(any())).thenReturn(Optional.of(TipoDescuento.restaurar(ID, "Catalogo propio", false)));
+        when(descuentoRepository.existeConTipoDescuento(any())).thenReturn(true);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("descuentos vivos"));
+        verify(repository, never()).eliminar(any());
     }
 }

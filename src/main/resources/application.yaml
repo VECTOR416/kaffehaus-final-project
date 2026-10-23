@@ -6,6 +6,10 @@ spring:
     username: postgres
     password: postgrespassword
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # Ninguna operacion espera un bloqueo de fila indefinidamente (logica.md GENERAL-15): al vencer,
+      # PostgreSQL aborta la sentencia y GlobalExceptionHandler responde 409 pidiendo reintentar.
+      connection-init-sql: SET lock_timeout = '${DB_LOCK_TIMEOUT:5s}'
   jpa:
     # El script de esquema corre despues de que Hibernate crea o amplia las tablas.
     defer-datasource-initialization: true
@@ -18,7 +22,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/esquema-postgresql.sql
+      schema-locations: classpath:schema.sql
 
 server:
   port: ${SERVER_PORT:8081}
@@ -33,5 +37,13 @@ seguridad:
     dias-de-refresco: ${JWT_REFRESH_DAYS:7}
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
-  # POST /api/v1/seed publico para el primer arranque. En false solo lo llama un Administrador.
-  seed-habilitado: ${SEED_HABILITADO:true}
+  # POST /api/v1/seed publico solo para la primera siembra de una base nueva (logica.md SIEMBRA-02).
+  # En false, el valor por defecto, solo lo llama un Administrador.
+  seed-habilitado: ${SEED_HABILITADO:false}
+  # Contrasena del administrador inicial (SIEMBRA-02). Sin ella la siembra de una base sin
+  # administrador responde 409. No tiene valor por defecto a proposito.
+  seed-admin-contrasena: ${SEED_ADMIN_CONTRASENA:}
+  cors:
+    # Origenes del frontend, separados por coma. Admite patrones de puerto ('[*]') y de subdominio
+    # ('https://*.dominio.com'); el comodin '*' solo esta prohibido (SecurityConfig).
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:[*],http://127.0.0.1:[*]}

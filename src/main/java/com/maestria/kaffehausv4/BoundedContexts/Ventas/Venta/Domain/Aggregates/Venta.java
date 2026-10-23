@@ -40,6 +40,8 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 public class Venta {
     /** Margen sobre la hora del servidor para una fecha de contingencia (logica.md VENTA-28). */
     private static final Duration TOLERANCIA_DE_RELOJ = Duration.ofMinutes(1);
+    /** Largo maximo de 'referenciaReembolso' (logica.md VENTA-27). */
+    private static final int LARGO_REFERENCIA_REEMBOLSO = 255;
 
     private VentaId id;
     private Long numeroTicket;
@@ -52,6 +54,7 @@ public class Venta {
     private String claveIdempotencia;
     private String motivoAnulacion;
     private UsuarioId usuarioAnulacionId;
+    private String referenciaReembolso;
     private boolean borrado;
     private final List<DetalleVenta> detalles;
     private final List<PagoVenta> pagos;
@@ -68,6 +71,7 @@ public class Venta {
         String claveIdempotencia,
         String motivoAnulacion,
         UsuarioId usuarioAnulacionId,
+        String referenciaReembolso,
         boolean borrado,
         List<DetalleVenta> detalles,
         List<PagoVenta> pagos
@@ -83,6 +87,7 @@ public class Venta {
         this.claveIdempotencia = claveIdempotencia;
         this.motivoAnulacion = motivoAnulacion;
         this.usuarioAnulacionId = usuarioAnulacionId;
+        this.referenciaReembolso = referenciaReembolso;
         this.borrado = borrado;
         this.detalles = detalles != null ? new ArrayList<>(detalles) : new ArrayList<>();
         this.pagos = pagos != null ? new ArrayList<>(pagos) : new ArrayList<>();
@@ -104,12 +109,13 @@ public class Venta {
         String claveIdempotencia,
         String motivoAnulacion,
         UsuarioId usuarioAnulacionId,
+        String referenciaReembolso,
         boolean borrado,
         List<DetalleVenta> detalles,
         List<PagoVenta> pagos
     ){
         return new Venta(new VentaId(id), numeroTicket, fechaVenta, total, usuarioId, clienteId, sesionCajaId, estadoVentaId,
-                claveIdempotencia, motivoAnulacion, usuarioAnulacionId, borrado, detalles, pagos);
+                claveIdempotencia, motivoAnulacion, usuarioAnulacionId, referenciaReembolso, borrado, detalles, pagos);
     }
 
     /**
@@ -133,7 +139,7 @@ public class Venta {
             throw DomainException.throwException(409, "Una venta requiere una sesion de caja abierta");
         }
         return new Venta(null, null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, sesionCajaId, completada,
-                claveIdempotencia, null, null, false, null, null);
+                claveIdempotencia, null, null, null, false, null, null);
     }
 
     /**
@@ -199,7 +205,7 @@ public class Venta {
      * Anula la venta (VEN-40). Solo una venta 'Completada' se anula, y siempre con motivo. Las
      * lineas, importes y pagos se conservan: la anulacion no borra nada.
      */
-    public void anular(EstadoVentaId completada, EstadoVentaId anulada, UsuarioId usuarioId, String motivo) {
+    public void anular(EstadoVentaId completada, EstadoVentaId anulada, UsuarioId usuarioId, String motivo, String referenciaReembolso) {
         exigirNoAnulada(anulada);
         if (!this.estadoVentaId.getValue().equals(completada.getValue())) {
             throw DomainException.throwException(409, "Solo se puede anular una venta completada");
@@ -207,9 +213,15 @@ public class Venta {
         if (motivo == null || motivo.isBlank()) {
             throw DomainException.throwException(400, "La anulacion de una venta requiere un motivo");
         }
+        if (referenciaReembolso != null && referenciaReembolso.length() > LARGO_REFERENCIA_REEMBOLSO) {
+            throw DomainException.throwException(400,
+                    "La referencia del reembolso no puede superar " + LARGO_REFERENCIA_REEMBOLSO + " caracteres");
+        }
         this.estadoVentaId = anulada;
         this.motivoAnulacion = motivo;
         this.usuarioAnulacionId = usuarioId;
+        // Constancia del reembolso de un pago con tarjeta o QR hecho fuera del sistema (logica.md VENTA-27).
+        this.referenciaReembolso = referenciaReembolso;
     }
 
     public boolean estaEn(EstadoVentaId estado) {
@@ -263,6 +275,7 @@ public class Venta {
     public EstadoVentaId getEstadoVentaId() {return estadoVentaId;}
     public String getClaveIdempotencia() {return claveIdempotencia;}
     public String getMotivoAnulacion() {return motivoAnulacion;}
+    public String getReferenciaReembolso() {return referenciaReembolso;}
     public UsuarioId getUsuarioAnulacionId() {return usuarioAnulacionId;}
     public boolean isBorrado() {return borrado;}
 

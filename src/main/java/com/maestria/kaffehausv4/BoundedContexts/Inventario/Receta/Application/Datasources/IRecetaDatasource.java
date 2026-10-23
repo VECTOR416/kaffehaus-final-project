@@ -21,4 +21,13 @@ public interface IRecetaDatasource {
      * de insumos de un producto bajo demanda (MTO) al venderse.
      */
     Optional<Receta> obtenerPorProductoObtenido(ProductoId productoId);
+
+    /** Recetas vivas que usan el producto como ingrediente vivo (logica.md PRODUCTO-20). */
+    List<Receta> obtenerPorIngrediente(ProductoId productoId);
+
+    /**
+     * Todas las recetas vivas que obtienen el producto, la vigente primero (logica.md RECETA-06,
+     * RECETA-09, PRODUCTO-20).
+     */
+    List<Receta> obtenerVivasPorProductoObtenido(ProductoId productoId);
 }

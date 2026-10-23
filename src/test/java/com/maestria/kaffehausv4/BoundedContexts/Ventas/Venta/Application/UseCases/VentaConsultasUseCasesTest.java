@@ -92,7 +92,7 @@ class VentaConsultasUseCasesTest {
     /** Venta de 2 cafes a 10.00 pagada con 50.00 en efectivo. */
     private Venta hayVenta(EstadoVenta estado, String idCliente) {
         Venta venta = Venta.restaurar(ID_VENTA, 42L, AHORA, new BigDecimal("20.00"), new UsuarioId(ID_USUARIO), new ClienteId(idCliente),
-                new SesionCajaId("0e300000-0000-0000-0000-000000000001"), estado.getId(), null, null, null, false,
+                new SesionCajaId("0e300000-0000-0000-0000-000000000001"), estado.getId(), null, null, null, null, false,
                 new ArrayList<>(List.of(DetalleVenta.restaurar("0e400000-0000-0000-0000-000000000001", new ProductoId("0e500000-0000-0000-0000-000000000001"),
                         new BigDecimal("10.00"), new BigDecimal("2"), new BigDecimal("20.00"), new BigDecimal("0.00"), true, false))),
                 new ArrayList<>(List.of(PagoVenta.restaurar("0e600000-0000-0000-0000-000000000001", new TipoPagoId(ID_EFECTIVO),

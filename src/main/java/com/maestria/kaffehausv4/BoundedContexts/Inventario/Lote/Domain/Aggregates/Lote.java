@@ -263,6 +263,51 @@ public class Lote {
         detalleVivo(detalleLoteId).devolver(cantidad);
     }
 
+    /**
+     * Da de baja las unidades restantes de una linea vencida (logica.md VENCIMIENTO-03). No toca el
+     * total: el costo de compra no cambia porque algo venza. Devuelve cuantas unidades se dieron de
+     * baja.
+     */
+    public BigDecimal darDeBajaVencidas(String detalleLoteId, LocalDate hoy) {
+        if (this.borrado) {
+            throw DomainException.throwException(409, "No se pueden dar de baja unidades de un lote dado de baja");
+        }
+        return detalleVivo(detalleLoteId).darDeBajaVencidas(hoy);
+    }
+
+    /**
+     * Solo se da de baja un lote de compra que no se uso (logica.md LOTE-26): sirve para corregir un
+     * registro equivocado. Lo usado se corrige por conteo (LOTE-23) y un lote de produccion se
+     * conserva como su produccion (PRODUCCION-11). Que ninguna existencia haya nacido de sus lineas
+     * lo comprueba el caso de uso.
+     */
+    public void exigirQuePuedaDarseDeBaja() {
+        exigirQueNoSeaDeProduccion();
+        for (DetalleLote detalle : getDetallesActivos()) {
+            exigirIntacta(detalle);
+        }
+    }
+
+    /** La misma regla para dar de baja una sola linea en el PUT (LOTE-26). */
+    public void exigirQueLaLineaPuedaDarseDeBaja(String detalleLoteId) {
+        exigirQueNoSeaDeProduccion();
+        exigirIntacta(detalleVivo(detalleLoteId));
+    }
+
+    private void exigirQueNoSeaDeProduccion() {
+        if (this.esProduccion) {
+            throw DomainException.throwException(409,
+                    "Un lote de produccion no se da de baja ni pierde lineas: se conserva como su produccion");
+        }
+    }
+
+    private static void exigirIntacta(DetalleLote detalle) {
+        if (!detalle.estaIntacta()) {
+            throw DomainException.throwException(409,
+                    "El detalle con id '" + detalle.getId().getValue() + "' ya se uso y no se puede dar de baja; corrige sus unidades con un conteo");
+        }
+    }
+
     /** Lote que contiene una linea, entre varios lotes. */
     public static Lote dueno(List<Lote> lotes, DetalleLote detalle) {
         return lotes.stream()

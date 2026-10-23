@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.ValueObjects.RolId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Datasources.IUsuarioDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dtos.ObtenerUsuariosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.Aggregates.Usuario;
@@ -100,5 +101,10 @@ public class UsuarioDatasourceImpl implements IUsuarioDatasource {
         } catch (IllegalArgumentException | NullPointerException e) {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
+    }
+
+    @Override
+    public long contarPorRol(RolId rolId) {
+        return usuarioJpaRepository.countByIdRolAndBorradoFalse(aUuid(rolId.getValue()));
     }
 }

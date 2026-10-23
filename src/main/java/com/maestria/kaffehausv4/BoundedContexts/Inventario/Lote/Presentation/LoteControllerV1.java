@@ -27,10 +27,15 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseC
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerLotesUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.ExistenciaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.AbrirDetalleLoteRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.DarDeBajaVencidoDetalleLoteRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.DetalleAperturableResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.ObtenerDetallesAperturablesRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.ObtenerVencimientosRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.VencimientoResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.AbrirDetalleLoteUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.DarDeBajaVencidoDetalleLoteUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerDetallesAperturablesUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerVencimientosUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
 import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
@@ -49,6 +54,8 @@ public class LoteControllerV1 {
     private final EliminarLoteUseCase eliminarLoteUseCase;
     private final ObtenerDetallesAperturablesUseCase obtenerDetallesAperturablesUseCase;
     private final AbrirDetalleLoteUseCase abrirDetalleLoteUseCase;
+    private final DarDeBajaVencidoDetalleLoteUseCase darDeBajaVencidoDetalleLoteUseCase;
+    private final ObtenerVencimientosUseCase obtenerVencimientosUseCase;
 
     public LoteControllerV1(
             CrearLoteUseCase crearLoteUseCase,
@@ -57,7 +64,9 @@ public class LoteControllerV1 {
             ObtenerLotesUseCase obtenerLotesUseCase,
             EliminarLoteUseCase eliminarLoteUseCase,
             ObtenerDetallesAperturablesUseCase obtenerDetallesAperturablesUseCase,
-            AbrirDetalleLoteUseCase abrirDetalleLoteUseCase) {
+            AbrirDetalleLoteUseCase abrirDetalleLoteUseCase,
+            DarDeBajaVencidoDetalleLoteUseCase darDeBajaVencidoDetalleLoteUseCase,
+            ObtenerVencimientosUseCase obtenerVencimientosUseCase) {
         this.crearLoteUseCase = crearLoteUseCase;
         this.actualizarLoteUseCase = actualizarLoteUseCase;
         this.obtenerLotePorIdUseCase = obtenerLotePorIdUseCase;
@@ -65,6 +74,8 @@ public class LoteControllerV1 {
         this.eliminarLoteUseCase = eliminarLoteUseCase;
         this.obtenerDetallesAperturablesUseCase = obtenerDetallesAperturablesUseCase;
         this.abrirDetalleLoteUseCase = abrirDetalleLoteUseCase;
+        this.darDeBajaVencidoDetalleLoteUseCase = darDeBajaVencidoDetalleLoteUseCase;
+        this.obtenerVencimientosUseCase = obtenerVencimientosUseCase;
     }
 
     @PostMapping
@@ -127,5 +138,22 @@ public class LoteControllerV1 {
         AbrirDetalleLoteRequest request = AbrirDetalleLoteRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
         ExistenciaResponse response = abrirDetalleLoteUseCase.execute(idDetalleLote, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // Vencimientos (logica.md VENCIMIENTO-03, VENCIMIENTO-04): Operador o Administrador.
+
+    @GetMapping("/vencimientos")
+    public ResponseEntity<List<VencimientoResponse>> obtenerVencimientos(@RequestParam(required = false) String dias) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dias", dias);
+
+        ObtenerVencimientosRequest request = ObtenerVencimientosRequest.createFromRequest(params);
+        return ResponseEntity.ok(obtenerVencimientosUseCase.execute(request));
+    }
+
+    @PostMapping("/detalles/{idDetalleLote}/vencimiento")
+    public ResponseEntity<LoteResponse> darDeBajaVencido(@PathVariable String idDetalleLote, @RequestBody(required = false) Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        DarDeBajaVencidoDetalleLoteRequest request = DarDeBajaVencidoDetalleLoteRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
+        return ResponseEntity.ok(darDeBajaVencidoDetalleLoteUseCase.execute(idDetalleLote, request));
     }
 }

@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Repositories;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,4 +44,16 @@ public interface IExistenciaRepository {
      * necesita para ordenar los bloqueos por producto (logica.md GENERAL-15) antes de bloquearla.
      */
     Optional<DetalleLoteId> obtenerDetalleLoteDe(ExistenciaId existenciaId);
+
+    /**
+     * Hay alguna existencia viva, con o sin contenido, abierta desde esas lineas de lote (logica.md
+     * LOTE-26).
+     */
+    boolean existenPorDetallesLote(List<DetalleLoteId> detalleLoteIds);
+
+    /**
+     * Existencias vivas con contenido que vencen hasta esa fecha, incluida, ordenadas por
+     * vencimiento y por id (logica.md VENCIMIENTO-04). Lectura sin bloqueo.
+     */
+    List<Existencia> obtenerConContenidoQueVencenHasta(LocalDate fecha);
 }

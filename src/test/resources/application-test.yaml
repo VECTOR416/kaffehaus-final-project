@@ -7,6 +7,9 @@ spring:
     username: sa
     password:
     driver-class-name: org.h2.Driver
+    hikari:
+      # Sintaxis de H2 para la espera maxima de un bloqueo (la de PostgreSQL esta en application.yaml).
+      connection-init-sql: SET LOCK_TIMEOUT 5000
   jpa:
     defer-datasource-initialization: true
     hibernate:
@@ -18,3 +21,7 @@ spring:
     init:
       mode: always
       schema-locations: classpath:h2/esquema-postgresql.sql
+
+seguridad:
+  # Contrasena del administrador que siembra EscenarioDeCafeteria (logica.md SIEMBRA-02).
+  seed-admin-contrasena: admin-de-prueba

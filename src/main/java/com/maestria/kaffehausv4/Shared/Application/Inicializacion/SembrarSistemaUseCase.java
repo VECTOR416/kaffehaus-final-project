@@ -41,6 +41,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.Aggr
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoPago.Application.Repositories.ITipoPagoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoPago.Domain.Aggregates.TipoPago;
 import com.maestria.kaffehausv4.Shared.Application.Crypto.IHasheadorDeContrasena;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
  * Inicializa una base recien creada con databasev4.sql (POST api/v1/seed). Es idempotente:
@@ -50,7 +51,9 @@ import com.maestria.kaffehausv4.Shared.Application.Crypto.IHasheadorDeContrasena
  * Siembra, en este orden:
  *
  * 1. Roles 'Administrador' y 'Operador', y el administrador inicial (admin@gmail.com) con su
- *    persona. Si el correo ya existe no se toca: nunca se reescribe una contrasena.
+ *    persona. Si el correo ya existe no se toca: nunca se reescribe una contrasena. La contrasena
+ *    inicial no esta en el codigo: llega de la configuracion (logica.md SIEMBRA-02) y, si falta
+ *    cuando el administrador aun no existe, responde 409 antes de sembrar nada.
  * 2. Los catalogos que el negocio resuelve por nombre: tipos de movimiento, estados de
  *    existencia, de venta y de pedido, tipos de descuento y tipos de pago.
  * 3. Tipos de producto y categorias por defecto.
@@ -66,16 +69,14 @@ import com.maestria.kaffehausv4.Shared.Application.Crypto.IHasheadorDeContrasena
 @Transactional
 public class SembrarSistemaUseCase {
     public static final String CORREO_ADMINISTRADOR = "admin@gmail.com";
-    // Contrasena de primer arranque. Hay que cambiarla en cuanto se entra por primera vez.
-    static final String CONTRASENA_ADMINISTRADOR = "admin";
 
-    private static final List<String> ROLES = List.of("Administrador", "Operador");
-    private static final List<String> TIPOS_MOVIMIENTO = List.of(TipoMovimiento.PRODUCCION, TipoMovimiento.AJUSTE, TipoMovimiento.MERMA, TipoMovimiento.APERTURA,
-            TipoMovimiento.VENTA, TipoMovimiento.REINTEGRO, TipoMovimiento.VENCIMIENTO);
-    private static final List<String> ESTADOS_EXISTENCIA = List.of("Abierta", "Agotada");
-    private static final List<String> ESTADOS_VENTA = List.of("Completada", "Anulada");
-    private static final List<String> TIPOS_DESCUENTO = List.of("Porcentaje", "Monto fijo");
-    private static final List<String> ESTADOS_PEDIDO = List.of("Recibido", "En preparacion", "En camino", "Entregado", "Cancelado");
+    // Las filas semanticas las define cada catalogo (logica.md GENERAL-19); aqui solo se siembran.
+    private static final List<String> ROLES = Rol.NOMBRES_SEMANTICOS;
+    private static final List<String> TIPOS_MOVIMIENTO = TipoMovimiento.NOMBRES_SEMANTICOS;
+    private static final List<String> ESTADOS_EXISTENCIA = EstadoExistencia.NOMBRES_SEMANTICOS;
+    private static final List<String> ESTADOS_VENTA = EstadoVenta.NOMBRES_SEMANTICOS;
+    private static final List<String> TIPOS_DESCUENTO = TipoDescuento.NOMBRES_SEMANTICOS;
+    private static final List<String> ESTADOS_PEDIDO = EstadoPedido.NOMBRES_SEMANTICOS;
     private static final List<String> TIPOS_PAGO = List.of(TipoPago.EFECTIVO, "Tarjeta", "QR");
     private static final List<String> TIPOS_PRODUCTO = List.of("Producto", "Insumo");
     private static final List<String> CATEGORIAS = List.of("Cafes", "Bebidas", "Pasteleria", "Insumos");
@@ -135,14 +136,24 @@ public class SembrarSistemaUseCase {
         this.conversionRepository = conversionRepository;
     }
 
-    public SembrarSistemaResponse execute() {
+    /**
+     * 'contrasenaAdministrador' es la del administrador inicial, tomada de la configuracion
+     * (SEED_ADMIN_CONTRASENA). Solo se usa si el administrador aun no existe.
+     */
+    public SembrarSistemaResponse execute(String contrasenaAdministrador) {
+        if ((contrasenaAdministrador == null || contrasenaAdministrador.isBlank())
+                && usuarioRepository.obtenerPorCorreo(CORREO_ADMINISTRADOR).isEmpty()) {
+            throw DomainException.throwException(409,
+                    "Falta la contrasena del administrador inicial: configura SEED_ADMIN_CONTRASENA antes de sembrar");
+        }
+
         Bitacora bitacora = new Bitacora();
 
         for (String nombre : ROLES) {
             asegurar(bitacora, "Rol '" + nombre + "'", () -> rolRepository.obtenerPorNombre(nombre),
                     () -> rolRepository.crear(Rol.crear(nombre)));
         }
-        sembrarAdministrador(bitacora);
+        sembrarAdministrador(bitacora, contrasenaAdministrador);
 
         sembrarCatalogo(bitacora, "Tipo de movimiento", TIPOS_MOVIMIENTO, tipoMovimientoRepository::obtenerPorNombre,
                 nombre -> tipoMovimientoRepository.crear(TipoMovimiento.crear(nombre)));
@@ -173,7 +184,7 @@ public class SembrarSistemaUseCase {
         return SembrarSistemaResponse.crear(bitacora.creados, bitacora.existentes);
     }
 
-    private void sembrarAdministrador(Bitacora bitacora) {
+    private void sembrarAdministrador(Bitacora bitacora, String contrasenaAdministrador) {
         String descripcion = "Usuario '" + CORREO_ADMINISTRADOR + "'";
         if (usuarioRepository.obtenerPorCorreo(CORREO_ADMINISTRADOR).isPresent()) {
             bitacora.existentes.add(descripcion);
@@ -184,7 +195,7 @@ public class SembrarSistemaUseCase {
         usuarioRepository.crear(Usuario.crear(
                 persona.getId(),
                 CORREO_ADMINISTRADOR,
-                hasheadorDeContrasena.hashear(CONTRASENA_ADMINISTRADOR),
+                hasheadorDeContrasena.hashear(contrasenaAdministrador),
                 administrador.getId()));
         bitacora.creados.add(descripcion);
     }

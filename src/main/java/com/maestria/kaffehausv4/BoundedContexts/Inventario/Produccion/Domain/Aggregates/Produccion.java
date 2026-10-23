@@ -79,6 +79,10 @@ public class Produccion {
         if (cantidadReal == null || cantidadReal.signum() < 0) {
             throw DomainException.throwException(400, "La cantidad real de la produccion no puede ser negativa");
         }
+        // Lo producido se cuenta en unidades enteras (logica.md GENERAL-16).
+        if (cantidadEsperada.stripTrailingZeros().scale() > 0 || cantidadReal.stripTrailingZeros().scale() > 0) {
+            throw DomainException.throwException(400, "Las cantidades esperada y real de la produccion deben ser numeros enteros de unidades");
+        }
         if (recetaId == null || recetaId.getValue() == null) {
             throw DomainException.throwException(400, "La produccion requiere una receta");
         }

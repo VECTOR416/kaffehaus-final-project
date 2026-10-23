@@ -2,17 +2,17 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Use
 
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.AJUSTE;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_OTRA_UNIDAD;
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_PROVEEDOR;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_TIPO_AJUSTE;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_TIPO_MERMA;
-import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_PROVEEDOR;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_UNIDAD;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_USUARIO;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.MERMA;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.detalle;
-import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.existencia;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.loteDeCompra;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.loteDeProduccion;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.presentacion;
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.productoBajoDemanda;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.productoDirecto;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.usuario;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -211,6 +211,32 @@ class LoteUseCasesTest {
         }
 
         @Test
+        void unMtoNoSeCompra() {
+            // Arrange (logica.md PRODUCTO-18): un MTO no tiene inventario propio.
+            String idSandwich = "e7000000-0000-0000-0000-0000000000f2";
+            hayProducto(productoBajoDemanda(idSandwich, "Sandwich"));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(compra(List.of(linea(idSandwich, "1", "1")))));
+
+            // Assert
+            assertEquals(400, error.getCodigo());
+            assertTrue(error.getMensaje().contains("bajo demanda"));
+            verify(loteRepository, never()).crear(any());
+        }
+
+        @Test
+        void loQueSeCompraSeCuentaEnUnidadesEnteras() {
+            // Act (logica.md GENERAL-16)
+            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(compra(List.of(linea(ID_CAFE, "2.5", "12")))));
+
+            // Assert
+            assertEquals(400, error.getCodigo());
+            assertTrue(error.getMensaje().contains("entero"));
+            verify(loteRepository, never()).crear(any());
+        }
+
+        @Test
         void validaQueExistanProveedorUsuarioYProductos() {
             // Arrange
             CrearLoteRequest conProductoInexistente = compra(List.of(linea(ID_INEXISTENTE, "1", "1")));
@@ -330,12 +356,12 @@ class LoteUseCasesTest {
         }
 
         @Test
-        void unaLineaConExistenciasEnUsoNoSePuedeDarDeBaja() {
-            // Arrange
+        void unaLineaDeLaQueSeAbrieronExistenciasNoSePuedeDarDeBaja() {
+            // Arrange (logica.md LOTE-26): ni siquiera si la existencia ya esta agotada.
             hayLoteRegistrado();
-            when(existenciaRepository.obtenerDisponiblesPorDetallesLote(argThat(lineas ->
+            when(existenciaRepository.existenPorDetallesLote(argThat(lineas ->
                     lineas != null && lineas.size() == 1 && ID_LINEA_AZUCAR.equals(lineas.get(0).getValue()))))
-                    .thenReturn(List.of(existencia("e7000000-0000-0000-0000-0000000000a9", ID_LINEA_AZUCAR, "1000", "500", null)));
+                    .thenReturn(true);
 
             // Act
             DomainException error = assertThrows(DomainException.class,
@@ -344,6 +370,38 @@ class LoteUseCasesTest {
             // Assert
             assertEquals(409, error.getCodigo());
             assertTrue(error.getMensaje().contains(ID_LINEA_AZUCAR));
+            verify(loteRepository, never()).actualizar(any(), any());
+        }
+
+        @Test
+        void unaLineaYaUsadaNoSePuedeDarDeBaja() {
+            // Arrange (logica.md LOTE-26): del azucar ya se vendieron 3 de 8.
+            Lote lote = loteDeCompra(ID_LOTE,
+                    detalle(ID_LINEA_CAFE, ID_CAFE, "10", "10", "12", null),
+                    detalle(ID_LINEA_AZUCAR, ID_AZUCAR, "8", "5", "5", null));
+            when(loteRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.of(lote));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class,
+                    () -> useCase.execute(ID_LOTE, conLineas(List.of(Map.of("id", ID_LINEA_CAFE)))));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            assertTrue(error.getMensaje().contains("ya se uso"));
+            verify(loteRepository, never()).actualizar(any(), any());
+        }
+
+        @Test
+        void laCantidadInicialDeUnaLineaEsUnNumeroEntero() {
+            // Arrange (logica.md GENERAL-16)
+            hayLoteRegistrado();
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_LOTE, conLineas(List.of(
+                    Map.of("id", ID_LINEA_CAFE, "cantidadInicial", "12.5"), Map.of("id", ID_LINEA_AZUCAR)))));
+
+            // Assert
+            assertEquals(400, error.getCodigo());
             verify(loteRepository, never()).actualizar(any(), any());
         }
 
@@ -577,23 +635,54 @@ class LoteUseCasesTest {
             useCase.execute(ID_LOTE);
 
             // Assert
-            verify(existenciaRepository).obtenerDisponiblesPorDetallesLote(argThat(lineas -> lineas.size() == 2));
+            verify(existenciaRepository).existenPorDetallesLote(argThat(lineas -> lineas.size() == 2));
             verify(loteRepository).eliminar(argThat(id -> ID_LOTE.equals(id.getValue())));
         }
 
         @Test
-        void unLoteConExistenciasConContenidoNoSeDaDeBaja() {
-            // Arrange
+        void unLoteDelQueSeAbrieronExistenciasNoSeDaDeBaja() {
+            // Arrange (logica.md LOTE-26)
             EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository, recalcularStockUseCase);
             hayLoteRegistrado();
-            when(existenciaRepository.obtenerDisponiblesPorDetallesLote(anyList()))
-                    .thenReturn(List.of(existencia("e7000000-0000-0000-0000-0000000000a9", ID_LINEA_CAFE, "1000", "1", null)));
+            when(existenciaRepository.existenPorDetallesLote(anyList())).thenReturn(true);
 
             // Act
             DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_LOTE));
 
             // Assert
             assertEquals(409, error.getCodigo());
+            verify(loteRepository, never()).eliminar(any());
+        }
+
+        @Test
+        void unLoteYaUsadoNoSeDaDeBaja() {
+            // Arrange (logica.md LOTE-26): se vendieron 2 de las 10 unidades de cafe.
+            EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository, recalcularStockUseCase);
+            when(loteRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.of(loteDeCompra(ID_LOTE,
+                    detalle(ID_LINEA_CAFE, ID_CAFE, "10", "8", "12", null))));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_LOTE));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            assertTrue(error.getMensaje().contains("conteo"));
+            verify(loteRepository, never()).eliminar(any());
+        }
+
+        @Test
+        void unLoteDeProduccionNoSeDaDeBaja() {
+            // Arrange (logica.md LOTE-26, PRODUCCION-11)
+            EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository, recalcularStockUseCase);
+            when(loteRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.of(loteDeProduccion(ID_LOTE,
+                    "e7000000-0000-0000-0000-0000000000d1", detalle(ID_LINEA_CAFE, ID_CAFE, "10", "10", "0", null))));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_LOTE));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            assertTrue(error.getMensaje().contains("produccion"));
             verify(loteRepository, never()).eliminar(any());
         }
 

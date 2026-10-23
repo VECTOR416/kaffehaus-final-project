@@ -3,9 +3,12 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.Aggre
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
+
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /** Pruebas de dominio puro de EstadoVenta: catalogo de estados de una venta. */
 class EstadoVentaTest {
@@ -37,7 +40,7 @@ class EstadoVentaTest {
     @Test
     void actualizarCambiaElNombre() {
         // Arrange
-        EstadoVenta estado = EstadoVenta.restaurar(ID, "Completada", false);
+        EstadoVenta estado = EstadoVenta.restaurar(ID, "En espera", false);
 
         // Act
         estado.actualizar("Anulada");
@@ -61,13 +64,32 @@ class EstadoVentaTest {
     @Test
     void eliminarEsUnaBajaLogicaQueConservaLosDatos() {
         // Arrange
-        EstadoVenta estado = EstadoVenta.restaurar(ID, "Completada", false);
+        EstadoVenta estado = EstadoVenta.restaurar(ID, "En espera", false);
 
         // Act
         estado.eliminar();
 
         // Assert
         assertTrue(estado.isBorrado());
-        assertEquals("Completada", estado.getNombre());
+        assertEquals("En espera", estado.getNombre());
+    }
+
+    @Test
+    void unaFilaSemanticaNoSeRenombraNiSeDaDeBaja() {
+        // Arrange (logica.md GENERAL-19)
+        EstadoVenta semantica = EstadoVenta.restaurar(ID, "Completada", false);
+
+        // Act
+        DomainException renombrar = assertThrows(DomainException.class, () -> semantica.actualizar("Otro nombre"));
+        DomainException darDeBaja = assertThrows(DomainException.class, semantica::eliminar);
+        semantica.actualizar("COMPLETADA");
+
+        // Assert
+        assertEquals(409, renombrar.getCodigo());
+        assertEquals(409, darDeBaja.getCodigo());
+        assertEquals("Completada", semantica.getNombre());
+        assertFalse(semantica.isBorrado());
+        assertTrue(semantica.esSemantico());
+        assertFalse(EstadoVenta.restaurar(ID, "En espera", false).esSemantico());
     }
 }

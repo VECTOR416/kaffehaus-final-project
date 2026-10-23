@@ -189,6 +189,30 @@ public class DetalleLote {
         return this.cantidadInicial.subtract(this.cantidadRestante);
     }
 
+    /**
+     * Da de baja las unidades restantes de una linea vencida (logica.md VENCIMIENTO-03): quedan en
+     * 0 y devuelve cuantas eran, para el movimiento 'Vencimiento'. Lo vigente o lo que ya esta en
+     * 0 no se da de baja (409).
+     */
+    BigDecimal darDeBajaVencidas(LocalDate hoy) {
+        if (!estaVencido(hoy)) {
+            throw DomainException.throwException(409,
+                    "El detalle de lote con id '" + this.id.getValue() + "' no esta vencido y no se da de baja por vencimiento");
+        }
+        if (!tieneUnidadesDisponibles()) {
+            throw DomainException.throwException(409,
+                    "El detalle de lote con id '" + this.id.getValue() + "' no tiene unidades que dar de baja");
+        }
+        BigDecimal baja = this.cantidadRestante;
+        this.cantidadRestante = aEscala(BigDecimal.ZERO);
+        return baja;
+    }
+
+    /** Nadie abrio, vendio, uso ni corrigio sus unidades: conserva todo lo comprado (LOTE-26). */
+    public boolean estaIntacta() {
+        return this.cantidadRestante.compareTo(this.cantidadInicial) == 0;
+    }
+
     /** Tiene unidades disponibles, aunque sean una fraccion. */
     public boolean tieneUnidadesDisponibles() {
         return this.cantidadRestante.signum() > 0;
@@ -213,9 +237,16 @@ public class DetalleLote {
         return aEscala(this.cantidadInicial.multiply(this.precioUnitario));
     }
 
+    /**
+     * Lo que se compra o se produce se cuenta en unidades enteras (logica.md GENERAL-16); las
+     * fracciones solo aparecen despues, en lo que queda, cuando una receta usa parte de una unidad.
+     */
     private static void exigirCantidadInicialValida(BigDecimal cantidadInicial) {
         if (cantidadInicial == null || cantidadInicial.signum() <= 0) {
             throw DomainException.throwException(400, "La cantidad inicial del detalle de lote debe ser mayor a cero");
+        }
+        if (cantidadInicial.stripTrailingZeros().scale() > 0) {
+            throw DomainException.throwException(400, "La cantidad inicial del detalle de lote debe ser un numero entero de unidades");
         }
     }
 

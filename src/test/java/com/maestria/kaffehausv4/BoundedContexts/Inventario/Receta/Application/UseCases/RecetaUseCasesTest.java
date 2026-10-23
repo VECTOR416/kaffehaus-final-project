@@ -27,6 +27,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.maestria.kaffehausv4.Soporte.DatosDePrueba;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
@@ -403,9 +404,97 @@ class RecetaUseCasesTest {
     // ------------------------------------------------------------------ eliminar y consultas
 
     @Test
-    void eliminarDaDeBajaLaExistenteYRechazaLaInexistente() {
+    void elProductoObtenidoNoPuedeSerIngredienteDeSuPropiaReceta() {
+        // Arrange (logica.md RECETA-07)
+        CrearRecetaUseCase useCase = new CrearRecetaUseCase(recetaRepository, productoRepository);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(CrearRecetaRequest.createFromRequest(
+                alta(List.of(ingrediente(ID_HARINA, "4"), ingrediente(ID_PAN, "1")), List.of(paso("Mezclar"))))));
+
+        // Assert
+        assertEquals(400, error.getCodigo());
+        verify(recetaRepository, never()).crear(any());
+    }
+
+    @Test
+    void unaRecetaNoPuedeFormarUnCicloConLasRecetasDeSusInsumosMto() {
+        // Arrange (logica.md RECETA-07): el mocha usa base de chocolate, cuya receta vigente usa mocha.
+        String idMocha = "0c000000-0000-0000-0000-0000000000f1";
+        String idBase = "0c000000-0000-0000-0000-0000000000f2";
+        hayProducto(productoBajoDemanda(idMocha, "Mocha"));
+        hayProducto(productoBajoDemanda(idBase, "Base de chocolate"));
+        when(recetaRepository.obtenerPorProductoObtenido(argThat(id -> id != null && idBase.equals(id.getValue()))))
+                .thenReturn(Optional.of(receta("0c000000-0000-0000-0000-0000000000f3", idBase, "1",
+                        DatosDePrueba.ingrediente("0c000000-0000-0000-0000-0000000000f4", idMocha, "0.5"))));
+        Map<String, Object> datos = alta(List.of(ingrediente(idBase, "1")), List.of(paso("Servir")));
+        datos.put("idProductoObtenido", idMocha);
+        CrearRecetaUseCase useCase = new CrearRecetaUseCase(recetaRepository, productoRepository);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(CrearRecetaRequest.createFromRequest(datos)));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("Mocha -> Base de chocolate -> Mocha"));
+        verify(recetaRepository, never()).crear(any());
+    }
+
+    @Test
+    void lasRecetasDeLosInsumosMtsNoSeRecorren() {
+        // Arrange: el pan (MTS) tiene su propia receta de produccion, pero se descuenta de su stock.
+        String idSandwich = "0c000000-0000-0000-0000-0000000000f5";
+        hayProducto(productoBajoDemanda(idSandwich, "Sandwich"));
+        Map<String, Object> datos = alta(List.of(ingrediente(ID_PAN, "1")), List.of(paso("Armar")));
+        datos.put("idProductoObtenido", idSandwich);
+        CrearRecetaUseCase useCase = new CrearRecetaUseCase(recetaRepository, productoRepository);
+
+        // Act
+        useCase.execute(CrearRecetaRequest.createFromRequest(datos));
+
+        // Assert
+        verify(recetaRepository).crear(any());
+        verify(recetaRepository, never()).obtenerPorProductoObtenido(any());
+    }
+
+    @Test
+    void laUltimaRecetaDeUnMtoVendibleNoSeDaDeBaja() {
+        // Arrange (logica.md RECETA-08, RECETA-09)
+        hayProducto(productoBajoDemanda(ID_PAN, "Pan"));
+        Receta receta = hayRecetaDePan();
+        when(recetaRepository.obtenerVivasPorProductoObtenido(any())).thenReturn(List.of(receta));
+        EliminarRecetaUseCase useCase = new EliminarRecetaUseCase(recetaRepository, productoRepository);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_RECETA));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("ultima"));
+        verify(recetaRepository, never()).eliminar(any());
+    }
+
+    @Test
+    void unMtoConOtraRecetaVivaSiPierdeUna() {
         // Arrange
-        EliminarRecetaUseCase useCase = new EliminarRecetaUseCase(recetaRepository);
+        hayProducto(productoBajoDemanda(ID_PAN, "Pan"));
+        Receta receta = hayRecetaDePan();
+        when(recetaRepository.obtenerVivasPorProductoObtenido(any())).thenReturn(List.of(
+                receta("0c000000-0000-0000-0000-0000000000f6", ID_PAN, "10", DatosDePrueba.ingrediente("0c000000-0000-0000-0000-0000000000f7", ID_HARINA, "4")),
+                receta));
+        EliminarRecetaUseCase useCase = new EliminarRecetaUseCase(recetaRepository, productoRepository);
+
+        // Act
+        useCase.execute(ID_RECETA);
+
+        // Assert
+        verify(recetaRepository).eliminar(argThat(id -> ID_RECETA.equals(id.getValue())));
+    }
+
+    @Test
+    void eliminarDaDeBajaLaExistenteYRechazaLaInexistente() {
+        // Arrange: el pan de esta prueba es MTS, su receta es de produccion y se puede dar de baja.
+        EliminarRecetaUseCase useCase = new EliminarRecetaUseCase(recetaRepository, productoRepository);
         hayRecetaDePan();
 
         // Act

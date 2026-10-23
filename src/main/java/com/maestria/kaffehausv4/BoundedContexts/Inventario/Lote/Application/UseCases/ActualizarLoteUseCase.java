@@ -127,11 +127,12 @@ public class ActualizarLoteUseCase {
 
         for (String idVivo : idsVivos) {
             if (!idsRecibidos.contains(idVivo)) {
-                // Una linea con existencias en uso no se da de baja: su stock quedaria sin
-                // origen (logica.md LOTE-07).
-                if (!existenciaRepository.obtenerDisponiblesPorDetallesLote(List.of(new DetalleLoteId(idVivo))).isEmpty()) {
+                // Solo se quita una linea que no se uso y de la que no se abrio nada (logica.md
+                // LOTE-26, que amplia LOTE-07).
+                lote.exigirQueLaLineaPuedaDarseDeBaja(idVivo);
+                if (existenciaRepository.existenPorDetallesLote(List.of(new DetalleLoteId(idVivo)))) {
                     throw DomainException.throwException(409,
-                            "El detalle con id '" + idVivo + "' tiene existencias con contenido y no se puede dar de baja");
+                            "Del detalle con id '" + idVivo + "' ya se abrieron existencias y no se puede dar de baja");
                 }
                 lote.removerDetalle(idVivo);
             }

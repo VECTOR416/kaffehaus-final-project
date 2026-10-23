@@ -1,6 +1,9 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoPago.Domain.Aggregates;
 
+import java.util.List;
+
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoPago.Domain.ValueObjects.TipoPagoId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
  * Forma de pago de una venta (Efectivo, Tarjeta, QR...). El catalogo es datos: el unico tipo
@@ -10,6 +13,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoPago.Domain.ValueObje
  */
 public class TipoPago {
     public static final String EFECTIVO = "Efectivo";
+
+    /**
+     * Filas que el sistema reconoce por su nombre (logica.md GENERAL-04): no se renombran ni se dan
+     * de baja (GENERAL-19). Se pueden agregar otras filas, que no tienen semantica.
+     */
+    public static final List<String> NOMBRES_SEMANTICOS = List.of(EFECTIVO);
 
     private TipoPagoId id;
     private String nombre;
@@ -42,11 +51,26 @@ public class TipoPago {
     public void actualizar(
         String nombre
     ){
-        this.nombre = nombre != null ? nombre : this.nombre;
+        if (nombre != null && esSemantico() && !nombre.equalsIgnoreCase(this.nombre)) {
+            throw DomainException.throwException(409,
+                    "El tipo de pago '" + this.nombre + "' lo reconoce el sistema por su nombre y no se renombra");
+        }
+        if (nombre != null && !esSemantico()) {
+            this.nombre = nombre;
+        }
     }
 
     public void eliminar(){
+        if (esSemantico()) {
+            throw DomainException.throwException(409,
+                    "El tipo de pago '" + this.nombre + "' lo reconoce el sistema por su nombre y no se da de baja");
+        }
         this.borrado = true;
+    }
+
+    /** Es una de las filas que el sistema reconoce por su nombre (GENERAL-19). */
+    public boolean esSemantico() {
+        return NOMBRES_SEMANTICOS.stream().anyMatch(semantico -> semantico.equalsIgnoreCase(this.nombre));
     }
 
     public boolean esEfectivo() {

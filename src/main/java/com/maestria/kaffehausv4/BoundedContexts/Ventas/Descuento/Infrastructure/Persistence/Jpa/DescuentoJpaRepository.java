@@ -15,4 +15,8 @@ public interface DescuentoJpaRepository extends JpaRepository<DescuentoJpaModel,
     Page<DescuentoJpaModel> findByBorradoFalse(Pageable pageable);
     List<DescuentoJpaModel> findByIdProductoAndEstadoTrueAndBorradoFalseAndFechaInicioLessThanEqualAndFechaFinalGreaterThanEqual(
             UUID idProducto, LocalDateTime inicioHasta, LocalDateTime finalDesde);
+
+    // Bajas con descuentos vivos (logica.md GENERAL-18, DESCUENTO-05).
+    boolean existsByIdTipoDescuentoAndBorradoFalse(UUID idTipoDescuento);
+    List<DescuentoJpaModel> findByIdProductoAndBorradoFalse(UUID idProducto);
 }

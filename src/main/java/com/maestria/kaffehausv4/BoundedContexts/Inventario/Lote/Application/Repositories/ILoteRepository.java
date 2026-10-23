@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repositories;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -66,4 +67,10 @@ public interface ILoteRepository {
     Optional<ProductoId> obtenerProductoDeDetalle(DetalleLoteId detalleLoteId);
     PaginatedResponse<List<Lote>> obtenerTodos(ObtenerLotesRequest obtenerLotesRequest);
     void eliminar(LoteId loteId);
+
+    /**
+     * Lotes vivos con alguna linea viva con unidades disponibles que vence hasta esa fecha, incluida
+     * (logica.md VENCIMIENTO-04). Trae el lote completo; quien consulta filtra sus lineas.
+     */
+    List<Lote> obtenerConUnidadesQueVencenHasta(LocalDate fecha);
 }

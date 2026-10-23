@@ -1,5 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.UseCases;
 
+import java.time.LocalDate;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -8,7 +10,10 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Rep
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.EstadoCajaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Repositories.ISesionCajaRepository;
 
-/** Si hay un turno abierto, desde cuando y el nombre de su responsable (arquitectura.md 4.11, CAJ-25). */
+/**
+ * Si hay un turno abierto, desde cuando, el nombre de su responsable y si se abrio un dia anterior
+ * (logica.md SESIONCAJA-08, SESIONCAJA-17).
+ */
 @Service
 @Transactional(readOnly = true)
 public class ObtenerEstadoCajaUseCase {
@@ -26,12 +31,14 @@ public class ObtenerEstadoCajaUseCase {
     }
 
     public EstadoCajaResponse execute() {
+        LocalDate hoy = LocalDate.now();
         return sesionCajaRepository.obtenerAbierta()
                 .map(sesionCaja -> EstadoCajaResponse.createFromAggregate(sesionCaja,
                         usuarioRepository.obtenerPorId(sesionCaja.getUsuarioId())
                                 .flatMap(usuario -> personaRepository.obtenerPorId(usuario.getPersonaId()))
                                 .map(persona -> persona.getNombres() + " " + persona.getApellidos())
-                                .orElse(null)))
-                .orElseGet(() -> EstadoCajaResponse.createFromAggregate(null, null));
+                                .orElse(null),
+                        hoy))
+                .orElseGet(() -> EstadoCajaResponse.createFromAggregate(null, null, hoy));
     }
 }

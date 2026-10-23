@@ -170,7 +170,7 @@ class CrearVentaUseCaseTest {
                     pago.getMontoRecibido(), pago.getCambio(), pago.getReferencia(), pago.isBorrado()));
         }
         return Venta.restaurar(ID_VENTA, 1L, venta.getFechaVenta(), venta.getTotal(), venta.getUsuarioId(), venta.getClienteId(),
-                venta.getSesionCajaId(), venta.getEstadoVentaId(), venta.getClaveIdempotencia(), null, null, false, detalles, pagos);
+                venta.getSesionCajaId(), venta.getEstadoVentaId(), venta.getClaveIdempotencia(), null, null, null, false, detalles, pagos);
     }
 
     private static Map<String, Object> linea(String idProducto, String cantidad) {

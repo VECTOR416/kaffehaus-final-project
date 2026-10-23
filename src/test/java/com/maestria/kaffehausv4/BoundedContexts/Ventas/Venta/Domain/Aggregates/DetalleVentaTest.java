@@ -112,6 +112,17 @@ class DetalleVentaTest {
     }
 
     @Test
+    void seVendePorUnidadesEnteras() {
+        // Act (logica.md GENERAL-16): 2.00 es entero; 1.5 no.
+        DomainException fraccion = assertThrows(DomainException.class, () -> linea("10", "1.5", null));
+        DetalleVenta entera = linea("10", "2.00", null);
+
+        // Assert
+        assertEquals(400, fraccion.getCodigo());
+        assertEquals(new BigDecimal("20.00"), entera.getSubtotal());
+    }
+
+    @Test
     void crearRechazaUnDescuentoNegativo() {
         // Act
         DomainException error = assertThrows(DomainException.class, () -> linea("10", "1", "-1"));

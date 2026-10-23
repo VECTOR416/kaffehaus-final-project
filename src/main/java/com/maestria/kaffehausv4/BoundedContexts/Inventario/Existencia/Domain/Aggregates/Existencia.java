@@ -169,6 +169,39 @@ public class Existencia {
         }
     }
 
+    /**
+     * Da de baja el contenido de una existencia vencida (logica.md VENCIMIENTO-03): queda en 0,
+     * 'Agotada' y con su fecha de acabado. Devuelve cuanto se dio de baja, para el movimiento
+     * 'Vencimiento'. Lo vigente o lo ya agotado no se da de baja (409).
+     */
+    public BigDecimal darDeBajaVencida(LocalDate hoy, LocalDateTime fecha, EstadoExistenciaId estadoAgotada) {
+        if (!estaVencida(hoy)) {
+            throw DomainException.throwException(409,
+                    "La existencia con id '" + this.id.getValue() + "' no esta vencida y no se da de baja por vencimiento");
+        }
+        if (isAgotada()) {
+            throw DomainException.throwException(409,
+                    "La existencia con id '" + this.id.getValue() + "' no tiene contenido que dar de baja");
+        }
+        BigDecimal baja = this.contenidoActual;
+        consumir(baja, fecha, estadoAgotada);
+        return baja;
+    }
+
+    /**
+     * Una existencia no vence despues que la bolsa de la que se abrio (logica.md VENCIMIENTO-05):
+     * asi no se "rejuvenece" un insumo para poder usarlo. Si la linea no vence, cualquier fecha vale.
+     */
+    public void exigirQueNoVenzaDespuesDe(LocalDate vencimientoDeSuLinea) {
+        if (vencimientoDeSuLinea == null) {
+            return;
+        }
+        if (this.fechaVencimiento == null || this.fechaVencimiento.isAfter(vencimientoDeSuLinea)) {
+            throw DomainException.throwException(409,
+                    "La existencia no puede vencer despues que la linea de lote de la que se abrio (" + vencimientoDeSuLinea + ")");
+        }
+    }
+
     /** Lo que aun cabe hasta el contenido inicial. */
     public BigDecimal espacioDisponible() {
         return this.contenidoInicial.subtract(this.contenidoActual);

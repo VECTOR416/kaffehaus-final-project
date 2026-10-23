@@ -31,10 +31,11 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  *
  * 1. La venta pasa a 'Anulada' con su motivo y quien la anulo; lineas, importes y pagos se
  *    conservan.
- * 2. Devolucion del efectivo (VENTA-27): si la venta es de la caja abierta no se registra nada
+ * 2. Devolucion del dinero (VENTA-27): si la venta es de la caja abierta no se registra nada
  *    (su arqueo ya la excluye, SESIONCAJA-06); si es de un turno ya cerrado, la caja abierta
  *    registra un egreso por lo cobrado en efectivo, con la venta (SESIONCAJA-13). Sin caja
- *    abierta, o si el egreso la dejaria en negativo, 409.
+ *    abierta, o si el egreso la dejaria en negativo, 409. Lo pagado con tarjeta o QR no toca la
+ *    caja: la venta guarda la 'referenciaReembolso' opcional de su reverso.
  * 3. Con reintegro, devuelve lo que desconto la venta a sus mismos sujetos (VENTA-25); sin
  *    reintegro el inventario no cambia.
  *
@@ -82,7 +83,7 @@ public class RegistrarAnulacionDeVentaUseCase {
         EstadoVenta completada = estado(ESTADO_COMPLETADA);
         EstadoVenta anulada = estado(ESTADO_ANULADA);
 
-        venta.anular(completada.getId(), anulada.getId(), usuarioId, request.getMotivo());
+        venta.anular(completada.getId(), anulada.getId(), usuarioId, request.getMotivo(), request.getReferenciaReembolso());
         Venta ventaAnulada = ventaRepository.actualizar(id, venta);
 
         devolverEfectivo(ventaAnulada, usuarioId, completada);

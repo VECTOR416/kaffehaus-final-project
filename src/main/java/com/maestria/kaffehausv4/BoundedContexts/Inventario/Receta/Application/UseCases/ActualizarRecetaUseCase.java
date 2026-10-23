@@ -71,6 +71,7 @@ public class ActualizarRecetaUseCase {
         }
 
         receta.validarRegistrable();
+        CrearRecetaUseCase.exigirSinCiclos(receta, productoRepository, recetaRepository);
 
         Receta recetaActualizada = recetaRepository.actualizar(id, receta);
 

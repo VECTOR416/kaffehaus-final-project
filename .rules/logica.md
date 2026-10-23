@@ -33,6 +33,16 @@ SESIONCAJA-13, SESIONCAJA-14) y fecha de la venta (VENTA-28). Cierran P-21, P-25
 parte de P-24. Los numeros VENTA-26 y VENTA-29 quedan reservados para las propuestas de
 `sugerencias_logicas.md` aun no decididas, igual que LOTE-25 y LOTE-26 (LOTE-27 se acordo despues,
 el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
+Segunda tanda de decisiones del usuario del 2026-10-23, a partir de S-05, S-06 (pagos que no son en
+efectivo), S-07, S-08, S-09, S-11, S-12, S-13, S-14 y S-17: permisos (GENERAL-17, PEDIDO-09), bajas
+con dependencias vivas (GENERAL-18, PRODUCTO-20, LOTE-26, RECETA-09, USUARIO-04), filas semanticas
+(GENERAL-19), vencimientos (VENCIMIENTO-02 a VENCIMIENTO-05), reembolso y caja compartida (VENTA-27,
+SESIONCAJA-15 a SESIONCAJA-17), cantidades enteras (GENERAL-16, LOTE-25), combinaciones invalidas
+(PRODUCTO-18, PRODUCCION-13, RECETA-07, RECETA-08), descuentos (DESCUENTO-05) y credenciales de la
+siembra (SIEMBRA-02). Cierran P-22, P-24, P-26 y P-27. Al decidirlas el usuario eligio la version
+completa de GENERAL-17 de S-07, la LOTE-26 de S-08 (solo se da de baja un lote sin usar) y la
+PRODUCTO-20 de S-08 (409 si es ingrediente de una receta viva; sus recetas y descuentos caen en
+cascada). VENTA-26 y VENTA-29 siguen reservados.
 
 ---
 
@@ -74,11 +84,8 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   CAJ-12 y CAJ-13 -> VENTA-15; CAJ-14 -> VENTA-12; CAJ-20 -> SESIONCAJA-01; CAJ-21 ->
   SESIONCAJA-03; CAJ-22 -> SESIONCAJA-04; CAJ-23 -> SESIONCAJA-05; CAJ-24 -> SESIONCAJA-06;
   CAJ-25 -> SESIONCAJA-08.
-- **GENERAL-13. Permisos.** Todo endpoint de agregado exige rol `Operador` o `Administrador`.
-  Solo `Administrador`: crear, actualizar y eliminar `usuario`, `rol` y `producto`; anular una
-  `venta`; registrar un pesaje (EXISTENCIA-18); actualizar un `lote` (incluida la correccion de
-  unidades, LOTE-23); fijar la `fechaVenta` de una venta de contingencia (VENTA-28). Cerrar la
-  caja: ver SESIONCAJA-05.
+- **GENERAL-13.** *(Derogada por GENERAL-17.)* Permisos sin la cancelacion de pedidos ni las bajas
+  de recetas y catalogos.
 - **GENERAL-14. Plan de consumo.** Toda operacion que descuenta inventario (venta, produccion)
   calcula primero, sin bloquear, su plan de consumo: explota recursivamente los MTO por su receta
   vigente (RECETA-06) escalada a `cantidad / rendimiento`, convierte cada requerimiento a la
@@ -92,6 +99,51 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   y despues el propio producto -> nada mas. Ningun caso de uso bloquea filas de inventario fuera
   de este orden, tampoco el reintegro (VENTA-25). Si aun asi la base detecta un interbloqueo o
   vence la espera de un bloqueo, la operacion responde 409 pidiendo reintentar.
+- **GENERAL-16. Lo que se cuenta por unidades es entero en los documentos** (cierra P-27). La
+  `cantidad` de una linea de venta, la `cantidadInicial` de una linea de compra (al darla de alta y
+  al corregirla) y las cantidades esperada y real de una produccion son enteras: con decimales
+  responde 400. Las fracciones solo existen en las recetas (medio pan en un sandwich, gramos de
+  cafe) y en lo que queda en inventario: por eso `cantidadRestante` puede quedar fraccionaria, el
+  descuento de unidades sigue admitiendo fracciones (LOTE-17) y la correccion por conteo (LOTE-23)
+  y el pesaje (EXISTENCIA-16) aceptan decimales. Lo que ya esta registrado no se revalida.
+- **GENERAL-17. Permisos** (deroga GENERAL-13). Todo endpoint de agregado exige rol `Operador` o
+  `Administrador`. Solo `Administrador`:
+  - crear, actualizar y eliminar `usuario`, `rol` y `producto`;
+  - anular una `venta` y cancelar un `pedido`, que la anula (PEDIDO-09);
+  - registrar un pesaje (EXISTENCIA-18) y actualizar un `lote`, incluida la correccion de unidades
+    (LOTE-23);
+  - cambiar el vencimiento de una existencia (VENCIMIENTO-05);
+  - dar de baja una `receta` y las filas de los catalogos: `tipo`, `categoria`, `unidad`,
+    `conversion`, `estado de existencia`, `tipo de movimiento`, `tipo de pago`, `estado de venta`,
+    `tipo de descuento` y `estado de pedido`;
+  - registrar un `EGRESO` en una caja de la que no es titular (SESIONCAJA-15);
+  - fijar la `fechaVenta` de una venta de contingencia (VENTA-28).
+  Cerrar la caja: SESIONCAJA-05. La baja por vencimiento la hace tambien un Operador
+  (VENCIMIENTO-03). Cuando el permiso depende del contenido de la peticion y no del endpoint
+  (cancelar un pedido, registrar un egreso, fijar la fecha de la venta), lo comprueba el caso de
+  uso con el rol del usuario de la sesion y responde 403.
+- **GENERAL-18. No se da de baja lo que otro registro vivo necesita para operar** (409 nombrando
+  quien lo usa).
+  - `Tipo`, `Categoria` y `Unidad`: si un producto vivo los usa. `Unidad` y `Conversion` siguen
+    ademas protegidas por `esBorrable` (CATALOGO-INV-05).
+  - `TipoDescuento`: si un descuento vivo lo usa.
+  - `TipoPago`: se puede dar de baja (los pagos historicos lo conservan, SESIONCAJA-06), salvo
+    `Efectivo` (GENERAL-19).
+  - `Rol`: si un usuario vivo lo tiene.
+  - `Proveedor` y `Cliente`: se pueden dar de baja; sus lotes y ventas los conservan como historia.
+    'Mostrador' nunca (CLIENTE-01).
+  - Producto, lote, receta y usuario tienen sus propias reglas: PRODUCTO-20, LOTE-26, RECETA-09 y
+    USUARIO-04. Siguen vigentes las que ya impedian bajas: LOTE-07, EXISTENCIA-09, MOVIMIENTO-01,
+    PRODUCCION-11, VENTA-10, SESIONCAJA-07, PEDIDO-08 y CLIENTE-01.
+- **GENERAL-19. Filas semanticas.** Las filas de catalogo que el sistema reconoce por su nombre
+  (GENERAL-04) no se renombran ni se dan de baja (409): roles `Administrador` y `Operador`; estados
+  de existencia `Abierta` y `Agotada`; estados de venta `Completada` y `Anulada`; estados de pedido
+  `Recibido`, `En preparacion`, `En camino`, `Entregado` y `Cancelado`; tipos de movimiento
+  `Produccion`, `Ajuste`, `Merma`, `Apertura`, `Venta`, `Reintegro` y `Vencimiento`; tipos de
+  descuento `Porcentaje` y `Monto fijo`; tipo de pago `Efectivo`. El nombre se compara sin
+  distinguir mayusculas; reenviar el mismo nombre no es renombrar. Se pueden agregar filas nuevas a
+  esos catalogos (otro tipo de pago, otro rol), que no tienen semantica. Los estados de una sesion
+  de caja (`ABIERTA`, `CERRADA`) no son un catalogo: son valores fijos del agregado.
 
 ---
 
@@ -123,8 +175,9 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 - **PRODUCTO-11. Dos clases de stock.**
   - **Producto base con presentaciones** (por ejemplo, cafe o harina): su stock es la suma del
     contenido de sus existencias abiertas vivas, en su unidad. Sube al abrir una bolsa
-    (EXISTENCIA-13), baja cuando la produccion o la venta consumen de el (MOVIMIENTO-19), sube con
-    el reintegro de una venta anulada (EXISTENCIA-19) y cambia con el pesaje (EXISTENCIA-16).
+    (EXISTENCIA-13), baja cuando la produccion o la venta consumen de el (MOVIMIENTO-19) y con la
+    baja por vencimiento (VENCIMIENTO-03), sube con el reintegro de una venta anulada
+    (EXISTENCIA-19) y cambia con el pesaje (EXISTENCIA-16).
   - **Cualquier otro producto MTS** (presentaciones, reventa, producto terminado): su stock es un
     contador de unidades (PRODUCTO-16).
   En ambos casos no se modifica a mano (`stock` en el PUT responde 400). Un MTO no tiene stock.
@@ -133,10 +186,11 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   (`cantidadRestante`) de las lineas vivas de los lotes vivos del producto. Sube al comprar un lote
   (comprar 3 bolsas de cafe suma 3 a la bolsa) y al producir (PRODUCCION-12). Baja con la venta
   (VENTA-24), cuando una receta lo usa como insumo al producir o al vender un MTO (MOVIMIENTO-19),
-  al abrir una unidad (una bolsa menos, EXISTENCIA-13). Corregir la cantidad de una linea de lote
-  (LOTE-23) o darla de baja se refleja solo. Al anular una venta con reintegro, las unidades
-  vuelven a las lineas de las que salieron (VENTA-25, LOTE-24). Se recalcula despues de cada
-  cambio, sin sumar ni restar sobre el valor leido.
+  al abrir una unidad (una bolsa menos, EXISTENCIA-13) y con la baja por vencimiento
+  (VENCIMIENTO-03). Corregir la cantidad de una linea de lote (LOTE-23) o darla de baja se refleja
+  solo. Al anular una venta con reintegro, las unidades vuelven a las lineas de las que salieron
+  (VENTA-25, LOTE-24). Se recalcula despues de cada cambio, sin sumar ni restar sobre el valor
+  leido. Es stock fisico: incluye lo vencido aun no dado de baja (VENCIMIENTO-02).
 - **PRODUCTO-13. El stock nunca es negativo.** Toda operacion que lo dejaria por debajo de cero se
   rechaza con 409 (por ejemplo, una venta sin stock suficiente).
 - **PRODUCTO-14. Que se abre y que tiene existencias.** Ser vendible o ser insumo no lo decide:
@@ -150,7 +204,7 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
     una gaseosa): no se abre ni tiene existencias; se vende y se usa en recetas descontando
     unidades de su stock (PRODUCTO-16).
   `tipo` (`Producto` / `Insumo`) es solo una clasificacion visual sin efecto en ninguna regla, y el
-  `fraccionable` de una linea de lote tampoco interviene.
+  `fraccionable` de una linea de lote tampoco interviene (LOTE-25).
 - **PRODUCTO-15. Lo que no cambia en un producto con inventario.** `esStockDirecto`,
   `unidadActual` y `productoPadre` responden 409 si el producto tiene stock, existencias vivas,
   lineas de lote vivas o presentaciones: cambiarlos cambiaria como se maneja su inventario
@@ -169,11 +223,21 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   - MTO: unidades enteras que alcanzan todos sus insumos, `min(floor(saldo / consumo por
     unidad))`, explotando recursivamente insumos MTO. Sin receta viva o sin ingredientes, 0. Un
     ciclo entre recetas responde 409.
+  - Stock fisico y vigente: ver VENCIMIENTO-02.
+- **PRODUCTO-18. Un MTO no tiene inventario propio.** Un producto con `esStockDirecto = false` no
+  puede ser presentacion ni producto base de presentaciones (409 al crearlo, al cambiarlo o al
+  crear una presentacion que lo tenga por padre), no se compra (linea de lote de un MTO, 400) ni se
+  produce (PRODUCCION-01). Su disponibilidad es la de sus insumos (PRODUCTO-17).
 - **PRODUCTO-19. Dos naturalezas** (deroga PRODUCTO-08). `esStockDirecto = true` (MTS, reventa,
   insumo): tiene stock (PRODUCTO-11) y, si es un producto base con presentaciones, existencias.
   `esStockDirecto = false` (MTO, bajo demanda): no tiene stock propio; su venta consume los insumos
   de su receta vigente (VENTA-24, MOVIMIENTO-19) y su disponibilidad es la de esos insumos
   (PRODUCTO-17).
+- **PRODUCTO-20. Baja de un producto** (GENERAL-18). Responde 409 si tiene stock distinto de 0,
+  lineas de lote vivas con unidades, existencias con contenido abiertas desde sus lineas,
+  presentaciones vivas, o si es ingrediente de una receta viva (nombrandola). Lo agotado no impide
+  la baja: es historia. Sus recetas vivas (como producto obtenido) y sus descuentos vivos se dan de
+  baja en la misma transaccion.
 
 ### 1.2 Unidad y Conversion
 
@@ -196,9 +260,9 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 - **LOTE-03. Total derivado.** `total = suma(cantidadInicial x precioUnitario)` de las lineas
   vivas. No se recibe, se recalcula al mutar lineas y no cambia por consumo, apertura ni ajuste de
   unidades restantes. Es el costo historico de la compra.
-- **LOTE-04. Linea de lote.** Producto existente obligatorio; `cantidadInicial > 0`;
-  `precioUnitario >= 0` (precio por unidad comprada); `fraccionable` por defecto falso;
-  `fechaVencimiento` opcional. `fechaCompra` por defecto es ahora.
+- **LOTE-04. Linea de lote.** Producto existente obligatorio; `cantidadInicial > 0` y entera
+  (GENERAL-16); `precioUnitario >= 0` (precio por unidad comprada); `fraccionable` por defecto
+  falso y sin efecto (LOTE-25); `fechaVencimiento` opcional. `fechaCompra` por defecto es ahora.
 - **LOTE-05.** *(Derogada por LOTE-19.)* Unidades cerradas, con el lote de produccion naciendo en 0.
 - **LOTE-19. Unidades disponibles.** `cantidadRestante` cuenta las unidades de la linea que aun no
   se abrieron, vendieron ni usaron en una receta. En una compra nace igual a `cantidadInicial`; en
@@ -219,6 +283,7 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   no se corrige.
 - **LOTE-07. No se da de baja una linea ni un lote con existencias con contenido** (409, INV-63):
   su stock quedaria sin origen. Primero se consumen o se ajustan por pesaje (EXISTENCIA-16).
+  Ampliada por LOTE-26.
 - **LOTE-08. Apertura elegida por el usuario** (INV-10, INV-13, INV-14, INV-34). El sistema nunca
   abre unidades por su cuenta. Se abre una unidad entera (`cantidadRestante >= 1`) de un lote vivo;
   un detalle vencido no se abre. Debe abrirse el detalle que toca de esa presentacion segun
@@ -245,7 +310,8 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 - **LOTE-16.** *(Derogada por LOTE-23.)* Correccion de bolsas cerradas sin registrar movimiento.
 - **LOTE-13. Que se compra en un lote.** Una linea de compra es de una presentacion o de un
   producto por unidades (PRODUCTO-14). Una linea de un producto base con presentaciones responde
-  400: para comprarlo suelto se registra una presentacion (por ejemplo, "Harina suelta 1 kg").
+  400: para comprarlo suelto se registra una presentacion (por ejemplo, "Harina suelta 1 kg"). Una
+  linea de un MTO tambien responde 400 (PRODUCTO-18).
 - **LOTE-23. Correccion de unidades por conteo** (deroga LOTE-16, cierra P-29). Corregir
   `cantidadRestante` de una linea en el PUT de un lote (LOTE-06, solo Administrador) exige
   `motivo` (400 si falta) y registra sobre esa linea un movimiento `Merma` si se contaron menos o
@@ -257,9 +323,17 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   aunque la linea ya este vencida. La devolucion nunca deja `cantidadRestante` por encima de
   `cantidadInicial` (409); como vuelve lo que salio, solo puede fallar si la linea se corrigio
   despues (LOTE-23). Cada devolucion registra un movimiento `Reintegro` sobre la linea.
+- **LOTE-25. `fraccionable` no interviene en ninguna regla** (GENERAL-16). Se conserva en la
+  tabla y en el contrato por compatibilidad; ninguna operacion lo consulta.
+- **LOTE-26. Baja de un lote** (amplia LOTE-07, GENERAL-18). Solo se da de baja un lote de compra
+  que no se uso: todas sus lineas vivas con `cantidadRestante = cantidadInicial` y ninguna
+  existencia nacida de ellas, este como este. Sirve para corregir un registro equivocado; lo usado
+  se corrige con LOTE-23. Un lote de produccion no se da de baja (409), como su produccion
+  (PRODUCCION-11). La misma regla aplica a dar de baja una linea en el PUT (LOTE-06): 409 si la
+  linea ya se uso o si el lote es de produccion.
 - **LOTE-27. El lote se bloquea entero.** El lote es la unidad de consistencia de sus lineas:
   toda operacion que modifica un lote existente (descuento de unidades por venta o produccion,
-  reintegro, apertura, PUT y baja) bloquea el lote por su raiz antes de leer sus lineas, de modo
+  reintegro, apertura, baja por vencimiento, PUT y baja) bloquea el lote por su raiz antes de leer sus lineas, de modo
   que ninguna otra operacion cambia una linea del mismo lote mientras tanto. Una operacion que
   modifica varios lotes los bloquea todos de una vez, en orden de id de lote (GENERAL-15). La
   salida elige que lotes bloquear con una lectura previa sin bloqueo (los que cubren lo
@@ -281,7 +355,8 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 - **EXISTENCIA-07.** *(Derogada por EXISTENCIA-16.)* Ajuste por conteo registrado siempre como
   `Ajuste`.
 - **EXISTENCIA-08. Modificacion.** El PUT solo admite `fechaVencimiento`; cualquier otro campo
-  responde 400 (el contenido cambia por apertura, produccion o pesaje, EXISTENCIA-16).
+  responde 400 (el contenido cambia por apertura, produccion o pesaje, EXISTENCIA-16). Solo lo
+  hace un Administrador y la fecha no puede pasar la de su linea de lote (VENCIMIENTO-05).
 - **EXISTENCIA-09. Baja.** Solo de una existencia agotada (409 si aun tiene contenido).
 - **EXISTENCIA-10.** *(Derogada por EXISTENCIA-14.)* Bloqueo y recalculo del stock del producto
   base.
@@ -320,8 +395,8 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 - **EXISTENCIA-17. Origen de una existencia.** No se crean a mano (409, INV-12). Una existencia
   nace solo al abrir una presentacion (EXISTENCIA-13) y siempre pertenece a un producto base con
   presentaciones (PRODUCTO-14). Su contenido solo cambia por el consumo de la produccion o de la
-  venta (MOVIMIENTO-19), por el reintegro de una venta anulada (EXISTENCIA-19) y por el pesaje del
-  usuario (EXISTENCIA-16).
+  venta (MOVIMIENTO-19), por el reintegro de una venta anulada (EXISTENCIA-19), por el pesaje del
+  usuario (EXISTENCIA-16) y por la baja por vencimiento (VENCIMIENTO-03).
 - **EXISTENCIA-19. Reintegro a una existencia** (amplia EXISTENCIA-15). El reintegro de una venta
   anulada (VENTA-25) devuelve a cada existencia exactamente lo que salio de ella segun sus
   movimientos `Venta`, aunque ya este vencida, y registra un movimiento `Reintegro` sobre ella. Una
@@ -402,7 +477,7 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   | `Reintegro` | entrada | devolucion al anular una venta (VENTA-25) | existencia o linea |
   | `Merma` | salida | el pesaje o el conteo encontro menos (EXISTENCIA-16, LOTE-23) | existencia o linea |
   | `Ajuste` | entrada | el pesaje o el conteo encontro mas (EXISTENCIA-16, LOTE-23) | existencia o linea |
-  | `Vencimiento` | salida | baja de lo vencido; aun no lo genera ninguna operacion (VENCIMIENTO-01, P-22) | existencia o linea |
+  | `Vencimiento` | salida | baja de lo vencido decidida por el usuario (VENCIMIENTO-03) | existencia o linea |
 
   `Produccion` sustituye al antiguo tipo `Receta`; es solo el nombre del tipo de movimiento: el
   agregado `Receta`, su dominio y sus tablas conservan su nombre. No existen `Ajuste positivo` ni
@@ -422,11 +497,21 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 - **RECETA-06. Receta vigente.** Un producto puede tener varias recetas; la vigente es la viva mas
   reciente (por fecha de creacion). Es la que usan el consumo de insumos MTO y la disponibilidad
   MTO.
+- **RECETA-07. Validaciones al guardar** (amplia RECETA-03). Al crear o modificar una receta, el
+  producto obtenido no puede ser uno de sus ingredientes vivos (400), y la receta no puede formar un
+  ciclo con las recetas vigentes de sus ingredientes MTO, recorridas recursivamente (409 nombrando
+  el ciclo). La validacion de MOVIMIENTO-19 se mantiene como defensa.
+- **RECETA-08. Un MTO vendible necesita receta.** Vender un MTO sin receta viva responde 409
+  (VENTA-24), y no se da de baja la ultima receta viva de un MTO vendible (RECETA-09).
+- **RECETA-09. Baja de una receta** (GENERAL-18; solo Administrador, GENERAL-17). Se da de baja
+  salvo que sea la ultima receta viva de un MTO vendible (409, RECETA-08). Las producciones que la
+  usaron la conservan como historia.
 
 ### 1.7 Produccion (MTS por lotes)
 
 - **PRODUCCION-01.** Solo se produce un producto MTS; producir un MTO responde 409.
-- **PRODUCCION-02. Datos.** `cantidadEsperada > 0`; `cantidadReal >= 0` (0 = tanda perdida);
+- **PRODUCCION-02. Datos.** `cantidadEsperada > 0`; `cantidadReal >= 0` (0 = tanda perdida); ambas
+  enteras (GENERAL-16);
   `diferencia = cantidadReal - cantidadEsperada`, derivada; receta y `fechaVencimiento`
   obligatorias; `fechaProduccion` por defecto es ahora.
 - **PRODUCCION-03.** *(Derogada por PRODUCCION-06.)* Consumo de insumos con movimientos `Receta`.
@@ -453,6 +538,10 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   (LOTE-17). Con `cantidadReal = 0` (tanda perdida) no crea lote ni sube nada.
 - **PRODUCCION-11. Una produccion no se da de baja** (409): ya movio stock e insumos. Un error se
   corrige con el pesaje (EXISTENCIA-16); la produccion se conserva como registro.
+- **PRODUCCION-13. Que se produce** (amplia PRODUCCION-01). El producto obtenido de una produccion
+  es MTS y se maneja por unidades o es una presentacion (PRODUCTO-14). Un producto base con
+  presentaciones no se produce (409): para producirlo suelto se registra una presentacion, igual
+  que para comprarlo (LOTE-13).
 
 ### 1.8 Catalogos de inventario (Tipo, Categoria, EstadoExistencia, TipoMovimiento)
 
@@ -461,7 +550,8 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 - **CATALOGO-INV-02.** *(Derogada por CATALOGO-INV-03.)* Siembra sin el tipo `Apertura`.
 - **CATALOGO-INV-03.** *(Derogada por CATALOGO-INV-04 y CATALOGO-INV-05.)* Catalogos sin reglas
   propias.
-- **CATALOGO-INV-04.** Tipo, EstadoExistencia y TipoMovimiento son CRUD sin reglas propias. Se
+- **CATALOGO-INV-04.** Tipo, EstadoExistencia y TipoMovimiento son CRUD sin mas reglas que las
+  generales de bajas (GENERAL-18), filas semanticas (GENERAL-19) y permisos (GENERAL-17). Se
   siembran: tipos `Producto` e `Insumo`; categorias `Cafes`, `Bebidas`, `Pasteleria`, `Insumos`;
   estados de existencia `Abierta` y `Agotada`; tipos de movimiento `Produccion`, `Ajuste`, `Merma`,
   `Apertura`, `Venta`, `Reintegro` y `Vencimiento` (MOVIMIENTO-22).
@@ -472,12 +562,44 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 
 ### 1.9 Vencimientos
 
-- **VENCIMIENTO-01. El vencimiento de insumos abiertos y cerrados aun no esta disenado.** Se
-  definira mas adelante. Hasta entonces no hay operaciones de baja por vencimiento: las existentes
-  (merma libre y vencimientos de existencia y de lote) se retiran. Siguen vigentes GENERAL-09, que
-  un detalle vencido no se abre (LOTE-08) y que ni la produccion ni la venta consumen existencias
-  o unidades vencidas (MOVIMIENTO-19). El tipo de movimiento `Vencimiento` se siembra pero aun no
-  lo genera ninguna operacion (MOVIMIENTO-22).
+- **VENCIMIENTO-01.** *(Derogada por VENCIMIENTO-02 a VENCIMIENTO-05, cierra P-22.)* Vencimientos
+  sin disenar y sin baja de lo vencido.
+
+Siguen vigentes GENERAL-09 (vencido es anterior a hoy), que un detalle vencido no se abre (LOTE-08)
+y que ni la produccion ni la venta consumen existencias o unidades vencidas (MOVIMIENTO-19).
+
+- **VENCIMIENTO-02. Stock fisico y stock vigente.** `producto.stock` es el stock **fisico**: lo que
+  hay en el local, vencido o no. No depende del reloj, porque es una proyeccion que solo se
+  recalcula al operar (PRODUCTO-16). Lo vendible o consumible es el stock **vigente**, que se
+  calcula en la consulta, nunca se guarda, y que cada operacion vuelve a validar. La consulta de
+  inventario (PRODUCTO-17) devuelve, para un MTS, `stock` (fisico), `stockVigente` (su saldo
+  abierto no vencido a hoy) y `stockVencido` (la diferencia), para que el frontend no muestre como
+  disponible lo vencido. Un MTO no tiene stock: ambos son nulos.
+- **VENCIMIENTO-03. Baja por vencimiento, decidida por el usuario.** El sistema nunca da de baja
+  por su cuenta (mismo criterio que LOTE-08). Un Operador o un Administrador da de baja:
+  - las unidades restantes de una linea de lote vencida
+    (`POST api/v1/lote/detalles/{idDetalleLote}/vencimiento`): `cantidadRestante` pasa a 0;
+  - el contenido de una existencia vencida (`POST api/v1/existencia/{id}/vencimiento`):
+    `contenidoActual` pasa a 0 y queda `Agotada` con `fechaAcabado`.
+  Solo se da de baja lo que esta vencido a hoy segun GENERAL-09 (409 si sigue vigente) y tiene algo
+  que dar de baja (409 si ya esta en 0). `motivo` es opcional (por defecto "Baja por
+  vencimiento"). Registra un movimiento `Vencimiento` por la cantidad dada de baja, con el usuario
+  de la sesion (MOVIMIENTO-20, MOVIMIENTO-22), y recalcula el stock del producto: el de la linea, o
+  el producto base de la existencia (PRODUCTO-11, PRODUCTO-16). Bloquea el lote por su raiz
+  (LOTE-27) o la existencia (EXISTENCIA-14) y despues el producto (GENERAL-15). Responde el lote o
+  la existencia actualizados.
+- **VENCIMIENTO-04. Alerta de vencimiento** (`GET api/v1/lote/vencimientos?dias=3`). Lista las
+  lineas vivas de lotes vivos con unidades disponibles y las existencias vivas con contenido cuya
+  fecha de vencimiento es anterior o igual a hoy + `dias` (incluye lo ya vencido). `dias` es un
+  entero `>= 0`, por defecto 3 (otro valor, 400). Cada fila dice si es una linea o una existencia,
+  su id, su lote y su linea, el producto (el de la linea, o el producto base de la existencia), la
+  cantidad y su unidad, la fecha de vencimiento y si ya esta vencida. Se ordena por fecha de
+  vencimiento (y por id como desempate). Lo que no vence no aparece. Es una lectura sin bloqueos y
+  la puede pedir un Operador.
+- **VENCIMIENTO-05. Una existencia no vence despues que su bolsa.** El PUT de una existencia
+  (EXISTENCIA-08, solo Administrador) no puede poner una fecha de vencimiento posterior a la de la
+  linea de lote de la que se abrio (409). Si la linea no vence, cualquier fecha es valida. Asi no
+  se "rejuvenece" un insumo para poder usarlo.
 
 ---
 
@@ -508,9 +630,9 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   VEN-32).
 - **VENTA-10. No se da de baja** (409, VEN-33): se anula.
 - **VENTA-11. Anulacion** (VEN-40, VEN-44). La pide un Administrador o la provoca la cancelacion de
-  un pedido (PEDIDO-05). Solo una venta `Completada`, siempre con motivo; registra quien anula.
-  Lineas, importes y pagos se conservan. `reintegrar` es opcional (falso); su efecto lo
-  dice VENTA-25. La devolucion del efectivo la dice VENTA-27.
+  un pedido (PEDIDO-05, PEDIDO-09). Solo una venta `Completada`, siempre con motivo; registra quien
+  anula. Lineas, importes y pagos se conservan. `reintegrar` es opcional (falso); su efecto lo
+  dice VENTA-25. La devolucion del dinero, incluida la `referenciaReembolso`, la dice VENTA-27.
 - **VENTA-12. Ticket** (CAJ-14). El numero lo asigna la base (secuencia unica). Se busca por numero
   positivo (otro valor, 400) y devuelve cliente, cajero y tipos de pago resueltos.
 
@@ -537,7 +659,7 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 - **VENTA-23.** *(Derogada por VENTA-24.)* Venta que solo descontaba productos por unidades y no
   registraba movimientos.
 - **VENTA-21. Que se vende.** Al menos una linea. Cada linea admite solo `idProducto` y
-  `cantidad > 0`. El producto debe existir y ser vendible (400) (VEN-10). Se puede vender una
+  `cantidad > 0` entera (GENERAL-16). El producto debe existir y ser vendible (400) (VEN-10). Se puede vender una
   presentacion por unidad (una bolsa de harina cerrada) y cualquier producto por unidades o MTO. Un
   producto base con presentaciones no se vende directamente (400): su contenido solo sale como
   insumo de la receta de un MTO (VENTA-24) o de una produccion (PRODUCTO-14).
@@ -562,16 +684,18 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   GENERAL-15. Si no se puede devolver todo, la anulacion entera falla (409) y la venta sigue
   `Completada`. Sin reintegro el inventario no cambia. Una venta sin movimientos `Venta`
   (anterior a la traza completa) no admite reintegro automatico (409, provisional, P-30).
-- **VENTA-27. Devolucion del efectivo al anular** (cierra P-24 en lo que toca al efectivo). Al
-  anular se devuelve el monto pagado en `Efectivo` (la suma del `monto` de esos pagos, no lo
-  recibido):
+- **VENTA-27. Devolucion del dinero al anular** (cierra P-24). Al anular se devuelve el monto
+  pagado en `Efectivo` (la suma del `monto` de esos pagos, no lo recibido):
   - **Venta de la caja abierta:** no se registra nada mas; SESIONCAJA-06 ya la excluye del
     esperado.
   - **Venta de una caja ya cerrada:** se registra en la caja abierta, en la misma transaccion, un
     `EGRESO` por ese monto con motivo "Devolucion del ticket N" y el `idVenta` (SESIONCAJA-13). Si
     no hay caja abierta, la anulacion responde 409 pidiendo abrirla; si el egreso dejaria la caja
     en negativo, 409 (SESIONCAJA-10). Si la venta no tuvo pagos en efectivo, no se toca la caja.
-  - Los pagos con otros medios (tarjeta, QR) siguen pendientes de decision (P-24).
+  - **Tarjeta, QR u otro medio:** no tocan la caja. La anulacion (y la cancelacion de un pedido,
+    PEDIDO-09) acepta una `referenciaReembolso` opcional, texto de hasta 255 caracteres (por
+    ejemplo, el numero de la operacion de reverso), que queda guardada en la venta como constancia
+    del reembolso hecho fuera del sistema. No se exige ni se valida contra los pagos.
 - **VENTA-28. Fecha de la venta y contingencia** (deroga VENTA-05, cierra P-25; acordada con el
   usuario el 2026-10-23).
   - Por defecto toda venta toma la fecha y hora del servidor en el momento de registrarse.
@@ -623,7 +747,8 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   del dinero, con `montoApertura >= 0`.
 - **SESIONCAJA-03. Movimientos de caja** (CAJ-21). `INGRESO` o `EGRESO`, `monto > 0`, motivo
   obligatorio de hasta 255 caracteres, solo en la caja abierta (409). Son inmutables. Los registra
-  el usuario o, al anular una venta de un turno cerrado, el sistema (SESIONCAJA-13).
+  el usuario (con el permiso de SESIONCAJA-15) o, al anular una venta de un turno cerrado, el
+  sistema (SESIONCAJA-13).
 - **SESIONCAJA-04. Arqueo y cierre** (CAJ-22). `esperado = apertura + efectivo de las ventas
   completadas + ingresos - egresos`; `diferencia = declarado - esperado`. Cuenta el `monto` del
   pago, no lo recibido (el cambio ya salio). `montoCierreDeclarado >= 0`, `motivoDiferencia`
@@ -635,8 +760,8 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   egreso de VENTA-27. El arqueo las cuenta aparte y desglosa lo cobrado por tipo de pago, incluidos
   los tipos sin uso y los dados de baja despues de cobrar.
 - **SESIONCAJA-07. Una sesion de caja no se da de baja** (409).
-- **SESIONCAJA-08. Estado de la caja** (CAJ-25): si hay turno abierto, desde cuando, el fondo y el
-  nombre del responsable.
+- **SESIONCAJA-08. Estado de la caja** (CAJ-25): si hay turno abierto, desde cuando, el fondo, el
+  nombre del responsable y si se abrio un dia anterior (SESIONCAJA-17).
 - **SESIONCAJA-09. Concurrencia.** Las ventas toman la sesion con bloqueo compartido y no se
   bloquean entre si; cierre y movimientos la toman en exclusiva, de modo que un cierre espera a las
   ventas en curso y ninguna venta nueva entra en una caja que se esta cerrando.
@@ -654,6 +779,19 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   envia `idVenta` en un movimiento de caja (400).
 - **SESIONCAJA-14. El arqueo guardado no cambia** (precisa SESIONCAJA-11). La devolucion se refleja
   en el turno en que se entrego el dinero, no en el turno de la venta.
+- **SESIONCAJA-15. Quien opera la caja** (cierra P-26). Cualquier Operador o Administrador vende y
+  registra `INGRESO` en la caja abierta: es normal que atiendan varias personas. Un `EGRESO`
+  (sacar dinero) solo lo registra el titular del turno o un Administrador (403). El egreso de
+  devolucion que genera el sistema al anular (SESIONCAJA-13) no pasa por esta regla: lo provoca una
+  anulacion, que ya exige Administrador (GENERAL-17). Cada venta y cada movimiento guardan quien lo
+  hizo.
+- **SESIONCAJA-16. Arqueo por cajero.** El arqueo del cierre desglosa, ademas de por tipo de pago
+  (SESIONCAJA-06), lo vendido por cada usuario del turno en las ventas completadas: su total, lo
+  cobrado en efectivo y cuantas ventas hizo.
+- **SESIONCAJA-17. Turno de un dia anterior.** Una caja abierta en un dia anterior sigue operativa
+  (hay turnos que pasan la medianoche), pero el estado de la caja (SESIONCAJA-08) lo indica con
+  `abiertaDesdeDiaAnterior` (la fecha de apertura es anterior a hoy) para que el frontend pida
+  cerrarla. Sin caja abierta es falso.
 
 ### 2.3 Descuento
 
@@ -664,10 +802,15 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   del producto y `fechaInicio <= fechaVenta <= fechaFinal`.
 - **DESCUENTO-04. Importe sobre una linea.** Porcentaje: `precio x cantidad x valor / 100`. Monto
   fijo: `min(valor, precio) x cantidad`. Nunca negativo ni mayor que `precio x cantidad`.
+- **DESCUENTO-05. Solo para lo que se vende.** El producto de un descuento es vendible y no es un
+  producto base con presentaciones (409), al crearlo y al cambiarle el producto. Si el producto deja
+  de ser vendible o se da de baja (PRODUCTO-20), sus descuentos vivos se dan de baja en la misma
+  transaccion.
 
 ### 2.4 Catalogos de ventas (TipoPago, EstadoVenta, TipoDescuento)
 
-- **CATALOGO-VEN-01.** CRUD sin reglas propias. Se siembran: tipos de pago `Efectivo`, `Tarjeta`,
+- **CATALOGO-VEN-01.** CRUD sin mas reglas que las generales de bajas (GENERAL-18), filas
+  semanticas (GENERAL-19) y permisos (GENERAL-17). Se siembran: tipos de pago `Efectivo`, `Tarjeta`,
   `QR`; estados de venta `Completada`, `Anulada`; tipos de descuento `Porcentaje`, `Monto fijo`.
   `Efectivo` es el unico tipo de pago con semantica propia (da cambio y cuenta en el arqueo).
 
@@ -694,6 +837,10 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   `Cancelado` (se comparan sin distinguir mayusculas).
 - **PEDIDO-08. Un pedido no se da de baja** (409): la unica salida es cancelarlo (PEDIDO-04,
   PEDIDO-05), que anula su venta.
+- **PEDIDO-09. Cancelar un pedido es anular una venta** (GENERAL-17). La transicion a `Cancelado`
+  solo la hace un Administrador (403), igual que anular. Las demas transiciones (PEDIDO-04) siguen
+  abiertas a Operador y Administrador. La cancelacion exige `motivo` (400 si falta), que pasa tal
+  cual a la anulacion de la venta, y acepta la `referenciaReembolso` opcional de VENTA-27.
 
 ---
 
@@ -711,12 +858,15 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
 - **USUARIO-02.** Un usuario tiene un rol existente y su contrasena se guarda hasheada (PBKDF2).
   Se pueden cambiar correo, contrasena y rol; la persona no se reapunta, se actualiza en sitio.
 - **USUARIO-03.** Un usuario dado de baja no inicia sesion ni renueva su token (SEGURIDAD-03).
+- **USUARIO-04. Baja de un usuario** (GENERAL-18). Nadie se da de baja a si mismo, ni se da de baja
+  al ultimo usuario vivo con rol `Administrador`, ni al titular de la caja abierta (409).
 
 ### 4.3 Rol
 
 - **ROL-01. Los roles son filas de la tabla `rol`**, no constantes. Su nombre viaja en el token y
-  es contra el que se comprueban los permisos. Se siembran `Administrador` y `Operador`. Solo un
-  Administrador los gestiona.
+  es contra el que se comprueban los permisos. Se siembran `Administrador` y `Operador`, que no se
+  renombran ni se dan de baja (GENERAL-19); otro rol no se da de baja si un usuario vivo lo tiene
+  (GENERAL-18). Solo un Administrador los gestiona.
 
 ### 4.4 Cliente
 
@@ -745,6 +895,11 @@ el 2026-10-23, al resolver la concurrencia entre lineas de un mismo lote).
   `admin@gmail.com`, catalogos, unidades, conversiones y cliente 'Mostrador') y nunca reescribe la
   contrasena del administrador. Es publica mientras `SEED_HABILITADO` sea verdadero; si no, solo
   la usa un Administrador.
+- **SIEMBRA-02. Credenciales iniciales.** La contrasena del administrador inicial no esta en el
+  codigo: se toma de la configuracion del entorno (`SEED_ADMIN_CONTRASENA`). Si el administrador
+  aun no existe y la contrasena no esta configurada, la siembra responde 409 y no siembra nada; si
+  ya existe, no la necesita (SIEMBRA-01). `SEED_HABILITADO` es falso por defecto: se activa solo
+  para la primera siembra de una base nueva y se vuelve a desactivar despues.
 
 ---
 
@@ -759,30 +914,18 @@ VENTA-23), P-11 (VENTA-20), P-12 (VENTA-22), P-13 (MOVIMIENTO-14), P-15 (EXISTEN
 (CATALOGO-INV-05), P-04 (PRODUCCION-11), P-05 (PEDIDO-08), P-06 (LOTE-16), P-07 (PRODUCTO-15),
 P-08 (GENERAL-12) y P-09 (SESIONCAJA-10, SESIONCAJA-11). Resueltos el 2026-10-23: P-21
 (VENTA-24, VENTA-30, PRODUCTO-19), P-25 (VENTA-28), P-29 (LOTE-23, MOVIMIENTO-20) y la parte en
-efectivo de P-24 (VENTA-27, SESIONCAJA-13, SESIONCAJA-14).
+efectivo de P-24 (VENTA-27, SESIONCAJA-13, SESIONCAJA-14). Resueltos el 2026-10-23 (segunda
+tanda): P-22 (VENCIMIENTO-02 a VENCIMIENTO-05), el resto de P-24 (VENTA-27, `referenciaReembolso`),
+P-26 (SESIONCAJA-15 a SESIONCAJA-17) y P-27 (GENERAL-16, LOTE-25).
 
 Abiertos el 2026-10-23, al revisar si el sistema puede usarse en un entorno real. Las opciones
-listadas son solo orientativas; ninguna esta elegida.
+listadas son solo orientativas; ninguna esta elegida. El usuario aplazo P-23 y P-28 (S-15 y S-16)
+a una etapa posterior.
 
-- **P-22. Vencimientos.** VENCIMIENTO-01 lo deja sin disenar. Hoy `producto.stock` suma tambien
-  las unidades de lineas de lote vencidas, mientras que la venta y la produccion las rechazan: el
-  stock muestra unidades que no se pueden usar (409). Tampoco hay forma de dar de baja lo vencido,
-  cerrado o abierto. Por decidir: si el stock excluye lo vencido, como se da de baja (y con que
-  traza) y si el sistema lo hace solo o lo pide el usuario.
 - **P-23. Costos, ganancias y reportes.** GENERAL-11 deja el dinero para los reportes, que no
   estan definidos. Lo producido tiene costo 0 (PRODUCCION-12) y la venta no guarda costo
   (VENTA-20). Por decidir: que reportes se necesitan (ventas, ganancia, valoracion de inventario,
   mermas) y con que metodo se costea lo producido y lo vendido.
-- **P-24. Reembolso de pagos que no son en efectivo.** La devolucion del efectivo ya esta decidida
-  (VENTA-27). Falta definir como se registra el reembolso de un pago con tarjeta o QR al anular
-  (por ejemplo, una `referenciaReembolso` en la venta) y si lo exige la anulacion.
-- **P-26. Quien opera en la caja de otro titular.** El titular responde por el dinero
-  (SESIONCAJA-02), pero hay una sola caja en el local (SESIONCAJA-01) y cualquier `Operador` puede
-  vender y registrar ingresos y egresos en ella. Por decidir: si eso es lo esperado o si solo el
-  titular (o un Administrador) registra egresos o ventas en su turno.
-- **P-27. Cantidades fraccionarias en la venta.** VENTA-21 pide `cantidad > 0` y LOTE-17 admite
-  fracciones, asi que se puede vender 0,5 de un producto por unidades (medio pan, media bolsa
-  cerrada). Por decidir: si se permite, para que productos y con que escala.
 - **P-28. Facturacion e impuestos.** No hay ninguna decision sobre comprobantes fiscales ni
   impuestos. El ticket (VENTA-12) es un numero interno y la secuencia deja huecos cuando una venta
   se revierte. Por decidir: si el sistema debe emitir o registrar facturas, que datos fiscales
@@ -804,6 +947,21 @@ Abierto el 2026-10-23, al implementar VENTA-25:
 ## 7. Pendientes de implementacion
 
 Decisiones ya acordadas que el codigo de `src/main` todavia no cumple. Hoy no hay ninguna.
+
+Implementadas el 2026-10-23 (cuarta tanda), con la segunda tanda de decisiones de ese dia:
+I-24 (GENERAL-17: bajas de recetas y catalogos y PUT de existencia solo para Administrador;
+cancelar un pedido exige Administrador y motivo, PEDIDO-09), I-25 (GENERAL-18, PRODUCTO-20,
+LOTE-26, RECETA-09 y USUARIO-04: bajas rechazadas con dependencias vivas y cascada de recetas y
+descuentos del producto), I-26 (GENERAL-19: filas semanticas protegidas en sus agregados), I-27
+(VENCIMIENTO-02 a VENCIMIENTO-05: `stockVigente` y `stockVencido` en la consulta de inventario,
+`POST api/v1/lote/detalles/{id}/vencimiento`, `POST api/v1/existencia/{id}/vencimiento`,
+`GET api/v1/lote/vencimientos` y el tope del vencimiento de una existencia), I-28
+(`venta.referencia_reembolso`, VENTA-27), I-29 (SESIONCAJA-15 a SESIONCAJA-17: egreso solo del
+titular o de un Administrador, arqueo por cajero y `abiertaDesdeDiaAnterior`), I-30 (GENERAL-16:
+cantidades enteras en venta, compra y produccion), I-31 (PRODUCTO-18, PRODUCCION-13, RECETA-07 y
+DESCUENTO-05) e I-32 (SIEMBRA-02: contrasena inicial por `SEED_ADMIN_CONTRASENA` y
+`SEED_HABILITADO` falso por defecto). En una base existente, `ddl-auto: update` agrega
+`venta.referencia_reembolso` y `schema.sql` crea las claves foraneas al arrancar.
 
 Implementadas el 2026-10-23: I-20 (el PUT de un lote exige `motivo`, a nivel del lote, cuando una
 linea cambia su `cantidadRestante`, y registra sobre ella un movimiento `Merma` o `Ajuste` por la

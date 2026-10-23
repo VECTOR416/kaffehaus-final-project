@@ -1,5 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Datasources;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -297,5 +299,26 @@ public class LoteDatasourceImpl implements ILoteDatasource {
         } catch (IllegalArgumentException | NullPointerException e) {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
+    }
+
+    @Override
+    public List<Lote> obtenerConUnidadesQueVencenHasta(LocalDate fecha) {
+        List<UUID> idsLote = detalleLoteJpaRepository
+                .findByBorradoFalseAndCantidadRestanteGreaterThanAndFechaVencimientoLessThanEqual(BigDecimal.ZERO, fecha).stream()
+                .map(DetalleLoteJpaModel::getIdLote)
+                .distinct()
+                .collect(Collectors.toList());
+        if (idsLote.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<LoteJpaModel> lotes = loteJpaRepository.findByIdInAndBorradoFalse(idsLote);
+        Map<UUID, List<DetalleLoteJpaModel>> detallesPorLote = detallesDe(lotes);
+
+        return lotes.stream()
+                .map(model -> LoteJpaMapper.toDomain(
+                        model,
+                        detallesPorLote.getOrDefault(model.getId(), Collections.emptyList())))
+                .collect(Collectors.toList());
     }
 }

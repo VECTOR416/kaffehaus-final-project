@@ -25,6 +25,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates.Unidad;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.Aggregates.Rol;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.ValueObjects.RolId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.Aggregates.Usuario;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
@@ -40,6 +41,7 @@ public final class DatosDePrueba {
     public static final String ID_USUARIO = "22222222-2222-2222-2222-222222222222";
     public static final String ID_PERSONA = "22222222-2222-2222-2222-222222222223";
     public static final String ID_ROL = "22222222-2222-2222-2222-222222222224";
+    public static final String ID_ROL_OPERADOR = "22222222-2222-2222-2222-222222222225";
     public static final String ID_PROVEEDOR = "11111111-1111-1111-1111-111111111111";
     public static final String ID_UNIDAD = "0a000000-0000-0000-0000-000000000001";
     public static final String ID_OTRA_UNIDAD = "0a000000-0000-0000-0000-000000000002";
@@ -53,6 +55,7 @@ public final class DatosDePrueba {
     public static final String ID_TIPO_APERTURA = "07000000-0000-0000-0000-000000000004";
     public static final String ID_TIPO_VENTA = "07000000-0000-0000-0000-000000000005";
     public static final String ID_TIPO_REINTEGRO = "07000000-0000-0000-0000-000000000006";
+    public static final String ID_TIPO_VENCIMIENTO = "07000000-0000-0000-0000-000000000007";
 
     public static final LocalDateTime AHORA = LocalDateTime.of(2026, 10, 12, 9, 30);
     public static final LocalDate HOY = AHORA.toLocalDate();
@@ -65,12 +68,21 @@ public final class DatosDePrueba {
     public static final TipoMovimiento APERTURA = TipoMovimiento.restaurar(ID_TIPO_APERTURA, TipoMovimiento.APERTURA, false);
     public static final TipoMovimiento VENTA = TipoMovimiento.restaurar(ID_TIPO_VENTA, TipoMovimiento.VENTA, false);
     public static final TipoMovimiento REINTEGRO = TipoMovimiento.restaurar(ID_TIPO_REINTEGRO, TipoMovimiento.REINTEGRO, false);
+    public static final TipoMovimiento VENCIMIENTO = TipoMovimiento.restaurar(ID_TIPO_VENCIMIENTO, TipoMovimiento.VENCIMIENTO, false);
     public static final Unidad UNIDAD = Unidad.restaurar(ID_UNIDAD, "Gramo", "g", false, false);
+    /** El rol del usuario de prueba (ID_ROL) y el otro rol sembrado, para los permisos por rol. */
+    public static final Rol ROL_ADMINISTRADOR = Rol.restaurar(ID_ROL, Rol.ADMINISTRADOR, false);
+    public static final Rol ROL_OPERADOR = Rol.restaurar(ID_ROL_OPERADOR, Rol.OPERADOR, false);
 
     // ------------------------------------------------------------------ personal
 
     public static Usuario usuario() {
         return Usuario.restaurar(ID_USUARIO, ID_PERSONA, "ana@kaffe.com", "hash", false, new RolId(ID_ROL));
+    }
+
+    /** Otro usuario, con el rol que se indique. */
+    public static Usuario usuario(String id, String correo, String idRol) {
+        return Usuario.restaurar(id, ID_PERSONA, correo, "hash", false, new RolId(idRol));
     }
 
     // ------------------------------------------------------------------ productos

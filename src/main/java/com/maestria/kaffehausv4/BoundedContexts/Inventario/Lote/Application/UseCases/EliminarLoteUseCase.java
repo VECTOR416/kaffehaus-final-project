@@ -12,9 +12,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
- * Baja logica de un lote y sus lineas. Se rechaza si alguna linea tiene existencias con
- * contenido: su stock quedaria sin origen (logica.md LOTE-07). Primero se consumen o se ajustan
- * con un pesaje. Las unidades del lote dejan de contar en el stock de sus productos (PRODUCTO-16).
+ * Baja logica de un lote y sus lineas (logica.md LOTE-26, que amplia LOTE-07). Solo se da de baja
+ * un lote de compra que no se uso: todas sus lineas conservan lo comprado y ninguna existencia
+ * nacio de ellas. Sirve para corregir un registro equivocado; lo usado se corrige por conteo
+ * (LOTE-23) y un lote de produccion no se da de baja. Las unidades del lote dejan de contar en el
+ * stock de sus productos (PRODUCTO-16).
  */
 @Service
 @Transactional
@@ -39,10 +41,11 @@ public class EliminarLoteUseCase {
         Lote lote = loteRepository.obtenerPorIdParaActualizar(id)
                 .orElseThrow(() -> DomainException.throwException(404, "El lote con id '" + loteId + "' no existe"));
 
-        if (!existenciaRepository.obtenerDisponiblesPorDetallesLote(
-                lote.getDetallesActivos().stream().map(DetalleLote::getId).toList()).isEmpty()) {
+        lote.exigirQuePuedaDarseDeBaja();
+        if (existenciaRepository.existenPorDetallesLote(
+                lote.getDetallesActivos().stream().map(DetalleLote::getId).toList())) {
             throw DomainException.throwException(409,
-                    "El lote con id '" + loteId + "' tiene existencias con contenido y no se puede dar de baja");
+                    "Del lote con id '" + loteId + "' ya se abrieron existencias y no se puede dar de baja");
         }
 
         loteRepository.eliminar(id);

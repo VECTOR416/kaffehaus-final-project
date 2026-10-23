@@ -1,6 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Infrastructure.Datasources;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -156,5 +157,24 @@ public class ExistenciaDatasourceImpl implements IExistenciaDatasource {
         } catch (IllegalArgumentException | NullPointerException e) {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
+    }
+
+    @Override
+    public boolean existenPorDetallesLote(List<DetalleLoteId> detalleLoteIds) {
+        if (detalleLoteIds.isEmpty()) {
+            return false;
+        }
+        return existenciaJpaRepository.existsByIdDetalleLoteInAndBorradoFalse(detalleLoteIds.stream()
+                .map(detalleLoteId -> aUuid(detalleLoteId.getValue()))
+                .collect(Collectors.toList()));
+    }
+
+    @Override
+    public List<Existencia> obtenerConContenidoQueVencenHasta(LocalDate fecha) {
+        return existenciaJpaRepository
+                .findByBorradoFalseAndContenidoActualGreaterThanAndFechaVencimientoLessThanEqualOrderByFechaVencimientoAscIdAsc(BigDecimal.ZERO, fecha)
+                .stream()
+                .map(ExistenciaJpaMapper::toDomain)
+                .collect(Collectors.toList());
     }
 }
