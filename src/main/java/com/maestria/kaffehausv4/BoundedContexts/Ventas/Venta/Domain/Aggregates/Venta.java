@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,6 +38,8 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * 'Completada' y 'Anulada' resueltos por nombre.
  */
 public class Venta {
+    /** Margen sobre la hora del servidor para una fecha de contingencia (logica.md VENTA-28). */
+    private static final Duration TOLERANCIA_DE_RELOJ = Duration.ofMinutes(1);
 
     private VentaId id;
     private Long numeroTicket;
@@ -131,6 +134,28 @@ public class Venta {
         }
         return new Venta(null, null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, sesionCajaId, completada,
                 claveIdempotencia, null, null, false, null, null);
+    }
+
+    /**
+     * Fecha de una venta (logica.md VENTA-28). Sin fecha manual, la del servidor. Solo un
+     * Administrador fija una, para asentar ventas fisicas atrasadas por una contingencia, y debe
+     * caer en el turno de la caja abierta que la recibe: entre su apertura y ahora, con un minuto
+     * de tolerancia por el desfase de relojes. Si no, 400.
+     */
+    public static LocalDateTime fechaDeVenta(LocalDateTime fechaManual, boolean esAdministrador, LocalDateTime aperturaCaja, LocalDateTime ahora) {
+        if (fechaManual == null) {
+            return ahora;
+        }
+        if (!esAdministrador) {
+            throw DomainException.throwException(400,
+                    "Solo un Administrador puede fijar 'fechaVenta'; sin ella la venta toma la fecha del servidor");
+        }
+        LocalDateTime limite = ahora.plus(TOLERANCIA_DE_RELOJ);
+        if (fechaManual.isBefore(aperturaCaja) || fechaManual.isAfter(limite)) {
+            throw DomainException.throwException(400,
+                    "La 'fechaVenta' debe estar entre la apertura de la caja (" + aperturaCaja + ") y el momento actual");
+        }
+        return fechaManual;
     }
 
     /** Unica via para incorporar una linea. Valida la linea y recalcula el total. */

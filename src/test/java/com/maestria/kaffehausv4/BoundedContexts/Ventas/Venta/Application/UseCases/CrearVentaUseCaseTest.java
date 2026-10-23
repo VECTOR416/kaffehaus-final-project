@@ -1,12 +1,14 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases;
 
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.AHORA;
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_ROL;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_USUARIO;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.presentacion;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.productoDirecto;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.usuario;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -21,6 +23,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,9 +46,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Application.Repositories.IClienteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.Aggregates.Cliente;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Repositories.IRolRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.Aggregates.Rol;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Repositories.IDescuentoRepository;
@@ -68,11 +74,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.V
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
- * Pruebas unitarias del registro de una venta (ventas.md VEN-10..VEN-23, CAJ-02, CAJ-10..13).
- * El inventario es un caso de uso simulado: aqui solo se comprueba que la venta lo invoca bien
- * y que usa el costo que devuelve.
+ * Pruebas unitarias del registro de una venta (logica.md VENTA-02..VENTA-28). El inventario es
+ * un caso de uso simulado: aqui solo se comprueba que la venta lo invoca bien (VENTA-24) y que
+ * deja pasar su error.
  *
- * Escenario: cafe y te a 10.00 cada uno, de stock directo y vendibles; una caja abierta.
+ * Escenario: cafe y te a 10.00 cada uno, de stock directo y vendibles; una caja abierta hace dos
+ * horas; quien vende es un Operador salvo que la prueba diga otra cosa.
  */
 @ExtendWith(MockitoExtension.class)
 class CrearVentaUseCaseTest {
@@ -87,10 +94,12 @@ class CrearVentaUseCaseTest {
     private static final String ID_PORCENTAJE = "60000000-0000-0000-0000-000000000001";
     private static final String ID_MONTO_FIJO = "60000000-0000-0000-0000-000000000002";
 
+    private static final LocalDateTime APERTURA_DE_CAJA = AHORA.minusHours(2);
     private static final EstadoVenta COMPLETADA = EstadoVenta.restaurar("70000000-0000-0000-0000-000000000001", "Completada", false);
 
     @Mock private IVentaRepository ventaRepository;
     @Mock private IUsuarioRepository usuarioRepository;
+    @Mock private IRolRepository rolRepository;
     @Mock private IClienteRepository clienteRepository;
     @Mock private IEstadoVentaRepository estadoVentaRepository;
     @Mock private IProductoRepository productoRepository;
@@ -104,13 +113,14 @@ class CrearVentaUseCaseTest {
 
     @BeforeEach
     void prepararCatalogosYPersistencia() {
-        useCase = new CrearVentaUseCase(ventaRepository, usuarioRepository, clienteRepository, estadoVentaRepository,
+        useCase = new CrearVentaUseCase(ventaRepository, usuarioRepository, rolRepository, clienteRepository, estadoVentaRepository,
                 productoRepository, descuentoRepository, tipoDescuentoRepository, sesionCajaRepository, tipoPagoRepository,
                 registrarSalidaDeInventarioUseCase);
 
         lenient().when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuario()));
+        quienVendeEs("Operador");
         lenient().when(sesionCajaRepository.obtenerAbiertaParaVenta()).thenReturn(Optional.of(SesionCaja.restaurar(
-                ID_CAJA, new UsuarioId(ID_USUARIO), AHORA.minusHours(2), null, new BigDecimal("100.00"),
+                ID_CAJA, new UsuarioId(ID_USUARIO), APERTURA_DE_CAJA, null, new BigDecimal("100.00"),
                 null, null, null, null, SesionCaja.ABIERTA, false, new ArrayList<>())));
         lenient().when(clienteRepository.obtenerPorId(any())).thenAnswer(llamada -> {
             String id = ((com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId) llamada.getArgument(0)).getValue();
@@ -134,6 +144,11 @@ class CrearVentaUseCaseTest {
         lenient().when(registrarSalidaDeInventarioUseCase.execute(any()))
                 .thenReturn(SalidaDeInventarioResponse.create(List.of()));
         lenient().when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of());
+    }
+
+    private void quienVendeEs(String rol) {
+        lenient().when(rolRepository.obtenerPorId(argThat(id -> id != null && ID_ROL.equals(id.getValue()))))
+                .thenReturn(Optional.of(Rol.restaurar(ID_ROL, rol, false)));
     }
 
     private void hayProducto(Producto producto) {
@@ -172,7 +187,6 @@ class CrearVentaUseCaseTest {
 
     private static CrearVentaRequest venta(List<Map<String, Object>> lineas, List<Map<String, Object>> pagos, Map<String, Object> extra) {
         Map<String, Object> cuerpo = new HashMap<>(extra);
-        cuerpo.put("fechaVenta", AHORA);
         cuerpo.put("detalles", lineas);
         cuerpo.put("pagos", pagos);
         return CrearVentaRequest.createFromRequest(cuerpo, ID_USUARIO);
@@ -219,34 +233,122 @@ class CrearVentaUseCaseTest {
     }
 
     @Test
-    void descuentaElInventarioDeCadaLineaComoSalidaDeVenta() {
+    void descuentaElInventarioComoSalidaDeVentaVinculadaALaVenta() {
         // Arrange
         ArgumentCaptor<RegistrarSalidaDeInventarioRequest> salida = ArgumentCaptor.forClass(RegistrarSalidaDeInventarioRequest.class);
 
         // Act
-        useCase.execute(venta(List.of(linea(ID_CAFE, "2")), List.of(pago(ID_EFECTIVO, "20"))));
+        VentaResponse respuesta = useCase.execute(venta(List.of(linea(ID_CAFE, "2")), List.of(pago(ID_EFECTIVO, "20"))));
 
-        // Assert
+        // Assert (VENTA-24)
         verify(registrarSalidaDeInventarioUseCase).execute(salida.capture());
-        assertEquals(ID_CAFE, salida.getValue().getIdProducto());
-        assertEquals(0, new BigDecimal("2").compareTo(salida.getValue().getCantidad()));
-        assertFalse(salida.getValue().isExplotarBajoDemanda());
-        assertEquals(ID_USUARIO, salida.getValue().getIdUsuario());
-        assertEquals(AHORA, salida.getValue().getFecha());
+        RegistrarSalidaDeInventarioRequest enviada = salida.getValue();
+        assertEquals(1, enviada.getLineas().size());
+        assertEquals(ID_CAFE, enviada.getLineas().get(0).getIdProducto());
+        assertEquals(0, new BigDecimal("2").compareTo(enviada.getLineas().get(0).getCantidad()));
+        assertEquals(TipoMovimiento.VENTA, enviada.getTipoMovimiento());
+        assertEquals(ID_VENTA, enviada.getIdVenta());
+        assertNull(enviada.getIdProduccion());
+        assertEquals("Venta del ticket 1", enviada.getMotivo());
+        assertEquals(ID_USUARIO, enviada.getIdUsuario());
+        assertEquals(respuesta.getFechaVenta(), enviada.getFecha());
     }
 
     @Test
-    void lasLineasSeDescuentanEnOrdenDeIdDeProducto() {
-        // Arrange: el cafe se pide primero, pero el id del te es menor.
+    void todasLasLineasVanEnUnaSolaSalida() {
+        // Arrange: la salida arma un solo plan de consumo y ordena los bloqueos (GENERAL-14, GENERAL-15).
         CrearVentaRequest peticion = venta(List.of(linea(ID_CAFE, "1"), linea(ID_TE, "1")), List.of(pago(ID_EFECTIVO, "20")));
+        ArgumentCaptor<RegistrarSalidaDeInventarioRequest> salida = ArgumentCaptor.forClass(RegistrarSalidaDeInventarioRequest.class);
 
         // Act
         useCase.execute(peticion);
 
         // Assert
-        InOrder orden = inOrder(registrarSalidaDeInventarioUseCase);
-        orden.verify(registrarSalidaDeInventarioUseCase).execute(argThat(salida -> ID_TE.equals(salida.getIdProducto())));
-        orden.verify(registrarSalidaDeInventarioUseCase).execute(argThat(salida -> ID_CAFE.equals(salida.getIdProducto())));
+        verify(registrarSalidaDeInventarioUseCase, times(1)).execute(salida.capture());
+        assertEquals(List.of(ID_CAFE, ID_TE), salida.getValue().getLineas().stream()
+                .map(RegistrarSalidaDeInventarioRequest.Linea::getIdProducto).toList());
+    }
+
+    // ------------------------------------------------------------------ fecha de la venta (VENTA-28)
+
+    @Test
+    void sinFechaLaVentaTomaLaHoraDelServidor() {
+        // Arrange
+        LocalDateTime antes = LocalDateTime.now();
+
+        // Act
+        VentaResponse respuesta = useCase.execute(venta(List.of(linea(ID_CAFE, "1")), List.of(pago(ID_EFECTIVO, "10"))));
+
+        // Assert
+        assertFalse(respuesta.getFechaVenta().isBefore(antes));
+        assertFalse(respuesta.getFechaVenta().isAfter(LocalDateTime.now()));
+    }
+
+    @Test
+    void unOperadorNoPuedeFijarLaFechaDeLaVenta() {
+        // Arrange
+        CrearVentaRequest peticion = venta(List.of(linea(ID_CAFE, "1")), List.of(pago(ID_EFECTIVO, "10")), Map.of("fechaVenta", AHORA));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(peticion));
+
+        // Assert
+        assertEquals(400, error.getCodigo());
+        assertTrue(error.getMensaje().contains("Solo un Administrador"));
+        verify(ventaRepository, never()).crear(any());
+        verifyNoInteractions(registrarSalidaDeInventarioUseCase);
+    }
+
+    @Test
+    void unAdministradorAsientaUnaVentaDeContingenciaDentroDelTurno() {
+        // Arrange
+        quienVendeEs("Administrador");
+        LocalDateTime fechaReal = APERTURA_DE_CAJA.plusMinutes(30);
+        CrearVentaRequest peticion = venta(List.of(linea(ID_CAFE, "1")), List.of(pago(ID_EFECTIVO, "10")), Map.of("fechaVenta", fechaReal));
+        ArgumentCaptor<RegistrarSalidaDeInventarioRequest> salida = ArgumentCaptor.forClass(RegistrarSalidaDeInventarioRequest.class);
+
+        // Act
+        VentaResponse respuesta = useCase.execute(peticion);
+
+        // Assert: la fecha manual es la de la venta a todos los efectos, tambien para el consumo.
+        assertEquals(fechaReal, respuesta.getFechaVenta());
+        assertEquals(ID_CAJA, respuesta.getIdSesionCaja());
+        verify(registrarSalidaDeInventarioUseCase).execute(salida.capture());
+        assertEquals(fechaReal, salida.getValue().getFecha());
+        verify(descuentoRepository).obtenerVigentes(any(), argThat(fecha -> fechaReal.equals(fecha)));
+    }
+
+    @Test
+    void unaFechaDeContingenciaAnteriorALaAperturaDeLaCajaSeRechaza() {
+        // Arrange
+        quienVendeEs("Administrador");
+        CrearVentaRequest peticion = venta(List.of(linea(ID_CAFE, "1")), List.of(pago(ID_EFECTIVO, "10")),
+                Map.of("fechaVenta", APERTURA_DE_CAJA.minusMinutes(1)));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(peticion));
+
+        // Assert
+        assertEquals(400, error.getCodigo());
+        verify(ventaRepository, never()).crear(any());
+    }
+
+    @Test
+    void unaFechaDeContingenciaFuturaSeRechazaSalvoElMinutoDeTolerancia() {
+        // Arrange
+        quienVendeEs("Administrador");
+        CrearVentaRequest futura = venta(List.of(linea(ID_CAFE, "1")), List.of(pago(ID_EFECTIVO, "10")),
+                Map.of("fechaVenta", LocalDateTime.now().plusMinutes(5)));
+        CrearVentaRequest dentroDeLaTolerancia = venta(List.of(linea(ID_CAFE, "1")), List.of(pago(ID_EFECTIVO, "10")),
+                Map.of("fechaVenta", LocalDateTime.now().plusSeconds(30)));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(futura));
+        VentaResponse aceptada = useCase.execute(dentroDeLaTolerancia);
+
+        // Assert
+        assertEquals(400, error.getCodigo());
+        assertTrue(aceptada.getFechaVenta().isAfter(LocalDateTime.now().minusMinutes(1)));
     }
 
     @Test
@@ -421,7 +523,7 @@ class CrearVentaUseCaseTest {
 
         // Assert
         verify(registrarSalidaDeInventarioUseCase).execute(salida.capture());
-        assertEquals(idBolsa, salida.getValue().getIdProducto());
+        assertEquals(idBolsa, salida.getValue().getLineas().get(0).getIdProducto());
     }
 
     @Test

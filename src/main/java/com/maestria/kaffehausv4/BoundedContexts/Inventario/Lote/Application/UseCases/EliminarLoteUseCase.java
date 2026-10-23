@@ -35,7 +35,8 @@ public class EliminarLoteUseCase {
     public void execute(String loteId) {
         LoteId id = new LoteId(loteId);
 
-        Lote lote = loteRepository.obtenerPorId(id)
+        // Bloqueado por su raiz: ninguna operacion descuenta de sus lineas mientras se da de baja (LOTE-27).
+        Lote lote = loteRepository.obtenerPorIdParaActualizar(id)
                 .orElseThrow(() -> DomainException.throwException(404, "El lote con id '" + loteId + "' no existe"));
 
         if (!existenciaRepository.obtenerDisponiblesPorDetallesLote(

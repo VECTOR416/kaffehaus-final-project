@@ -33,6 +33,8 @@ build/
 .vscode/
 
 *.sql
+!src/main/resources/db/*.sql
+!src/test/resources/h2/*.sql
 *.md
 .diagramas
 !README.md

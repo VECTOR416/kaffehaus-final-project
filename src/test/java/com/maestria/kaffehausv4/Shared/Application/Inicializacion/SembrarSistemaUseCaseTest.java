@@ -145,7 +145,7 @@ class SembrarSistemaUseCaseTest {
     // ------------------------------------------------------------------ que se siembra
 
     @Test
-    void losTiposDeMovimientoSonProduccionAjusteMermaYApertura() {
+    void losTiposDeMovimientoSonLosSieteDeMovimiento22() {
         // Arrange
         ArgumentCaptor<TipoMovimiento> sembrados = ArgumentCaptor.forClass(TipoMovimiento.class);
 
@@ -153,8 +153,8 @@ class SembrarSistemaUseCaseTest {
         useCase.execute();
 
         // Assert
-        verify(tipoMovimientoRepository, times(4)).crear(sembrados.capture());
-        assertEquals(List.of("Produccion", "Ajuste", "Merma", "Apertura"), capturados(sembrados).stream().map(TipoMovimiento::getNombre).toList());
+        verify(tipoMovimientoRepository, times(7)).crear(sembrados.capture());
+        assertEquals(List.of("Produccion", "Ajuste", "Merma", "Apertura", "Venta", "Reintegro", "Vencimiento"), capturados(sembrados).stream().map(TipoMovimiento::getNombre).toList());
     }
 
     @Test
@@ -283,8 +283,8 @@ class SembrarSistemaUseCaseTest {
         // Act
         SembrarSistemaResponse respuesta = useCase.execute();
 
-        // Assert: 2 roles + admin + 4 + 2 + 2 + 2 + 5 + 3 + 2 + 4 catalogos + 5 unidades + 2 conversiones + mostrador.
-        assertEquals(35, respuesta.getCreados().size());
+        // Assert: 2 roles + admin + 7 + 2 + 2 + 2 + 5 + 3 + 2 + 4 catalogos + 5 unidades + 2 conversiones + mostrador.
+        assertEquals(38, respuesta.getCreados().size());
         assertTrue(respuesta.getExistentes().isEmpty());
         assertTrue(respuesta.getCreados().contains("Tipo de movimiento 'Produccion'"));
         assertTrue(respuesta.getCreados().contains("Tipo de producto 'Insumo'"));
@@ -321,8 +321,8 @@ class SembrarSistemaUseCaseTest {
         SembrarSistemaResponse respuesta = useCase.execute();
 
         // Assert
-        verify(tipoMovimientoRepository, times(3)).crear(sembrados.capture());
-        assertEquals(List.of("Produccion", "Ajuste", "Apertura"), capturados(sembrados).stream().map(TipoMovimiento::getNombre).toList());
+        verify(tipoMovimientoRepository, times(6)).crear(sembrados.capture());
+        assertEquals(List.of("Produccion", "Ajuste", "Apertura", "Venta", "Reintegro", "Vencimiento"), capturados(sembrados).stream().map(TipoMovimiento::getNombre).toList());
         assertTrue(respuesta.getExistentes().contains("Tipo de movimiento 'Merma'"));
     }
 

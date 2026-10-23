@@ -36,8 +36,9 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * Operacion interna: abre una unidad cerrada de un detalle de lote y la convierte en una
  * existencia del producto base (inventario.md INV-10). No tiene endpoint.
  *
- * En una sola transaccion: bloquea la linea (INV-52), resuelve el producto base y el factor
- * de conversion de la unidad de la presentacion a la del producto base (INV-06, INV-09),
+ * En una sola transaccion: bloquea el lote por su raiz (logica.md LOTE-27), resuelve el producto
+ * base y el factor de conversion de la unidad de la presentacion a la del producto base (INV-06,
+ * INV-09),
  * descuenta la unidad de 'cantidad_restante' a traves de la raiz Lote, crea la existencia
  * 'Abierta' con ese contenido, registra el movimiento 'Apertura' de cantidad 0 (logica.md
  * EXISTENCIA-13) y recalcula el stock del producto base.

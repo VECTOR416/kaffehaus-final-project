@@ -118,7 +118,7 @@ class MovimientoCajaTest {
 
         // Act
         MovimientoCaja movimiento = MovimientoCaja.restaurar(
-                "33333333-3333-3333-3333-333333333333", USUARIO, MovimientoCaja.EGRESO, new BigDecimal("7.50"), "Hielo", fecha, true);
+                "33333333-3333-3333-3333-333333333333", USUARIO, MovimientoCaja.EGRESO, new BigDecimal("7.50"), "Hielo", fecha, null, true);
 
         // Assert
         assertEquals("33333333-3333-3333-3333-333333333333", movimiento.getId().getValue());

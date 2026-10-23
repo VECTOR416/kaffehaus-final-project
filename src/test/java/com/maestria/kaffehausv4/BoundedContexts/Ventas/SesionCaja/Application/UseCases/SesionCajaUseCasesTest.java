@@ -117,7 +117,7 @@ class SesionCajaUseCasesTest {
 
     private static MovimientoCaja movimiento(String tipo, String monto) {
         return MovimientoCaja.restaurar("93000000-0000-0000-0000-000000000001", new UsuarioId(ID_USUARIO), tipo,
-                new BigDecimal(monto), "Motivo", AHORA.minusHours(1), false);
+                new BigDecimal(monto), "Motivo", AHORA.minusHours(1), null, false);
     }
 
     // ================================================================== apertura

@@ -116,8 +116,8 @@ class RegistrarPesajeUseCaseTest {
 
     private static Movimiento movimiento(String idExistencia, LocalDateTime fecha) {
         return Movimiento.restaurar("e5000000-0000-0000-0000-00000000000" + idExistencia.charAt(idExistencia.length() - 1),
-                BigDecimal.ONE, fecha, "Consumo", new ExistenciaId(idExistencia), new TipoMovimientoId(ID_TIPO_PRODUCCION),
-                new UsuarioId(ID_USUARIO), null, false);
+                BigDecimal.ONE, fecha, "Consumo", new ExistenciaId(idExistencia), null, new TipoMovimientoId(ID_TIPO_PRODUCCION),
+                new UsuarioId(ID_USUARIO), null, null, false);
     }
 
     private static RegistrarPesajeRequest pesaje(String pesoTotal) {

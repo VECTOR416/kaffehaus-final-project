@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.ValueObjects.MovimientoCajaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
@@ -15,6 +16,9 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * Es inmutable, como los movimientos de inventario: un error se corrige con el movimiento
  * contrario. 'fecha' es el instante en que se registro (la columna fec_c); la asigna la
  * persistencia y es nula hasta guardarse.
+ *
+ * 'ventaId' solo lo pone el sistema, en el egreso que devuelve el efectivo de una venta de un
+ * turno cerrado al anularla (logica.md SESIONCAJA-13, VENTA-27); en el resto es nulo.
  */
 public class MovimientoCaja {
     public static final String INGRESO = "INGRESO";
@@ -27,6 +31,7 @@ public class MovimientoCaja {
     private BigDecimal monto;
     private String motivo;
     private LocalDateTime fecha;
+    private VentaId ventaId;
     private boolean borrado;
 
     private MovimientoCaja(
@@ -36,6 +41,7 @@ public class MovimientoCaja {
         BigDecimal monto,
         String motivo,
         LocalDateTime fecha,
+        VentaId ventaId,
         boolean borrado
     ){
         this.id = id;
@@ -44,6 +50,7 @@ public class MovimientoCaja {
         this.monto = monto;
         this.motivo = motivo;
         this.fecha = fecha;
+        this.ventaId = ventaId;
         this.borrado = borrado;
     }
 
@@ -54,9 +61,22 @@ public class MovimientoCaja {
         BigDecimal monto,
         String motivo,
         LocalDateTime fecha,
+        VentaId ventaId,
         boolean borrado
     ){
-        return new MovimientoCaja(new MovimientoCajaId(id), usuarioId, tipo, monto, motivo, fecha, borrado);
+        return new MovimientoCaja(new MovimientoCajaId(id), usuarioId, tipo, monto, motivo, fecha, ventaId, borrado);
+    }
+
+    /**
+     * Egreso que devuelve el efectivo de una venta de un turno cerrado al anularla (logica.md
+     * VENTA-27, SESIONCAJA-13). Es el unico movimiento que lleva 'ventaId'.
+     */
+    static MovimientoCaja crearDevolucion(UsuarioId usuarioId, BigDecimal monto, String motivo, VentaId ventaId) {
+        if (ventaId == null) {
+            throw DomainException.throwException(400, "Una devolucion de caja requiere la venta que la origina");
+        }
+        MovimientoCaja egreso = crear(usuarioId, EGRESO, monto, motivo);
+        return new MovimientoCaja(null, egreso.usuarioId, egreso.tipo, egreso.monto, egreso.motivo, null, ventaId, false);
     }
 
     static MovimientoCaja crear(UsuarioId usuarioId, String tipo, BigDecimal monto, String motivo) {
@@ -74,7 +94,7 @@ public class MovimientoCaja {
             throw DomainException.throwException(400,
                     "El motivo de un movimiento de caja no puede superar los " + LONGITUD_MAXIMA_MOTIVO + " caracteres");
         }
-        return new MovimientoCaja(null, usuarioId, tipoNormalizado, monto.setScale(2, RoundingMode.HALF_UP), motivo, null, false);
+        return new MovimientoCaja(null, usuarioId, tipoNormalizado, monto.setScale(2, RoundingMode.HALF_UP), motivo, null, null, false);
     }
 
     public boolean esIngreso() {
@@ -87,5 +107,6 @@ public class MovimientoCaja {
     public BigDecimal getMonto() {return monto;}
     public String getMotivo() {return motivo;}
     public LocalDateTime getFecha() {return fecha;}
+    public VentaId getVentaId() {return ventaId;}
     public boolean isBorrado() {return borrado;}
 }

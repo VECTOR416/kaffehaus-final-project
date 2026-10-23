@@ -627,8 +627,8 @@ Jerarquia unica: `BaseException` (abstracta) → `DomainException` | `SystemExce
   catalogo inexistente; `409` conflicto con el estado actual (la regla de negocio que lo provoca
   esta en `logica.md`); `500` fallo tecnico (`SystemException`).
 - `GlobalExceptionHandler` responde
-  `record ErrorResponse(int codigo, String tipo, String mensaje, OffsetDateTime timestamp)`. Si
-  `HttpStatus.resolve(codigo)` es nulo, cae a 500. Tiene handlers para `DomainException`,
+  `record ErrorResponse(int codigo, String tipo, String error, String mensaje, Object detalle, OffsetDateTime timestamp)`.
+  Si `HttpStatus.resolve(codigo)` es nulo, cae a 500. Tiene handlers para `DomainException`,
   `SystemException`, `BaseException` (cubre `AutorizacionException`), `RuntimeException` y dos
   excepciones de Spring que surgen al confirmar la transaccion, fuera del alcance de un caso de
   uso:
@@ -639,6 +639,62 @@ Jerarquia unica: `BaseException` (abstracta) → `DomainException` | `SystemExce
     integridad sigue siendo 500.
 - Las excepciones crudas de JPA/JDBC no se propagan: se traducen a `DomainException` o
   `SystemException`.
+- **Error estructurado** (para errores que el cliente debe poder resolver solo, sin interpretar el
+  texto del mensaje). `DomainException` lleva dos datos opcionales, nulos en todos los demas
+  errores:
+  - `error`: codigo de negocio estable en `MAYUSCULAS_CON_GUION_BAJO`. Cada codigo lo define la
+    regla de `logica.md` que lo provoca; el `codigo` HTTP sigue siendo el reparto de arriba.
+  - `detalle`: `Map<String, Object>` de datos simples (`String`, `BigDecimal`, `LocalDate`, numeros
+    y otros mapas o listas), sin agregados, `JpaModel` ni DTOs. Admite valores nulos, asi que se
+    arma con `LinkedHashMap` (conserva el orden de las claves en el JSON) y no con `Map.of`;
+    `DomainException` guarda una copia inmodificable.
+  Se crea con la sobrecarga `DomainException.throwException(codigo, error, mensaje, detalle)`, que
+  tambien devuelve la excepcion. No se crean subclases de `DomainException` por cada error: la
+  jerarquia sigue siendo la de arriba. `GlobalExceptionHandler` y `EscritorDeErrorHttp` copian
+  ambos campos al `ErrorResponse`, que los **omite del JSON cuando son nulos**
+  (`@JsonInclude(NON_NULL)` sobre el record), de modo que el contrato de los errores existentes no
+  cambia. El caso de uso que llama a otro no captura ni traduce el error: lo deja pasar tal cual.
+- **Errores estructurados vigentes:**
+
+  | `error` | HTTP | Regla | Lo lanza | `detalle` |
+  |---|---|---|---|---|
+  | `APERTURA_REQUERIDA` | 409 | VENTA-30 | `RegistrarSalidaDeInventarioUseCase` | `{ faltantes: [ { idProducto, producto, requerido, disponibleAbierto, unidad, bolsasNecesarias, bolsaSugerida: { idDetalleLote, idProductoPresentacion, presentacion, fechaVencimiento, contenido } } ] }` |
+  | `STOCK_INSUFICIENTE` | 409 | VENTA-30, LOTE-17 | `RegistrarSalidaDeInventarioUseCase` | `{ faltantes: [ { idProducto, producto, requerido, disponible, unidad } ] }` |
+
+  Las cantidades son `BigDecimal` a 4 decimales en la unidad actual del insumo (GENERAL-10);
+  `fechaVencimiento` es `yyyy-MM-dd` o nulo; `faltantes` trae una entrada por producto del plan de
+  consumo que no alcanza, en orden de id de producto. Ejemplo:
+
+  ```json
+  {
+    "codigo": 409,
+    "tipo": "Domain Exception",
+    "error": "APERTURA_REQUERIDA",
+    "mensaje": "Stock abierto insuficiente de 'Leche': abre una presentacion para continuar",
+    "detalle": {
+      "faltantes": [
+        {
+          "idProducto": "<leche>",
+          "producto": "Leche",
+          "requerido": 0.4000,
+          "disponibleAbierto": 0.1500,
+          "unidad": "Litro",
+          "bolsasNecesarias": 1,
+          "bolsaSugerida": {
+            "idDetalleLote": "<detalle>",
+            "idProductoPresentacion": "<leche 1 l>",
+            "presentacion": "Leche 1 l",
+            "fechaVencimiento": "2026-10-30",
+            "contenido": 1.0000
+          }
+        }
+      ]
+    },
+    "timestamp": "2026-10-23T10:15:00-04:00"
+  }
+  ```
+
+  Un error estructurado nuevo se agrega a esta tabla junto con su regla en `logica.md`.
 - **Mensajes en espanol, sin tildes**, citando el campo o id entre comillas simples:
   `"La categoria con id '...' no existe"`, `"El campo 'nombre' es obligatorio..."`.
 - No hay logging: ni `Logger`, ni `System.out`, ni `printStackTrace`. La trazabilidad se apoya en
@@ -712,7 +768,8 @@ lo que falta; la respuesta lista lo `creados` y lo `existentes`. Que se siembra 
 - Una fila que un flujo reconoce por nombre (5.6) debe estar en la siembra.
 
 Primer arranque: `docker compose up -d`, levantar la aplicacion (`ddl-auto: update` crea las
-tablas) y llamar una vez a `POST api/v1/seed`.
+tablas y despues el script de 4.20 crea el resto del esquema) y llamar una vez a
+`POST api/v1/seed`.
 
 ### 4.20 Esquema de base de datos
 
@@ -721,17 +778,29 @@ tablas) y llamar una vez a `POST api/v1/seed`.
   las bases existentes.
 - Todas las tablas tienen `borrado`, `fec_c` y `fec_u` (4.10). PK `UUID` generada por el mapper.
 - Hay objetos de esquema **que no se derivan de las entidades** y de los que dependen piezas del
-  codigo:
+  codigo. Estan versionados en `src/main/resources/db/esquema-postgresql.sql`:
   - `seq_numero_ticket` y el valor por defecto de `venta.numero_ticket` (el modelo lo mapea con
     `@Generated` e `insertable/updatable = false`, y `VentaDatasourceImpl.crear` usa
     `saveAndFlush` para releerlo).
   - Indices unicos parciales `uq_sesion_caja_abierta` y `uq_receta_paso` (`... WHERE borrado =
-    FALSE`), e indice unico `uq_venta_clave_idempotencia`.
-  - Restricciones `chk_lote_origen` y `chk_distintas_unidades`, y la FK
-    `existencias.id_detalle_lote` con `ON DELETE RESTRICT`.
-- **Esos objetos no estan versionados en el repositorio** (pendiente, 7.5): solo existen en las
-  bases creadas con el script antiguo. En las pruebas, `src/test/resources/h2/esquema-postgresql.sql`
-  crea la secuencia del ticket; los indices parciales no se pueden reproducir en H2.
+    FALSE`), e indice unico parcial `uq_venta_clave_idempotencia`.
+  - En `movimientos`: `id_existencia` sin `NOT NULL` (Hibernate no lo quita en una base
+    existente) y las restricciones `chk_movimiento_sujeto` (exactamente una de `id_existencia` e
+    `id_detalle_lote`), `chk_movimiento_documento` (no `id_produccion` e `id_venta` a la vez) y
+    `chk_movimiento_cantidad` (`cantidad >= 0`).
+- **El script** lo ejecuta la inicializacion SQL de Spring Boot (`spring.sql.init.mode: always`)
+  en cada arranque, despues de Hibernate (`spring.jpa.defer-datasource-initialization: true`).
+  Por eso cada sentencia es idempotente (`IF NOT EXISTS`, y los `CHECK` con `DROP CONSTRAINT IF
+  EXISTS` seguido de `ADD CONSTRAINT`). No admite bloques `DO $$ ... $$`, porque Spring separa las
+  sentencias por `;`. Si una sentencia falla, la aplicacion no arranca. No siembra filas: los
+  datos iniciales son de la siembra (4.19).
+- Un objeto de esquema nuevo que no salga de las entidades se agrega a ese script y, si las
+  pruebas lo necesitan y H2 lo admite, tambien a `src/test/resources/h2/esquema-postgresql.sql`,
+  que el perfil `test` ejecuta en su lugar. Ese script crea la secuencia del ticket y las
+  restricciones de `movimientos`; los indices parciales no se pueden reproducir en H2.
+- Sin versionar siguen las restricciones del script antiguo (`chk_lote_origen`,
+  `chk_distintas_unidades` y otras `CHECK` de importes y saldos) y las FK con `ON DELETE
+  RESTRICT`, como `existencias.id_detalle_lote` (7.5).
 - Un indice unico parcial se usa cuando hay unicidad bajo borrado logico: una fila dada de baja
   conserva sus valores y una `UNIQUE CONSTRAINT` normal impediria reutilizarlos.
 
@@ -867,12 +936,40 @@ prefijo del metodo y el sufijo del puerto.
 | Exclusivo (`FOR UPDATE`) | `PESSIMISTIC_WRITE` | `read...By` (gemelo de su `find...By`) | `...ParaActualizar`, `...ParaConsumo` | Lectura que precede a una modificacion de inventario o de caja |
 | Compartido (`FOR SHARE`) | `PESSIMISTIC_READ` | `get...By` | `...ParaVenta` | Lectura de la sesion de caja que hace una venta |
 
-- Donde se bloquea y en que orden lo fija `logica.md` (GENERAL-06, EXISTENCIA-14,
+- Donde se bloquea y en que orden lo fija `logica.md` (GENERAL-15, EXISTENCIA-14,
   SESIONCAJA-09). Para respetar el orden, un caso de uso que bloquea filas de varios productos
-  procesa sus lineas en orden de id de producto (`CrearVentaUseCase.descontarInventario`).
+  procesa sus lineas en orden de id de producto (el plan de consumo de
+  `RegistrarSalidaDeInventarioUseCase`, un `TreeMap` por id, y la devolucion de
+  `RegistrarReintegroDeInventarioUseCase`).
 - Con Hibernate, bloquear una entidad ya cargada no refresca su estado: un valor que se proyecta
   (como `producto.stock`) se bloquea **y despues** se recalcula desde sus fuentes, nunca sumando o
   restando sobre el valor leido (`RecalcularStockUseCase`).
+- **La lectura con bloqueo debe ser la primera carga de la fila en la transaccion.** Si un caso
+  de uso necesita leer algo de una fila antes de bloquearla (para ordenar los bloqueos o para
+  planificar), lo lee con una **proyeccion de interfaz cerrada**: un query method derivado cuyo
+  tipo de retorno es una interfaz con solo los getters que necesita
+  (`Optional<ExistenciaDetalleLoteProyeccion> findDetalleLoteByIdAndBorradoFalse(UUID id)`). Spring Data
+  lee esas columnas sin cargar la entidad en el contexto de persistencia, asi que el `read...By`
+  posterior trae el estado vigente. Sigue siendo un metodo derivado: sin `@Query` ni SQL.
+  - La interfaz vive junto a su `JpaModel` en `Infrastructure/Persistence/Jpa/` y se llama
+    `<Modelo><Lo que trae>Proyeccion`. El datasource la mapea a un VO o, si trae todas las
+    columnas, a un agregado (`LoteJpaMapper.toDomain(LoteLecturaProyeccion, ...)`).
+  - En el puerto el metodo dice que no carga: `obtenerProductoDeDetalle`, `obtenerLoteDeDetalle`,
+    `obtenerDetalleLoteDe`, `obtenerPorProductosSinCargar`.
+  - Precedentes: el reintegro averigua el producto de cada linea o existencia antes de bloquearla
+    (`RegistrarReintegroDeInventarioUseCase`) y la salida planifica con los lotes sin cargar
+    (`RegistrarSalidaDeInventarioUseCase`).
+- **Un agregado con hijas se bloquea por su raiz** (logica.md LOTE-27). Las hijas no tienen
+  bloqueo propio: el datasource bloquea la fila de la raiz con su `read...By` y lee las hijas
+  despues, de modo que el agregado entero se carga con el bloqueo tomado. Varias raices se
+  bloquean en una sola lectura ordenada por id (`readByIdInAndBorradoFalseOrderByIdAsc`), el
+  orden de GENERAL-15. En el puerto: `obtenerPorIdParaActualizar`, `obtenerPorIdsParaActualizar`
+  y `obtenerPorDetalleIdParaActualizar`, que averigua la raiz con una proyeccion y delega.
+  Precedente: `Lote`; lo usan la salida, el reintegro, la apertura, el PUT y la baja de lotes.
+- **Un datasource no reescribe lo que la operacion no cambio.** Al guardar una raiz con
+  colecciones, la conciliacion (5.8) solo copia a su fila las hijas que difieren de ella
+  (`DetalleLoteJpaMapper.difiere`): reescribir una linea que la operacion no toco pisaria, con un
+  valor ya leido, lo que otra transaccion haya hecho con ella.
 
 ### 5.8 Conciliacion por id de una coleccion hija
 
@@ -903,7 +1000,7 @@ aparca los numeros en negativos, hace `flush()` y escribe los definitivos (`Rece
 
 Una regla pura que opera sobre varios agregados del mismo tipo ya cargados por el caso de uso es
 un metodo `static` del agregado: `Conversion.factorEntre`, `Lote.aperturablesEnOrden`,
-`Lote.conUnidadesEnOrden`, `Lote.conEspacioEnOrden`, `Lote.dueno`. El caso de uso carga y el
+`Lote.conUnidadesEnOrden`, `Lote.dueno`. El caso de uso carga y el
 dominio decide.
 
 ### 5.11 Operacion estandar que el negocio rechaza
@@ -1113,12 +1210,18 @@ necesita una regla nueva, se acuerda y se registra alli primero.
   `Venta` (`AnularVentaUseCase`, `RegistrarAnulacionDeVentaUseCase`, `ObtenerVentaPorTicketUseCase`).
 - Puertos con metodos fuera del CRUD, cada uno con la misma firma en su `I*Datasource`:
   - `ILoteRepository`: `obtenerPorDetalleId`, `obtenerPorDetalleIdParaActualizar`,
-    `obtenerPorProductos`.
+    `obtenerPorIdParaActualizar`, `obtenerPorIdsParaActualizar` (bloqueo por la raiz, 5.7),
+    `obtenerPorProductos`, `obtenerPorProductosSinCargar`, `obtenerProductoDeDetalle`,
+    `obtenerLoteDeDetalle` (estos tres ultimos con proyecciones, 5.7).
   - `IExistenciaRepository`: `obtenerDisponiblesPorDetallesLote`, `obtenerDisponiblesParaConsumo`,
-    `obtenerVivasParaPesaje`, `obtenerPorIdParaActualizar`.
+    `obtenerVivasParaPesaje`, `obtenerPorIdParaActualizar`, `obtenerDetalleLoteDe` (con proyeccion,
+    5.7).
+- Proyecciones de interfaz (5.7): `DetalleLoteLecturaProyeccion`, `LoteLecturaProyeccion` y
+  `ExistenciaDetalleLoteProyeccion`. Son las unicas interfaces en
+  `Infrastructure/Persistence/Jpa/` ademas de los `JpaRepository`.
   - `IProductoRepository`: `obtenerPresentaciones`, `obtenerPorIdParaActualizar`, `actualizarStock`.
   - `IRecetaRepository.obtenerPorProductoObtenido`; `IConversionRepository.obtenerVivas`.
-  - `IMovimientoRepository.obtenerPorExistencias`.
+  - `IMovimientoRepository`: `obtenerPorExistencias`, `obtenerPorVenta`.
   - `ISesionCajaRepository`: `obtenerAbierta`, `obtenerAbiertaParaActualizar`,
     `obtenerAbiertaParaVenta`.
   - `IVentaRepository`: `obtenerPorClaveIdempotencia`, `obtenerPorNumeroTicket`,
@@ -1129,6 +1232,8 @@ necesita una regla nueva, se acuerda y se registra alli primero.
     `ITipoRepository`, `ICategoriaRepository`, `IUnidadRepository` e `ITipoDescuentoRepository`.
 - `Shared/Application/Inicializacion` y `Shared/Presentation/Security` dependen de repositorios de
   varios contextos sin ser agregados (4.18, 4.19).
+- `ErrorResponse` es el unico sitio fuera de seguridad que usa una anotacion de Jackson
+  (`@JsonInclude`, 4.16).
 - `record` solo se usa en `ErrorResponse` y en el paquete de seguridad (`UsuarioAutenticado` y
   `Dtos/`); los DTOs de los agregados son clases con factorias.
 
@@ -1136,9 +1241,10 @@ necesita una regla nueva, se acuerda y se registra alli primero.
 
 Desajustes conocidos entre este documento y el repositorio. No se resuelven sin consultar.
 
-- **Esquema fuera de las entidades no versionado** (4.20): la secuencia del ticket, los indices
-  unicos y parciales, los `CHECK` y el `ON DELETE RESTRICT` no estan en ningun archivo del
-  repositorio. Una base creada desde cero solo con `ddl-auto` no los tiene.
+- **Esquema fuera de las entidades versionado solo en parte** (4.20): la secuencia del ticket,
+  los indices unicos y parciales y las restricciones de `movimientos` estan en
+  `db/esquema-postgresql.sql`; las demas `CHECK` del script antiguo y las FK con `ON DELETE
+  RESTRICT` aun no. Una base creada desde cero no las tiene.
 - **Proteccion de controllers sin test** (4.21): ningun test comprueba que cada controller declare
   `@RequiereRol`.
 - **Citas a secciones antiguas de este archivo** en comentarios del codigo y de los tests. Se

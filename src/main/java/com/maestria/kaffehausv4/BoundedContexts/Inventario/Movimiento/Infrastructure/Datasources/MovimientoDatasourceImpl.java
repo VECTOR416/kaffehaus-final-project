@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Datasources.IMovimientoDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.ObtenerMovimientosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
@@ -102,6 +103,13 @@ public class MovimientoDatasourceImpl implements IMovimientoDatasource {
                 .collect(Collectors.toList());
 
         return movimientoJpaRepository.findByIdExistenciaInAndBorradoFalse(ids).stream()
+                .map(MovimientoJpaMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Movimiento> obtenerPorVenta(VentaId ventaId) {
+        return movimientoJpaRepository.findByIdVentaAndBorradoFalseOrderByIdAsc(aUuid(ventaId.getValue())).stream()
                 .map(MovimientoJpaMapper::toDomain)
                 .collect(Collectors.toList());
     }

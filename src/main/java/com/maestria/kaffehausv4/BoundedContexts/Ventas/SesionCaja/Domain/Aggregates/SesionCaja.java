@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.ValueObjects.SesionCajaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
@@ -104,7 +105,20 @@ public class SesionCaja {
      */
     public void registrarMovimiento(UsuarioId usuarioId, String tipo, BigDecimal monto, String motivo, BigDecimal ventasEnEfectivo) {
         exigirAbierta();
-        MovimientoCaja movimiento = MovimientoCaja.crear(usuarioId, tipo, monto, motivo);
+        agregar(MovimientoCaja.crear(usuarioId, tipo, monto, motivo), ventasEnEfectivo);
+    }
+
+    /**
+     * Devuelve desde esta caja abierta el efectivo de una venta de un turno ya cerrado que se
+     * anula (logica.md VENTA-27, SESIONCAJA-13): un egreso con la venta, que no puede dejar la
+     * caja en negativo (SESIONCAJA-10). El arqueo de la caja de la venta no cambia (SESIONCAJA-14).
+     */
+    public void registrarDevolucion(UsuarioId usuarioId, BigDecimal monto, String motivo, VentaId ventaId, BigDecimal ventasEnEfectivo) {
+        exigirAbierta();
+        agregar(MovimientoCaja.crearDevolucion(usuarioId, monto, motivo, ventaId), ventasEnEfectivo);
+    }
+
+    private void agregar(MovimientoCaja movimiento, BigDecimal ventasEnEfectivo) {
         if (!movimiento.esIngreso()) {
             BigDecimal disponible = efectivoEsperado(ventasEnEfectivo);
             if (disponible.compareTo(movimiento.getMonto()) < 0) {

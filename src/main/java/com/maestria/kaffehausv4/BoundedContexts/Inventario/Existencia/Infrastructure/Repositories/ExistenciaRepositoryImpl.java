@@ -67,4 +67,9 @@ public class ExistenciaRepositoryImpl implements IExistenciaRepository{
         return this.existenciaDatasource.obtenerPorIdParaActualizar(existenciaId);
     }
 
+    @Override
+    public Optional<DetalleLoteId> obtenerDetalleLoteDe(ExistenciaId existenciaId) {
+        return this.existenciaDatasource.obtenerDetalleLoteDe(existenciaId);
+    }
+
 }

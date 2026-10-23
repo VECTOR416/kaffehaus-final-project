@@ -37,4 +37,10 @@ public interface IExistenciaRepository {
 
     /** Lectura con bloqueo de una existencia. */
     Optional<Existencia> obtenerPorIdParaActualizar(ExistenciaId existenciaId);
+
+    /**
+     * La linea de lote de la que se abrio una existencia viva, sin cargarla: el reintegro la
+     * necesita para ordenar los bloqueos por producto (logica.md GENERAL-15) antes de bloquearla.
+     */
+    Optional<DetalleLoteId> obtenerDetalleLoteDe(ExistenciaId existenciaId);
 }

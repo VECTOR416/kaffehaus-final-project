@@ -29,9 +29,10 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * Registra una produccion por lotes (MTS) y todo el inventario que mueve, en una transaccion:
  *
  * 1. Guarda la produccion, con su diferencia derivada.
- * 2. Consume los insumos de la receta, escalados a la cantidad esperada (logica.md
- *    MOVIMIENTO-18): de existencias los productos base, con un movimiento 'Produccion' vinculado
- *    a la produccion por cada una; de sus lotes los productos por unidades.
+ * 2. Consume los insumos de la receta, escalados a la cantidad esperada, con un solo plan de
+ *    consumo (logica.md PRODUCCION-06, MOVIMIENTO-19): de existencias los productos base y de sus
+ *    lotes los productos por unidades, con un movimiento 'Produccion' vinculado a la produccion
+ *    por cada existencia o linea tocada.
  * 3. Si salieron unidades, crea un lote de produccion (sin proveedor ni costo) con una linea de
  *    'cantidadReal' unidades disponibles y su caducidad, y recalcula el stock del terminado
  *    (PRODUCCION-12). No crea existencia ni movimiento de entrada: el terminado se maneja por
@@ -101,17 +102,18 @@ public class CrearProduccionUseCase {
         return ProduccionResponse.createFromAggregate(produccionCreada);
     }
 
+    /** Todos los ingredientes juntos, para que la salida arme un solo plan de consumo (GENERAL-14). */
     private void consumirInsumos(Produccion produccion, Receta receta, UsuarioId usuarioId) {
         BigDecimal factor = produccion.factorSobre(receta.getCantidad());
+        RegistrarSalidaDeInventarioRequest salida = RegistrarSalidaDeInventarioRequest.deProduccion(
+                usuarioId.getValue(),
+                produccion.getId().getValue(),
+                "Consumo de la produccion '" + receta.getTitulo() + "'",
+                produccion.getFechaProduccion());
         for (IngredienteReceta ingrediente : receta.getIngredientesActivos()) {
-            registrarSalidaDeInventarioUseCase.execute(RegistrarSalidaDeInventarioRequest.deProduccion(
-                    ingrediente.getProductoId().getValue(),
-                    ingrediente.getCantidad().multiply(factor),
-                    usuarioId.getValue(),
-                    produccion.getId().getValue(),
-                    "Consumo de la produccion '" + receta.getTitulo() + "'",
-                    produccion.getFechaProduccion()));
+            salida.con(ingrediente.getProductoId().getValue(), ingrediente.getCantidad().multiply(factor));
         }
+        registrarSalidaDeInventarioUseCase.execute(salida);
     }
 
     /** El terminado entra como unidades disponibles de su lote de produccion (logica.md PRODUCCION-12). */

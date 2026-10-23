@@ -36,6 +36,9 @@ public class MovimientoCajaJpaModel {
     @Column(name = "motivo", nullable = false)
     private String motivo;
 
+    @Column(name = "id_venta")
+    private UUID idVenta;
+
     @Column(name = "fec_c", nullable = false)
     private OffsetDateTime fecC;
 
@@ -59,6 +62,8 @@ public class MovimientoCajaJpaModel {
     public void setMonto(BigDecimal monto) {this.monto = monto;}
     public String getMotivo() {return motivo;}
     public void setMotivo(String motivo) {this.motivo = motivo;}
+    public UUID getIdVenta() {return idVenta;}
+    public void setIdVenta(UUID idVenta) {this.idVenta = idVenta;}
     public OffsetDateTime getFecC() {return fecC;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}

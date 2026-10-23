@@ -22,7 +22,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * Abre la unidad cerrada que eligio el usuario (inventario.md INV-14). El usuario elige la
  * presentacion enviando un detalle de la consulta de aperturables; el sistema exige que sea
  * el que toca abrir de esa presentacion, el mas proximo a vencer, y lo comprueba ya con la
- * linea bloqueada: si otro usuario abrio antes la ultima unidad, o el cliente manda un
+ * lote bloqueado (LOTE-27): si otro usuario abrio antes la ultima unidad, o el cliente manda un
  * detalle arbitrario, responde 409 nombrando el que corresponde. Nunca abre otro en silencio.
  */
 @Service

@@ -97,8 +97,8 @@ public class LoteControllerV1 {
 
     @RequiereRol("Administrador")
     @PutMapping("/{id}")
-    public ResponseEntity<LoteResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        ActualizarLoteRequest request = ActualizarLoteRequest.createFromRequest(body);
+    public ResponseEntity<LoteResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        ActualizarLoteRequest request = ActualizarLoteRequest.createFromRequest(body, idUsuario);
         LoteResponse response = actualizarLoteUseCase.execute(id, request);
         return ResponseEntity.ok(response);
     }

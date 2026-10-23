@@ -36,10 +36,10 @@ class SembrarSistemaIntegracionTest extends PruebaConBaseDeDatos {
         SembrarSistemaResponse segunda = sembrarSistemaUseCase.execute();
 
         // Assert
-        assertEquals(35, primera.getCreados().size());
+        assertEquals(38, primera.getCreados().size());
         assertTrue(primera.getExistentes().isEmpty());
         assertTrue(segunda.getCreados().isEmpty());
-        assertEquals(35, segunda.getExistentes().size());
+        assertEquals(38, segunda.getExistentes().size());
     }
 
     @Test

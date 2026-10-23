@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas;
 
 import static com.maestria.kaffehausv4.Soporte.EscenarioDeCafeteria.linea;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -17,6 +18,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.AbrirDetalleLoteRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.AbrirDetalleLoteUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Repositories.IMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.UseCases.RegistrarSalidaDeInventarioUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Dtos.CrearRecetaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.UseCases.CrearRecetaUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.Repositories.ITipoMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.EstadoPedido.Application.Repositories.IEstadoPedidoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Dtos.ActualizarPedidoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Dtos.CrearPedidoRequest;
@@ -25,8 +35,10 @@ import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.UseCa
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.ArqueoCajaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.CerrarSesionCajaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.RegistrarMovimientoCajaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Repositories.ISesionCajaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.UseCases.CerrarSesionCajaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.UseCases.RegistrarMovimientoCajaUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.Aggregates.MovimientoCaja;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.AnularVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.CrearVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.TicketVentaResponse;
@@ -34,6 +46,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.Ve
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.AnularVentaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.CrearVentaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ObtenerVentaPorTicketUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Soporte.EscenarioDeCafeteria;
 import com.maestria.kaffehausv4.Soporte.PruebaConBaseDeDatos;
@@ -43,7 +56,8 @@ import com.maestria.kaffehausv4.Soporte.PruebaConBaseDeDatos;
  * reintegro, registrar egresos y cerrar con arqueo.
  *
  * Escenario: 10 gaseosas compradas a 2.00 y vendidas a 5.00, y un cafe con leche bajo demanda a
- * 8.00. La caja abre con 100.00.
+ * 8.00 cuya receta lleva 200 ml de leche; la leche se compra en bolsas de 1 l (2 bolsas). La
+ * caja abre con 100.00.
  */
 class FlujoVentaYCajaIntegracionTest extends PruebaConBaseDeDatos {
 
@@ -56,24 +70,63 @@ class FlujoVentaYCajaIntegracionTest extends PruebaConBaseDeDatos {
     @Autowired private CrearPedidoUseCase crearPedidoUseCase;
     @Autowired private ActualizarPedidoUseCase actualizarPedidoUseCase;
     @Autowired private IEstadoPedidoRepository estadoPedidoRepository;
+    @Autowired private CrearRecetaUseCase crearRecetaUseCase;
+    @Autowired private AbrirDetalleLoteUseCase abrirDetalleLoteUseCase;
+    @Autowired private IMovimientoRepository movimientoRepository;
+    @Autowired private ITipoMovimientoRepository tipoMovimientoRepository;
+    @Autowired private ISesionCajaRepository sesionCajaRepository;
 
     private String usuario;
     private String gaseosa;
+    private String leche;
     private String cafeConLeche;
+    private String idDetalleBolsasDeLeche;
     private String efectivo;
 
     @BeforeEach
     void prepararEscenario() {
         usuario = escenario.sembrar();
+        String proveedor = escenario.proveedor();
         gaseosa = escenario.producto("Gaseosa", "5", true, true, "Unidad", null);
+        leche = escenario.producto("Leche", "0", false, true, "Mililitro", null);
+        String bolsaDeLeche = escenario.producto("Leche 1 l", "9", false, true, "Litro", leche);
         cafeConLeche = escenario.producto("Cafe con leche", "8", true, false, "Unidad", null);
-        escenario.comprar(escenario.proveedor(), linea(gaseosa, "10", "2", LocalDate.now().plusDays(90).toString()));
+        recetaDeCafeConLeche();
+        escenario.comprar(proveedor, linea(gaseosa, "10", "2", LocalDate.now().plusDays(90).toString()));
+        idDetalleBolsasDeLeche = escenario.comprar(proveedor, linea(bolsaDeLeche, "2", "9", LocalDate.now().plusDays(10).toString()))
+                .getDetalles().get(0).getId();
         efectivo = escenario.idTipoPago("Efectivo");
         escenario.abrirCaja("100");
     }
 
+    private void recetaDeCafeConLeche() {
+        Map<String, Object> datos = new HashMap<>();
+        datos.put("cantidad", "1");
+        datos.put("titulo", "Cafe con leche");
+        datos.put("idProductoObtenido", cafeConLeche);
+        datos.put("ingredientes", List.of(Map.of("idProducto", leche, "cantidad", "200")));
+        datos.put("pasos", List.of(Map.of("descripcion", "Calentar la leche"), Map.of("descripcion", "Servir")));
+        crearRecetaUseCase.execute(CrearRecetaRequest.createFromRequest(datos));
+    }
+
+    private void abrirBolsaDeLeche() {
+        abrirDetalleLoteUseCase.execute(idDetalleBolsasDeLeche, AbrirDetalleLoteRequest.createFromRequest(Map.of(), usuario));
+    }
+
+    private List<Movimiento> movimientosDeLaVenta(String idVenta, String tipo) {
+        String idTipo = tipoMovimientoRepository.obtenerPorNombre(tipo).orElseThrow().getId().getValue();
+        return movimientoRepository.obtenerPorVenta(new VentaId(idVenta)).stream()
+                .filter(movimiento -> movimiento.getTipoMovimientoId().getValue().equals(idTipo))
+                .toList();
+    }
+
     @SafeVarargs
     private VentaResponse vender(String recibido, Map<String, Object>... lineas) {
+        return vender(recibido, null, lineas);
+    }
+
+    @SafeVarargs
+    private VentaResponse vender(String recibido, String claveIdempotencia, Map<String, Object>... lineas) {
         BigDecimal total = BigDecimal.ZERO;
         for (Map<String, Object> linea : lineas) {
             BigDecimal precio = linea.get("idProducto").equals(gaseosa) ? new BigDecimal("5") : new BigDecimal("8");
@@ -82,6 +135,9 @@ class FlujoVentaYCajaIntegracionTest extends PruebaConBaseDeDatos {
         Map<String, Object> datos = new HashMap<>();
         datos.put("detalles", List.of(lineas));
         datos.put("pagos", List.of(Map.of("idTipoPago", efectivo, "monto", total.toPlainString(), "montoRecibido", recibido)));
+        if (claveIdempotencia != null) {
+            datos.put("claveIdempotencia", claveIdempotencia);
+        }
         return crearVentaUseCase.execute(CrearVentaRequest.createFromRequest(datos, usuario));
     }
 
@@ -90,16 +146,54 @@ class FlujoVentaYCajaIntegracionTest extends PruebaConBaseDeDatos {
     }
 
     @Test
-    void unaVentaDescuentaLasUnidadesVendidasYRecibeSuTicket() {
+    void unaVentaDescuentaLasUnidadesYLosInsumosDelMtoYRecibeSuTicket() {
+        // Arrange
+        abrirBolsaDeLeche();
+
         // Act
         VentaResponse venta = vender("30", de(gaseosa, "2"), de(cafeConLeche, "1"));
 
-        // Assert: 2 gaseosas a 5 + 1 cafe a 8 = 18; el cafe bajo demanda no descuenta nada.
+        // Assert: 2 gaseosas a 5 + 1 cafe a 8 = 18; el cafe consume 200 ml de leche (VENTA-24).
         assertEquals(0, new BigDecimal("18").compareTo(venta.getTotal()));
         assertEquals(0, new BigDecimal("12").compareTo(venta.getCambio()));
         assertEquals("Completada", venta.getEstadoVenta().getNombre());
         assertNotNull(venta.getNumeroTicket());
         assertEquals(0, new BigDecimal("8").compareTo(escenario.stock(gaseosa)));
+        assertEquals(0, new BigDecimal("800").compareTo(escenario.stock(leche)));
+
+        // Un movimiento 'Venta' por la linea de gaseosas y otro por la existencia de leche.
+        List<Movimiento> salidas = movimientosDeLaVenta(venta.getId(), TipoMovimiento.VENTA);
+        assertEquals(2, salidas.size());
+        assertEquals(1, salidas.stream().filter(movimiento -> movimiento.getDetalleLoteId() != null).count());
+        assertEquals(1, salidas.stream().filter(movimiento -> movimiento.getExistenciaId() != null).count());
+    }
+
+    @Test
+    void sinLecheAbiertaLaVentaPideAbrirUnaBolsaYAlReintentarSeRegistraUnaSolaVez() {
+        // Act 1: nada abierto, pero hay 2 bolsas cerradas (VENTA-30).
+        DomainException error = assertThrows(DomainException.class, () -> vender("8", "pos-1", de(cafeConLeche, "1")));
+
+        // Assert 1
+        assertEquals(409, error.getCodigo());
+        assertEquals(RegistrarSalidaDeInventarioUseCase.APERTURA_REQUERIDA, error.getError());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> faltante = ((List<Map<String, Object>>) error.getDetalle().get("faltantes")).get(0);
+        assertEquals(leche, faltante.get("idProducto"));
+        assertEquals(1, faltante.get("bolsasNecesarias"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> bolsa = (Map<String, Object>) faltante.get("bolsaSugerida");
+        assertEquals(idDetalleBolsasDeLeche, bolsa.get("idDetalleLote"));
+        assertEquals(0, new BigDecimal("1000").compareTo((BigDecimal) bolsa.get("contenido")));
+
+        // Act 2: el cliente abre la bolsa sugerida y reintenta. Aqui toda la prueba es una sola
+        // transaccion y el intento rechazado no se revierte, asi que el reintento no reusa la clave:
+        // que la clave quede libre lo garantiza la reversion real de la venta (GENERAL-05).
+        abrirDetalleLoteUseCase.execute((String) bolsa.get("idDetalleLote"), AbrirDetalleLoteRequest.createFromRequest(Map.of(), usuario));
+        VentaResponse venta = vender("8", "pos-2", de(cafeConLeche, "1"));
+
+        // Assert 2
+        assertEquals("Completada", venta.getEstadoVenta().getNombre());
+        assertEquals(0, new BigDecimal("800").compareTo(escenario.stock(leche)));
     }
 
     @Test
@@ -122,7 +216,45 @@ class FlujoVentaYCajaIntegracionTest extends PruebaConBaseDeDatos {
 
         // Assert
         assertEquals(409, error.getCodigo());
+        assertEquals(RegistrarSalidaDeInventarioUseCase.STOCK_INSUFICIENTE, error.getError());
         assertTrue(error.getMensaje().startsWith("Stock insuficiente de 'Gaseosa'"));
+    }
+
+    @Test
+    void anularConReintegroDevuelveLaLecheALaMismaExistencia() {
+        // Arrange
+        abrirBolsaDeLeche();
+        VentaResponse venta = vender("16", de(cafeConLeche, "2"));
+
+        // Act
+        anularVentaUseCase.execute(venta.getId(),
+                AnularVentaRequest.createFromRequest(Map.of("motivo", "Pedido equivocado", "reintegrar", true), usuario));
+
+        // Assert (VENTA-25)
+        assertEquals(0, new BigDecimal("1000").compareTo(escenario.stock(leche)));
+        Movimiento salida = movimientosDeLaVenta(venta.getId(), TipoMovimiento.VENTA).get(0);
+        Movimiento reintegro = movimientosDeLaVenta(venta.getId(), TipoMovimiento.REINTEGRO).get(0);
+        assertEquals(salida.getExistenciaId().getValue(), reintegro.getExistenciaId().getValue());
+        assertEquals(0, salida.getCantidad().compareTo(reintegro.getCantidad()));
+    }
+
+    @Test
+    void anularUnaVentaDeUnTurnoCerradoDevuelveElEfectivoDesdeLaCajaAbierta() {
+        // Arrange: se vende en un turno que se cierra, y se abre otro.
+        VentaResponse venta = vender("10", de(gaseosa, "2"));
+        cerrarSesionCajaUseCase.execute(CerrarSesionCajaRequest.createFromRequest(Map.of("montoCierreDeclarado", "110"), usuario));
+        escenario.abrirCaja("50");
+
+        // Act
+        anularVentaUseCase.execute(venta.getId(), AnularVentaRequest.createFromRequest(Map.of("motivo", "Reclamo"), usuario));
+
+        // Assert (VENTA-27, SESIONCAJA-13)
+        List<MovimientoCaja> movimientos = sesionCajaRepository.obtenerAbierta().orElseThrow().getMovimientosActivos();
+        assertEquals(1, movimientos.size());
+        assertFalse(movimientos.get(0).esIngreso());
+        assertEquals(0, new BigDecimal("10").compareTo(movimientos.get(0).getMonto()));
+        assertEquals(venta.getId(), movimientos.get(0).getVentaId().getValue());
+        assertEquals("Devolucion del ticket " + venta.getNumeroTicket(), movimientos.get(0).getMotivo());
     }
 
     @Test

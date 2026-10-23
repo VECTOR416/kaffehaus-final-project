@@ -46,6 +46,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Repositories.IRecetaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.ValueObjects.RecetaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
 
 /**
@@ -135,26 +136,27 @@ class ProduccionUseCasesTest {
     }
 
     @Test
-    void consumeCadaIngredienteEscaladoALaCantidadEsperada() {
+    void consumeTodosLosIngredientesEscaladosEnUnaSolaSalida() {
         // Arrange: producir 20 con una receta que rinde 10 duplica los ingredientes.
-        ArgumentCaptor<RegistrarSalidaDeInventarioRequest> consumos = ArgumentCaptor.forClass(RegistrarSalidaDeInventarioRequest.class);
+        ArgumentCaptor<RegistrarSalidaDeInventarioRequest> consumo = ArgumentCaptor.forClass(RegistrarSalidaDeInventarioRequest.class);
 
         // Act
         crear.execute(produccion("20", "18"));
 
-        // Assert
-        verify(registrarSalidaDeInventarioUseCase, times(2)).execute(consumos.capture());
-        RegistrarSalidaDeInventarioRequest harina = consumos.getAllValues().get(0);
-        RegistrarSalidaDeInventarioRequest levadura = consumos.getAllValues().get(1);
-        assertEquals(ID_HARINA, harina.getIdProducto());
-        assertEquals(0, new BigDecimal("8").compareTo(harina.getCantidad()));
-        assertEquals(ID_LEVADURA, levadura.getIdProducto());
-        assertEquals(0, new BigDecimal("4").compareTo(levadura.getCantidad()));
-        assertTrue(harina.isExplotarBajoDemanda());
-        assertEquals(ID_PRODUCCION, harina.getIdProduccion());
-        assertEquals(ID_USUARIO, harina.getIdUsuario());
-        assertEquals(AHORA, harina.getFecha());
-        assertTrue(harina.getMotivo().startsWith("Consumo de la produccion"));
+        // Assert: una sola salida con todas las lineas, para un solo plan de consumo (GENERAL-14).
+        verify(registrarSalidaDeInventarioUseCase, times(1)).execute(consumo.capture());
+        RegistrarSalidaDeInventarioRequest salida = consumo.getValue();
+        assertEquals(2, salida.getLineas().size());
+        assertEquals(ID_HARINA, salida.getLineas().get(0).getIdProducto());
+        assertEquals(0, new BigDecimal("8").compareTo(salida.getLineas().get(0).getCantidad()));
+        assertEquals(ID_LEVADURA, salida.getLineas().get(1).getIdProducto());
+        assertEquals(0, new BigDecimal("4").compareTo(salida.getLineas().get(1).getCantidad()));
+        assertEquals(TipoMovimiento.PRODUCCION, salida.getTipoMovimiento());
+        assertEquals(ID_PRODUCCION, salida.getIdProduccion());
+        assertNull(salida.getIdVenta());
+        assertEquals(ID_USUARIO, salida.getIdUsuario());
+        assertEquals(AHORA, salida.getFecha());
+        assertTrue(salida.getMotivo().startsWith("Consumo de la produccion"));
     }
 
     @Test
@@ -187,7 +189,7 @@ class ProduccionUseCasesTest {
 
         // Assert
         assertEquals(new BigDecimal("-20.00"), respuesta.getDiferencia());
-        verify(registrarSalidaDeInventarioUseCase, times(2)).execute(any());
+        verify(registrarSalidaDeInventarioUseCase, times(1)).execute(any());
         verifyNoInteractions(loteRepository, recalcularStockUseCase);
     }
 

@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.Aggregates.MovimientoCaja;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 
 /** La FK id_sesion_caja la pone el datasource a partir de la raiz: la hija no la conoce. */
 public class MovimientoCajaJpaMapper {
@@ -19,6 +20,7 @@ public class MovimientoCajaJpaMapper {
         model.setTipo(movimiento.getTipo());
         model.setMonto(movimiento.getMonto());
         model.setMotivo(movimiento.getMotivo());
+        model.setIdVenta(movimiento.getVentaId() != null ? UUID.fromString(movimiento.getVentaId().getValue()) : null);
         model.setBorrado(movimiento.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
@@ -38,6 +40,7 @@ public class MovimientoCajaJpaMapper {
                 model.getMonto(),
                 model.getMotivo(),
                 model.getFecC() != null ? model.getFecC().toLocalDateTime() : null,
+                model.getIdVenta() != null ? new VentaId(model.getIdVenta().toString()) : null,
                 model.getBorrado() != null && model.getBorrado());
     }
 }

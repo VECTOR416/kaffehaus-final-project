@@ -1,7 +1,14 @@
 package com.maestria.kaffehausv4.Shared.Presentation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -13,6 +20,8 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.SystemException;
 import com.maestria.kaffehausv4.Shared.Presentation.GlobalExceptionHandler.ErrorResponse;
+
+import tools.jackson.databind.ObjectMapper;
 
 /** Pruebas unitarias de la traduccion de excepciones a respuestas HTTP. */
 class GlobalExceptionHandlerTest {
@@ -33,6 +42,54 @@ class GlobalExceptionHandlerTest {
         assertEquals("Domain Exception", respuesta.getBody().tipo());
         assertEquals("Stock insuficiente", respuesta.getBody().mensaje());
         assertNotNull(respuesta.getBody().timestamp());
+    }
+
+    @Test
+    void unErrorEstructuradoLlevaSuCodigoDeNegocioYSuDetalle() {
+        // Arrange: el detalle admite valores nulos y conserva el orden de sus claves (arquitectura.md 4.16).
+        Map<String, Object> bolsa = new LinkedHashMap<>();
+        bolsa.put("idDetalleLote", "d1");
+        bolsa.put("fechaVencimiento", null);
+        Map<String, Object> detalle = new LinkedHashMap<>();
+        detalle.put("faltantes", List.of(bolsa));
+        DomainException error = DomainException.throwException(409, "APERTURA_REQUERIDA", "Abre una presentacion", detalle);
+
+        // Act
+        ResponseEntity<ErrorResponse> respuesta = handler.handleDomainException(error);
+
+        // Assert
+        assertEquals(HttpStatus.CONFLICT, respuesta.getStatusCode());
+        assertEquals("APERTURA_REQUERIDA", respuesta.getBody().error());
+        assertEquals(detalle, respuesta.getBody().detalle());
+        assertThrows(UnsupportedOperationException.class, () -> error.getDetalle().put("otro", 1));
+    }
+
+    @Test
+    void unErrorSinCodigoDeNegocioNoEscribeErrorNiDetalleEnElJson() {
+        // Arrange
+        ErrorResponse cuerpo = handler.handleDomainException(DomainException.throwException(404, "No existe")).getBody();
+
+        // Act
+        String json = new ObjectMapper().writeValueAsString(cuerpo);
+
+        // Assert: el contrato de los errores existentes no cambia.
+        assertFalse(json.contains("\"error\""));
+        assertFalse(json.contains("\"detalle\""));
+        assertTrue(json.contains("\"mensaje\":\"No existe\""));
+    }
+
+    @Test
+    void unErrorEstructuradoEscribeErrorYDetalleEnElJson() {
+        // Arrange
+        ErrorResponse cuerpo = handler.handleDomainException(DomainException.throwException(
+                409, "STOCK_INSUFICIENTE", "Falta stock", Map.of("faltantes", List.of()))).getBody();
+
+        // Act
+        String json = new ObjectMapper().writeValueAsString(cuerpo);
+
+        // Assert
+        assertTrue(json.contains("\"error\":\"STOCK_INSUFICIENTE\""));
+        assertTrue(json.contains("\"detalle\":{\"faltantes\":[]}"));
     }
 
     @Test

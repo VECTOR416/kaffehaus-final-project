@@ -58,8 +58,8 @@ class MovimientoCrudUseCasesTest {
     }
 
     private static Movimiento registrado() {
-        return Movimiento.restaurar(ID, new BigDecimal("3.0000"), AHORA, "Conteo", new ExistenciaId(ID_EXISTENCIA),
-                new TipoMovimientoId(ID_TIPO_AJUSTE), new UsuarioId(ID_USUARIO), null, false);
+        return Movimiento.restaurar(ID, new BigDecimal("3.0000"), AHORA, "Conteo", new ExistenciaId(ID_EXISTENCIA), null,
+                new TipoMovimientoId(ID_TIPO_AJUSTE), new UsuarioId(ID_USUARIO), null, null, false);
     }
 
     private static Map<String, Object> alta() {
@@ -167,8 +167,8 @@ class MovimientoCrudUseCasesTest {
     void obtenerPorIdResponde404SiFaltaElMovimientoOSuTipo() {
         // Arrange
         ObtenerMovimientoPorIdUseCase useCase = new ObtenerMovimientoPorIdUseCase(movimientoRepository, tipoMovimientoRepository);
-        Movimiento conTipoBorrado = Movimiento.restaurar(ID, BigDecimal.ONE, AHORA, "x", new ExistenciaId(ID_EXISTENCIA),
-                new TipoMovimientoId("c5000000-0000-0000-0000-0000000000ee"), new UsuarioId(ID_USUARIO), null, false);
+        Movimiento conTipoBorrado = Movimiento.restaurar(ID, BigDecimal.ONE, AHORA, "x", new ExistenciaId(ID_EXISTENCIA), null,
+                new TipoMovimientoId("c5000000-0000-0000-0000-0000000000ee"), new UsuarioId(ID_USUARIO), null, null, false);
         when(movimientoRepository.obtenerPorId(any())).thenReturn(Optional.empty()).thenReturn(Optional.of(conTipoBorrado));
 
         // Act

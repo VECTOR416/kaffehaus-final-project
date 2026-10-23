@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Conversion.Domain.Aggregates.Conversion;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Domain.Aggregates.EstadoExistencia;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Domain.ValueObjects.EstadoExistenciaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.Aggregates.Existencia;
@@ -50,6 +51,8 @@ public final class DatosDePrueba {
     public static final String ID_TIPO_AJUSTE = "07000000-0000-0000-0000-000000000002";
     public static final String ID_TIPO_MERMA = "07000000-0000-0000-0000-000000000003";
     public static final String ID_TIPO_APERTURA = "07000000-0000-0000-0000-000000000004";
+    public static final String ID_TIPO_VENTA = "07000000-0000-0000-0000-000000000005";
+    public static final String ID_TIPO_REINTEGRO = "07000000-0000-0000-0000-000000000006";
 
     public static final LocalDateTime AHORA = LocalDateTime.of(2026, 10, 12, 9, 30);
     public static final LocalDate HOY = AHORA.toLocalDate();
@@ -60,6 +63,8 @@ public final class DatosDePrueba {
     public static final TipoMovimiento AJUSTE = TipoMovimiento.restaurar(ID_TIPO_AJUSTE, TipoMovimiento.AJUSTE, false);
     public static final TipoMovimiento MERMA = TipoMovimiento.restaurar(ID_TIPO_MERMA, TipoMovimiento.MERMA, false);
     public static final TipoMovimiento APERTURA = TipoMovimiento.restaurar(ID_TIPO_APERTURA, TipoMovimiento.APERTURA, false);
+    public static final TipoMovimiento VENTA = TipoMovimiento.restaurar(ID_TIPO_VENTA, TipoMovimiento.VENTA, false);
+    public static final TipoMovimiento REINTEGRO = TipoMovimiento.restaurar(ID_TIPO_REINTEGRO, TipoMovimiento.REINTEGRO, false);
     public static final Unidad UNIDAD = Unidad.restaurar(ID_UNIDAD, "Gramo", "g", false, false);
 
     // ------------------------------------------------------------------ personal
@@ -81,6 +86,12 @@ public final class DatosDePrueba {
     }
 
     /** Forma de compra de un producto base (una bolsa de 1 kg de harina, por ejemplo). */
+    /** Conversion viva de la unidad de las presentaciones (ID_OTRA_UNIDAD) a la del producto base. */
+    public static Conversion conversionDePresentacionABase(String factor) {
+        return Conversion.restaurar("0c000000-0000-0000-0000-000000000001", new BigDecimal(factor), true,
+                new UnidadId(ID_OTRA_UNIDAD), new UnidadId(ID_UNIDAD), false);
+    }
+
     public static Producto presentacion(String id, String nombre, String idProductoBase) {
         return producto(id, nombre, true, new ProductoId(idProductoBase), ID_OTRA_UNIDAD);
     }
@@ -144,7 +155,7 @@ public final class DatosDePrueba {
     /** Simula lo que hace la persistencia al guardar un movimiento: devolverlo con id. */
     public static Movimiento guardado(Movimiento movimiento, String id) {
         return Movimiento.restaurar(id, movimiento.getCantidad(), movimiento.getFechaMovimiento(), movimiento.getMotivo(),
-                movimiento.getExistenciaId(), movimiento.getTipoMovimientoId(), movimiento.getUsuarioId(),
-                movimiento.getProduccionId(), movimiento.isBorrado());
+                movimiento.getExistenciaId(), movimiento.getDetalleLoteId(), movimiento.getTipoMovimientoId(),
+                movimiento.getUsuarioId(), movimiento.getProduccionId(), movimiento.getVentaId(), movimiento.isBorrado());
     }
 }

@@ -1,9 +1,13 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases;
 
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.AJUSTE;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_OTRA_UNIDAD;
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_TIPO_AJUSTE;
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_TIPO_MERMA;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_PROVEEDOR;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_UNIDAD;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.ID_USUARIO;
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.MERMA;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.detalle;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.existencia;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.loteDeCompra;
@@ -55,9 +59,13 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repositories.ILoteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Repositories.IMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.Repositories.ITipoMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Domain.ValueObjects.PersonaId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Repositories.IProveedorRepository;
@@ -88,6 +96,8 @@ class LoteUseCasesTest {
     @Mock private IUsuarioRepository usuarioRepository;
     @Mock private IProductoRepository productoRepository;
     @Mock private IExistenciaRepository existenciaRepository;
+    @Mock private IMovimientoRepository movimientoRepository;
+    @Mock private ITipoMovimientoRepository tipoMovimientoRepository;
     @Mock private IConversionRepository conversionRepository;
     @Mock private RecalcularStockUseCase recalcularStockUseCase;
 
@@ -125,6 +135,8 @@ class LoteUseCasesTest {
                 detalle(ID_LINEA_CAFE, ID_CAFE, "10", "10", "12", null),
                 detalle(ID_LINEA_AZUCAR, ID_AZUCAR, "8", "8", "5", null));
         lenient().when(loteRepository.obtenerPorId(argThat(id -> id != null && ID_LOTE.equals(id.getValue())))).thenReturn(Optional.of(lote));
+        lenient().when(loteRepository.obtenerPorIdParaActualizar(argThat(id -> id != null && ID_LOTE.equals(id.getValue()))))
+                .thenReturn(Optional.of(lote));
         return lote;
     }
 
@@ -254,11 +266,25 @@ class LoteUseCasesTest {
 
         @BeforeEach
         void crearCasoDeUso() {
-            useCase = new ActualizarLoteUseCase(loteRepository, proveedorRepository, productoRepository, existenciaRepository, recalcularStockUseCase);
+            useCase = new ActualizarLoteUseCase(loteRepository, proveedorRepository, productoRepository, existenciaRepository,
+                    movimientoRepository, tipoMovimientoRepository, recalcularStockUseCase);
+            lenient().when(tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.MERMA)).thenReturn(Optional.of(MERMA));
+            lenient().when(tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.AJUSTE)).thenReturn(Optional.of(AJUSTE));
         }
 
         private ActualizarLoteRequest conLineas(List<Map<String, Object>> lineas) {
-            return ActualizarLoteRequest.createFromRequest(Map.of("detalles", lineas));
+            return ActualizarLoteRequest.createFromRequest(Map.of("detalles", lineas), ID_USUARIO);
+        }
+
+        /** Una correccion por conteo, con su motivo (logica.md LOTE-23). */
+        private ActualizarLoteRequest conteo(List<Map<String, Object>> lineas) {
+            return ActualizarLoteRequest.createFromRequest(Map.of("detalles", lineas, "motivo", "Conteo semanal"), ID_USUARIO);
+        }
+
+        private Movimiento movimientoRegistrado() {
+            ArgumentCaptor<Movimiento> captor = ArgumentCaptor.forClass(Movimiento.class);
+            verify(movimientoRepository).crear(captor.capture());
+            return captor.getValue();
         }
 
         @Test
@@ -267,7 +293,7 @@ class LoteUseCasesTest {
             hayLoteRegistrado();
 
             // Act
-            useCase.execute(ID_LOTE, ActualizarLoteRequest.createFromRequest(Map.of("fechaCompra", "2026-09-01")));
+            useCase.execute(ID_LOTE, ActualizarLoteRequest.createFromRequest(Map.of("fechaCompra", "2026-09-01"), ID_USUARIO));
 
             // Assert
             Lote guardado = loteGuardado();
@@ -392,15 +418,78 @@ class LoteUseCasesTest {
         }
 
         @Test
-        void ajustaLaCantidadRestanteDeUnaLinea() {
+        void contarMenosUnidadesAjustaLaLineaYRegistraUnaMerma() {
+            // Arrange: la linea de cafe tenia 10.
+            hayLoteRegistrado();
+
+            // Act
+            useCase.execute(ID_LOTE, conteo(List.of(Map.of("id", ID_LINEA_CAFE, "cantidadRestante", "6"), Map.of("id", ID_LINEA_AZUCAR))));
+
+            // Assert (LOTE-23)
+            assertEquals(new BigDecimal("6.00"), loteGuardado().obtenerDetalle(ID_LINEA_CAFE).getCantidadRestante());
+            Movimiento merma = movimientoRegistrado();
+            assertEquals(ID_TIPO_MERMA, merma.getTipoMovimientoId().getValue());
+            assertEquals(0, new BigDecimal("4").compareTo(merma.getCantidad()));
+            assertEquals(ID_LINEA_CAFE, merma.getDetalleLoteId().getValue());
+            assertEquals("Conteo semanal", merma.getMotivo());
+            assertEquals(ID_USUARIO, merma.getUsuarioId().getValue());
+        }
+
+        @Test
+        void contarMasUnidadesRegistraUnAjuste() {
+            // Arrange: la linea de cafe tiene 10 de 10; se baja antes a 7 para poder contar 9.
+            hayLoteRegistrado().ajustarCantidadRestante(ID_LINEA_CAFE, new BigDecimal("7"));
+
+            // Act
+            useCase.execute(ID_LOTE, conteo(List.of(Map.of("id", ID_LINEA_CAFE, "cantidadRestante", "9"), Map.of("id", ID_LINEA_AZUCAR))));
+
+            // Assert
+            Movimiento ajuste = movimientoRegistrado();
+            assertEquals(ID_TIPO_AJUSTE, ajuste.getTipoMovimientoId().getValue());
+            assertEquals(0, new BigDecimal("2").compareTo(ajuste.getCantidad()));
+        }
+
+        @Test
+        void corregirLaCantidadRestanteSinMotivoSeRechazaSinGuardar() {
             // Arrange
             hayLoteRegistrado();
 
             // Act
-            useCase.execute(ID_LOTE, conLineas(List.of(Map.of("id", ID_LINEA_CAFE, "cantidadRestante", "6"), Map.of("id", ID_LINEA_AZUCAR))));
+            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_LOTE,
+                    conLineas(List.of(Map.of("id", ID_LINEA_CAFE, "cantidadRestante", "6"), Map.of("id", ID_LINEA_AZUCAR)))));
 
             // Assert
-            assertEquals(new BigDecimal("6.00"), loteGuardado().obtenerDetalle(ID_LINEA_CAFE).getCantidadRestante());
+            assertEquals(400, error.getCodigo());
+            assertTrue(error.getMensaje().contains("'motivo'"));
+            verify(loteRepository, never()).actualizar(any(), any());
+            verify(movimientoRepository, never()).crear(any());
+        }
+
+        @Test
+        void unConteoQueCoincideNoExigeMotivoNiRegistraMovimiento() {
+            // Arrange
+            hayLoteRegistrado();
+
+            // Act
+            useCase.execute(ID_LOTE, conLineas(List.of(Map.of("id", ID_LINEA_CAFE, "cantidadRestante", "10"), Map.of("id", ID_LINEA_AZUCAR))));
+
+            // Assert
+            verify(movimientoRepository, never()).crear(any());
+        }
+
+        @Test
+        void elLoteSeBloqueaPorSuRaizAntesDeLeerlo() {
+            // Arrange
+            hayLoteRegistrado();
+
+            // Act
+            useCase.execute(ID_LOTE, conteo(List.of(Map.of("id", ID_LINEA_CAFE, "cantidadRestante", "6"), Map.of("id", ID_LINEA_AZUCAR))));
+
+            // Assert
+            // LOTE-27: se lee una sola vez, con el bloqueo del agregado tomado.
+            verify(loteRepository).obtenerPorIdParaActualizar(argThat(id -> ID_LOTE.equals(id.getValue())));
+            verify(loteRepository, never()).obtenerPorId(any());
+            verify(loteRepository, never()).obtenerPorDetalleIdParaActualizar(any());
         }
 
         @Test
@@ -437,7 +526,7 @@ class LoteUseCasesTest {
 
             // Act
             DomainException error = assertThrows(DomainException.class,
-                    () -> useCase.execute(ID_LOTE, ActualizarLoteRequest.createFromRequest(Map.of("idProveedor", ID_INEXISTENTE))));
+                    () -> useCase.execute(ID_LOTE, ActualizarLoteRequest.createFromRequest(Map.of("idProveedor", ID_INEXISTENTE), ID_USUARIO)));
 
             // Assert
             assertEquals(404, error.getCodigo());
@@ -447,12 +536,12 @@ class LoteUseCasesTest {
         @Test
         void unLoteDeProduccionNoAdmiteProveedor() {
             // Arrange
-            when(loteRepository.obtenerPorId(any())).thenReturn(Optional.of(loteDeProduccion(ID_LOTE, "e7000000-0000-0000-0000-0000000000b9",
+            when(loteRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.of(loteDeProduccion(ID_LOTE, "e7000000-0000-0000-0000-0000000000b9",
                     detalle(ID_LINEA_CAFE, ID_CAFE, "10", "0", "3", null))));
 
             // Act
             DomainException error = assertThrows(DomainException.class,
-                    () -> useCase.execute(ID_LOTE, ActualizarLoteRequest.createFromRequest(Map.of("idProveedor", ID_PROVEEDOR))));
+                    () -> useCase.execute(ID_LOTE, ActualizarLoteRequest.createFromRequest(Map.of("idProveedor", ID_PROVEEDOR), ID_USUARIO)));
 
             // Assert
             assertEquals(400, error.getCodigo());
@@ -461,11 +550,11 @@ class LoteUseCasesTest {
         @Test
         void unLoteInexistenteRespondeNoEncontrado() {
             // Arrange
-            when(loteRepository.obtenerPorId(any())).thenReturn(Optional.empty());
+            when(loteRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.empty());
 
             // Act
             DomainException error = assertThrows(DomainException.class,
-                    () -> useCase.execute(ID_LOTE, ActualizarLoteRequest.createFromRequest(Map.of())));
+                    () -> useCase.execute(ID_LOTE, ActualizarLoteRequest.createFromRequest(Map.of(), ID_USUARIO)));
 
             // Assert
             assertEquals(404, error.getCodigo());
@@ -512,7 +601,7 @@ class LoteUseCasesTest {
         void eliminarUnLoteInexistenteRespondeNoEncontrado() {
             // Arrange
             EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository, recalcularStockUseCase);
-            when(loteRepository.obtenerPorId(any())).thenReturn(Optional.empty());
+            when(loteRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.empty());
 
             // Act
             DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_LOTE));

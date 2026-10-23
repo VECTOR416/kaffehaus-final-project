@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 import com.maestria.kaffehausv4.Shared.Domain.Error.BaseException;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Shared.Presentation.GlobalExceptionHandler.ErrorResponse;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -43,8 +44,15 @@ public class EscritorDeErrorHttp {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 
+        DomainException estructurado = ex instanceof DomainException domainException ? domainException : null;
         objectMapper.writeValue(
                 response.getOutputStream(),
-                new ErrorResponse(ex.getCodigo(), ex.getTipo(), ex.getMensaje(), OffsetDateTime.now()));
+                new ErrorResponse(
+                        ex.getCodigo(),
+                        ex.getTipo(),
+                        estructurado != null ? estructurado.getError() : null,
+                        ex.getMensaje(),
+                        estructurado != null ? estructurado.getDetalle() : null,
+                        OffsetDateTime.now()));
     }
 }

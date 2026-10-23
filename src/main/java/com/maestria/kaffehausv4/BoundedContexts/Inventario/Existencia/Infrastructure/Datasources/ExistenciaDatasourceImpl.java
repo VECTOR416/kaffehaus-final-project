@@ -144,6 +144,12 @@ public class ExistenciaDatasourceImpl implements IExistenciaDatasource {
                 .map(ExistenciaJpaMapper::toDomain);
     }
 
+    @Override
+    public Optional<DetalleLoteId> obtenerDetalleLoteDe(ExistenciaId existenciaId) {
+        return existenciaJpaRepository.findDetalleLoteByIdAndBorradoFalse(aUuid(existenciaId.getValue()))
+                .map(proyeccion -> new DetalleLoteId(proyeccion.getIdDetalleLote().toString()));
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

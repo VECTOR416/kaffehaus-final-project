@@ -37,4 +37,7 @@ public interface IExistenciaDatasource {
 
     /** Lectura con bloqueo de una existencia. */
     Optional<Existencia> obtenerPorIdParaActualizar(ExistenciaId existenciaId);
+
+    /** La linea de lote de una existencia viva, sin cargar la existencia en el contexto de persistencia. */
+    Optional<DetalleLoteId> obtenerDetalleLoteDe(ExistenciaId existenciaId);
 }

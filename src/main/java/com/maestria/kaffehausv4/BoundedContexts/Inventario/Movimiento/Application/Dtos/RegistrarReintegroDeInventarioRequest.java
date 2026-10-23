@@ -1,46 +1,34 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos;
 
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.time.LocalDateTime;
 
 /**
  * Entrada de RegistrarReintegroDeInventarioUseCase. No viaja por HTTP: la arma la anulacion de
  * una venta, por eso su factoria es crear(...).
  *
- * Lleva lo que desconto cada linea de la venta: el producto y su cantidad (logica.md VENTA-22).
+ * Solo lleva la venta: lo que se devuelve sale de sus movimientos 'Venta', no de sus lineas
+ * (logica.md VENTA-25).
  */
 public class RegistrarReintegroDeInventarioRequest {
-    private List<Linea> lineas;
+    private final String idVenta;
+    private final String idUsuario;
+    private final String motivo;
+    private final LocalDateTime fecha;
 
-    private RegistrarReintegroDeInventarioRequest(List<Linea> lineas) {
-        this.lineas = lineas;
+    private RegistrarReintegroDeInventarioRequest(String idVenta, String idUsuario, String motivo, LocalDateTime fecha) {
+        this.idVenta = idVenta;
+        this.idUsuario = idUsuario;
+        this.motivo = motivo;
+        this.fecha = fecha;
     }
 
-    public static RegistrarReintegroDeInventarioRequest crear() {
-        return new RegistrarReintegroDeInventarioRequest(new ArrayList<>());
+    /** 'idUsuario' es quien anula; 'fecha', el momento de la anulacion. */
+    public static RegistrarReintegroDeInventarioRequest crear(String idVenta, String idUsuario, String motivo, LocalDateTime fecha) {
+        return new RegistrarReintegroDeInventarioRequest(idVenta, idUsuario, motivo, fecha != null ? fecha : LocalDateTime.now());
     }
 
-    /** Agrega la cantidad de un producto a devolver. */
-    public RegistrarReintegroDeInventarioRequest con(String idProducto, BigDecimal cantidad) {
-        this.lineas.add(new Linea(idProducto, cantidad));
-        return this;
-    }
-
-    public List<Linea> getLineas() {return Collections.unmodifiableList(lineas);}
-
-    /** Un producto y la cantidad que vuelve a sus lineas de lote. */
-    public static final class Linea {
-        private final String idProducto;
-        private final BigDecimal cantidad;
-
-        private Linea(String idProducto, BigDecimal cantidad) {
-            this.idProducto = idProducto;
-            this.cantidad = cantidad;
-        }
-
-        public String getIdProducto() {return idProducto;}
-        public BigDecimal getCantidad() {return cantidad;}
-    }
+    public String getIdVenta() {return idVenta;}
+    public String getIdUsuario() {return idUsuario;}
+    public String getMotivo() {return motivo;}
+    public LocalDateTime getFecha() {return fecha;}
 }

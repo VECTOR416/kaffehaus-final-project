@@ -16,6 +16,9 @@ import jakarta.persistence.LockModeType;
 public interface ExistenciaJpaRepository extends JpaRepository<ExistenciaJpaModel, UUID>{
 
     Optional<ExistenciaJpaModel> findByIdAndBorradoFalse(UUID id);
+
+    // Solo la linea de lote, sin cargar la fila (ver ExistenciaDetalleLoteProyeccion).
+    Optional<ExistenciaDetalleLoteProyeccion> findDetalleLoteByIdAndBorradoFalse(UUID id);
     Page<ExistenciaJpaModel> findByBorradoFalse(Pageable pageable);
 
     // Orden FEFO. En PostgreSQL un ASC deja los NULL al final: lo que no vence se usa ultimo.

@@ -108,8 +108,8 @@ public class Existencia {
     }
 
     /**
-     * Descuenta contenido por el consumo de una receta o por la merma de un pesaje (logica.md
-     * MOVIMIENTO-18, EXISTENCIA-16). Nunca deja el contenido en negativo; al agotarse registra la
+     * Descuenta contenido por el consumo de una produccion o de una venta, o por la merma de un
+     * pesaje (logica.md MOVIMIENTO-19, EXISTENCIA-16). Nunca deja el contenido en negativo; al agotarse registra la
      * fecha en que se acabo y pasa al estado de agotada que indica quien consume, que registra
      * ademas el movimiento que explica el consumo.
      */
@@ -133,19 +133,32 @@ public class Existencia {
 
     /**
      * Suma contenido por el ajuste de un pesaje, cuando en la realidad hay mas de lo que dice el
-     * sistema (logica.md EXISTENCIA-16). Nunca supera lo que cabia al abrirla. Es la unica
-     * operacion que revive una existencia agotada (EXISTENCIA-15): vuelve al estado abierta que
-     * indica quien la rellena y pierde su fecha de acabado.
+     * sistema (logica.md EXISTENCIA-16). Nunca supera lo que cabia al abrirla. Junto con el
+     * reintegro, es la unica operacion que revive una existencia agotada (EXISTENCIA-15): vuelve al
+     * estado abierta que indica quien la rellena y pierde su fecha de acabado.
      */
     public void rellenar(BigDecimal cantidad, EstadoExistenciaId estadoAbierta) {
+        sumarContenido(cantidad, estadoAbierta, "rellenar", "El ajuste");
+    }
+
+    /**
+     * Devuelve el contenido que una venta anulada desconto de esta existencia (logica.md
+     * EXISTENCIA-19), aunque ya este vencida. Como vuelve lo que salio, solo supera el contenido
+     * inicial si un pesaje posterior la relleno (409). Revive una existencia agotada.
+     */
+    public void reintegrar(BigDecimal cantidad, EstadoExistenciaId estadoAbierta) {
+        sumarContenido(cantidad, estadoAbierta, "reintegrar", "El reintegro");
+    }
+
+    private void sumarContenido(BigDecimal cantidad, EstadoExistenciaId estadoAbierta, String verbo, String operacion) {
         if (cantidad == null || cantidad.signum() <= 0) {
-            throw DomainException.throwException(400, "La cantidad a rellenar de la existencia debe ser mayor a cero");
+            throw DomainException.throwException(400, "La cantidad a " + verbo + " de la existencia debe ser mayor a cero");
         }
 
         BigDecimal nuevo = this.contenidoActual.add(cantidad).setScale(ESCALA, RoundingMode.HALF_UP);
         if (nuevo.compareTo(this.contenidoInicial) > 0) {
             throw DomainException.throwException(409,
-                    "El ajuste supera el contenido inicial de la existencia con id '" + this.id.getValue() + "'");
+                    operacion + " supera el contenido inicial de la existencia con id '" + this.id.getValue() + "'");
         }
 
         boolean estabaAgotada = isAgotada();

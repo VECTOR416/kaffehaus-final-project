@@ -6,9 +6,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-
-import jakarta.persistence.LockModeType;
 
 /**
  * Repositorio JPA de las lineas de lote. Vive en el slice de Lote porque las lineas se leen y
@@ -21,8 +18,8 @@ import jakarta.persistence.LockModeType;
  * toda la pagina en una sola consulta en lugar de una por lote. findByIdProductoInAndBorradoFalse
  * localiza las lineas de un insumo base y de sus presentaciones.
  *
- * readByIdAndBorradoFalse es la misma consulta que findByIdAndBorradoFalse con SELECT ... FOR
- * UPDATE; el prefijo 'read' solo la distingue (inventario.md INV-52).
+ * Las lineas no se bloquean por separado: se bloquea el agregado por su raiz
+ * (LoteJpaRepository.readBy..., logica.md LOTE-27) y despues se leen sus lineas.
  */
 public interface DetalleLoteJpaRepository extends JpaRepository<DetalleLoteJpaModel, UUID>{
 
@@ -31,6 +28,9 @@ public interface DetalleLoteJpaRepository extends JpaRepository<DetalleLoteJpaMo
     List<DetalleLoteJpaModel> findByIdLoteInAndBorradoFalse(Collection<UUID> idsLote);
     List<DetalleLoteJpaModel> findByIdProductoInAndBorradoFalse(Collection<UUID> idsProducto);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<DetalleLoteJpaModel> readByIdAndBorradoFalse(UUID id);
+    // Lineas completas sin cargarlas en el contexto de persistencia (ver DetalleLoteLecturaProyeccion).
+    List<DetalleLoteLecturaProyeccion> findLecturaByIdProductoInAndBorradoFalse(Collection<UUID> idsProducto);
+    List<DetalleLoteLecturaProyeccion> findLecturaByIdLoteInAndBorradoFalse(Collection<UUID> idsLote);
+
+    Optional<DetalleLoteLecturaProyeccion> findLecturaByIdAndBorradoFalse(UUID id);
 }

@@ -349,21 +349,6 @@ class LoteTest {
     }
 
     @Test
-    void lasUnidadesVuelvenALasLineasConEspacioAunqueEstenVencidas() {
-        List<Lote> lotes = List.of(
-                loteDeCafe("a1111111-1111-1111-1111-111111111111", LocalDateTime.of(2026, 9, 1, 8, 0),
-                        "d1111111-1111-1111-1111-111111111111", null, "5.00"),
-                loteDeCafe("a4444444-4444-4444-4444-444444444444", LocalDateTime.of(2026, 9, 4, 8, 0),
-                        "d4444444-4444-4444-4444-444444444444", LocalDate.of(2026, 9, 1), "3.00"));
-
-        List<DetalleLote> orden = Lote.conEspacioEnOrden(lotes, PRODUCTO_CAFE);
-
-        assertEquals(List.of("d4444444-4444-4444-4444-444444444444"),
-                orden.stream().map(detalle -> detalle.getId().getValue()).toList());
-        assertEquals(new BigDecimal("2.00"), orden.get(0).espacioDisponible());
-    }
-
-    @Test
     void descontarYDevolverUnidadesMuevenLasDisponiblesSinTocarElTotal() {
         Lote lote = lotePersistido();
 

@@ -25,7 +25,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseC
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.ObtenerMovimientosRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Repositories.IMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.Repositories.ITipoMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.Soporte.EscenarioDeCafeteria;
 import com.maestria.kaffehausv4.Soporte.PruebaConBaseDeDatos;
 
@@ -39,6 +44,8 @@ class LoteDatasourceImplIntegracionTest extends PruebaConBaseDeDatos {
     @Autowired private ILoteRepository loteRepository;
     @Autowired private ActualizarLoteUseCase actualizarLoteUseCase;
     @Autowired private EliminarLoteUseCase eliminarLoteUseCase;
+    @Autowired private IMovimientoRepository movimientoRepository;
+    @Autowired private ITipoMovimientoRepository tipoMovimientoRepository;
 
     private String gaseosa;
     private String agua;
@@ -82,7 +89,7 @@ class LoteDatasourceImplIntegracionTest extends PruebaConBaseDeDatos {
         datos.put("detalles", List.of(corregida, nueva));
 
         // Act: se corrige la gaseosa, se agrega otra linea de agua y la de agua original queda fuera.
-        LoteResponse actualizado = actualizarLoteUseCase.execute(compra.getId(), ActualizarLoteRequest.createFromRequest(datos));
+        LoteResponse actualizado = actualizarLoteUseCase.execute(compra.getId(), ActualizarLoteRequest.createFromRequest(datos, escenario.usuario()));
 
         // Assert
         Set<String> ids = actualizado.getDetalles().stream().map(DetalleLoteResponse::getId).collect(Collectors.toSet());
@@ -121,5 +128,48 @@ class LoteDatasourceImplIntegracionTest extends PruebaConBaseDeDatos {
         // Assert
         assertEquals(1, deGaseosa.size());
         assertEquals(gaseosa, deGaseosa.get(0).getDetallesActivos().get(0).getProductoId().getValue());
+    }
+
+    @Test
+    void laLecturaSinCargarReconstruyeLosMismosLotesQueLaLecturaNormal() {
+        // Arrange
+        LoteResponse compra = escenario.comprar(proveedor, linea(gaseosa, "10", "2", null), linea(agua, "6", "1.5", null));
+
+        // Act (arquitectura.md 5.7)
+        List<Lote> sinCargar = loteRepository.obtenerPorProductosSinCargar(List.of(new ProductoId(gaseosa)));
+
+        // Assert: el lote entero, con sus dos lineas, su total y su origen.
+        assertEquals(1, sinCargar.size());
+        Lote lote = sinCargar.get(0);
+        assertEquals(compra.getId(), lote.getId().getValue());
+        assertEquals(new BigDecimal("29.00"), lote.getTotal());
+        assertEquals(proveedor, lote.getProveedorId().getValue());
+        assertEquals(2, lote.getDetallesActivos().size());
+        assertEquals(0, new BigDecimal("10").compareTo(lote.obtenerDetalle(idDeLaLinea(compra, gaseosa)).getCantidadRestante()));
+    }
+
+    @Test
+    void contarMenosUnidadesEnElPutDejaUnaMermaSobreLaLinea() {
+        // Arrange
+        LoteResponse compra = escenario.comprar(proveedor, linea(gaseosa, "10", "2", null));
+        String idGaseosa = idDeLaLinea(compra, gaseosa);
+        Map<String, Object> datos = new HashMap<>();
+        datos.put("motivo", "Conteo de fin de mes");
+        datos.put("detalles", List.of(Map.of("id", idGaseosa, "cantidadRestante", "7")));
+
+        // Act (logica.md LOTE-23)
+        actualizarLoteUseCase.execute(compra.getId(), ActualizarLoteRequest.createFromRequest(datos, escenario.usuario()));
+
+        // Assert
+        assertEquals(0, new BigDecimal("7").compareTo(escenario.stock(gaseosa)));
+        List<Movimiento> merma = movimientoRepository.obtenerTodos(ObtenerMovimientosRequest.createFromRequest(Map.of()))
+                .getData().stream()
+                .filter(movimiento -> movimiento.getDetalleLoteId() != null && idGaseosa.equals(movimiento.getDetalleLoteId().getValue()))
+                .toList();
+        assertEquals(1, merma.size());
+        assertEquals(tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.MERMA).orElseThrow().getId().getValue(),
+                merma.get(0).getTipoMovimientoId().getValue());
+        assertEquals(0, new BigDecimal("3").compareTo(merma.get(0).getCantidad()));
+        assertEquals("Conteo de fin de mes", merma.get(0).getMotivo());
     }
 }

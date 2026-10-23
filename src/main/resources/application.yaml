@@ -7,11 +7,18 @@ spring:
     password: postgrespassword
     driver-class-name: org.postgresql.Driver
   jpa:
+    # El script de esquema corre despues de que Hibernate crea o amplia las tablas.
+    defer-datasource-initialization: true
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  # Objetos del esquema que no salen de las entidades (arquitectura.md 4.20). Idempotente.
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/esquema-postgresql.sql
 
 server:
   port: ${SERVER_PORT:8081}

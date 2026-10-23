@@ -221,16 +221,6 @@ public class Lote {
     }
 
     /**
-     * Lineas a las que vuelven las unidades de una venta anulada, en el mismo orden (logica.md
-     * LOTE-18): de lotes vivos y con espacio hasta su cantidad inicial, vencidas o no.
-     */
-    public static List<DetalleLote> conEspacioEnOrden(List<Lote> lotes, ProductoId productoId) {
-        return lineasEnOrden(lotes, productoId).stream()
-                .filter(detalle -> detalle.espacioDisponible().signum() > 0)
-                .collect(Collectors.toList());
-    }
-
-    /**
      * Lineas vivas de un producto en lotes vivos, en el orden de logica.md LOTE-09: primero la que
      * vence antes (sin vencimiento, al final), despues la del lote mas antiguo y, como desempate
      * estable, la de menor id.
@@ -262,7 +252,10 @@ public class Lote {
         detalleVivo(detalleLoteId).descontar(cantidad);
     }
 
-    /** Devuelve unidades a una linea viva por el reintegro de una venta anulada (logica.md LOTE-18). */
+    /**
+     * Devuelve a una linea viva las unidades que una venta anulada desconto de ella (logica.md
+     * LOTE-24), aunque este vencida.
+     */
     public void devolverUnidades(String detalleLoteId, BigDecimal cantidad) {
         if (this.borrado) {
             throw DomainException.throwException(409, "No se pueden devolver unidades a un lote dado de baja");

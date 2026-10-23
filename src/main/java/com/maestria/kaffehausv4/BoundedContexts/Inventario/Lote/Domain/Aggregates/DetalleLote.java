@@ -172,7 +172,7 @@ public class DetalleLote {
         this.cantidadRestante = aEscala(this.cantidadRestante.subtract(descuento));
     }
 
-    /** Devuelve unidades a la linea sin superar lo comprado o producido (logica.md LOTE-18). */
+    /** Devuelve unidades a la linea sin superar lo comprado o producido (logica.md LOTE-24). */
     void devolver(BigDecimal cantidad) {
         if (cantidad == null || cantidad.signum() <= 0) {
             throw DomainException.throwException(400, "La cantidad a devolver al detalle de lote debe ser mayor a cero");

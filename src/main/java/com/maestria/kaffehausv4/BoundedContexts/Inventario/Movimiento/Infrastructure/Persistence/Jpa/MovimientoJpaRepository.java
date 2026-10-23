@@ -15,4 +15,6 @@ public interface MovimientoJpaRepository extends JpaRepository<MovimientoJpaMode
     Page<MovimientoJpaModel> findByBorradoFalse(Pageable pageable);
     Page<MovimientoJpaModel> findByBorradoFalseAndMotivoContainingIgnoreCase(String motivo, Pageable pageable);
     List<MovimientoJpaModel> findByIdExistenciaInAndBorradoFalse(Collection<UUID> idsExistencia);
+
+    List<MovimientoJpaModel> findByIdVentaAndBorradoFalseOrderByIdAsc(UUID idVenta);
 }

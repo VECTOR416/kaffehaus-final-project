@@ -70,7 +70,8 @@ public class SembrarSistemaUseCase {
     static final String CONTRASENA_ADMINISTRADOR = "admin";
 
     private static final List<String> ROLES = List.of("Administrador", "Operador");
-    private static final List<String> TIPOS_MOVIMIENTO = List.of(TipoMovimiento.PRODUCCION, TipoMovimiento.AJUSTE, TipoMovimiento.MERMA, TipoMovimiento.APERTURA);
+    private static final List<String> TIPOS_MOVIMIENTO = List.of(TipoMovimiento.PRODUCCION, TipoMovimiento.AJUSTE, TipoMovimiento.MERMA, TipoMovimiento.APERTURA,
+            TipoMovimiento.VENTA, TipoMovimiento.REINTEGRO, TipoMovimiento.VENCIMIENTO);
     private static final List<String> ESTADOS_EXISTENCIA = List.of("Abierta", "Agotada");
     private static final List<String> ESTADOS_VENTA = List.of("Completada", "Anulada");
     private static final List<String> TIPOS_DESCUENTO = List.of("Porcentaje", "Monto fijo");

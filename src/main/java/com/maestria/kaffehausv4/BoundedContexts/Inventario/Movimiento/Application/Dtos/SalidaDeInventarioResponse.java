@@ -3,9 +3,8 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Applicati
 import java.util.List;
 
 /**
- * Resultado de una salida de inventario: los movimientos registrados al consumir existencias.
- * Las unidades descontadas de lotes no generan movimiento (logica.md MOVIMIENTO-18), y la salida
- * no calcula dinero (GENERAL-11).
+ * Resultado de una salida de inventario: un movimiento por cada existencia o linea de lote que
+ * toco (logica.md MOVIMIENTO-19, MOVIMIENTO-20). La salida no calcula dinero (GENERAL-11).
  */
 public class SalidaDeInventarioResponse {
     private List<MovimientoResponse> movimientos;
