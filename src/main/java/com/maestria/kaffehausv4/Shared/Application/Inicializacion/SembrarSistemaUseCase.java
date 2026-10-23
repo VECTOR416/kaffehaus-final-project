@@ -70,7 +70,7 @@ public class SembrarSistemaUseCase {
     static final String CONTRASENA_ADMINISTRADOR = "admin";
 
     private static final List<String> ROLES = List.of("Administrador", "Operador");
-    private static final List<String> TIPOS_MOVIMIENTO = List.of(TipoMovimiento.RECETA, TipoMovimiento.AJUSTE, TipoMovimiento.MERMA);
+    private static final List<String> TIPOS_MOVIMIENTO = List.of(TipoMovimiento.PRODUCCION, TipoMovimiento.AJUSTE, TipoMovimiento.MERMA, TipoMovimiento.APERTURA);
     private static final List<String> ESTADOS_EXISTENCIA = List.of("Abierta", "Agotada");
     private static final List<String> ESTADOS_VENTA = List.of("Completada", "Anulada");
     private static final List<String> TIPOS_DESCUENTO = List.of("Porcentaje", "Monto fijo");
@@ -158,7 +158,7 @@ public class SembrarSistemaUseCase {
         sembrarCatalogo(bitacora, "Tipo de producto", TIPOS_PRODUCTO, tipoRepository::obtenerPorNombre,
                 nombre -> tipoRepository.crear(Tipo.crear(nombre)));
         sembrarCatalogo(bitacora, "Categoria", CATEGORIAS, categoriaRepository::obtenerPorNombre,
-                nombre -> categoriaRepository.crear(Categoria.crear(nombre, true)));
+                nombre -> categoriaRepository.crear(Categoria.crear(nombre, false)));
 
         for (String[] unidad : UNIDADES) {
             asegurar(bitacora, "Unidad '" + unidad[0] + "'", () -> unidadRepository.obtenerPorNombre(unidad[0]),

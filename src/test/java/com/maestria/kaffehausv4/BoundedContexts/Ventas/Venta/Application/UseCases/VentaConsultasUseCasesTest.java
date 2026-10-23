@@ -94,7 +94,7 @@ class VentaConsultasUseCasesTest {
         Venta venta = Venta.restaurar(ID_VENTA, 42L, AHORA, new BigDecimal("20.00"), new UsuarioId(ID_USUARIO), new ClienteId(idCliente),
                 new SesionCajaId("0e300000-0000-0000-0000-000000000001"), estado.getId(), null, null, null, false,
                 new ArrayList<>(List.of(DetalleVenta.restaurar("0e400000-0000-0000-0000-000000000001", new ProductoId("0e500000-0000-0000-0000-000000000001"),
-                        new BigDecimal("10.00"), new BigDecimal("2"), new BigDecimal("20.00"), new BigDecimal("0.00"), new BigDecimal("8.0000"), true, false))),
+                        new BigDecimal("10.00"), new BigDecimal("2"), new BigDecimal("20.00"), new BigDecimal("0.00"), true, false))),
                 new ArrayList<>(List.of(PagoVenta.restaurar("0e600000-0000-0000-0000-000000000001", new TipoPagoId(ID_EFECTIVO),
                         new BigDecimal("20.00"), new BigDecimal("50.00"), new BigDecimal("30.00"), null, false))));
         lenient().when(ventaRepository.obtenerPorId(argThat(id -> id != null && ID_VENTA.equals(id.getValue())))).thenReturn(Optional.of(venta));
@@ -224,7 +224,6 @@ class VentaConsultasUseCasesTest {
         assertEquals(1, respuesta.getDetalles().size());
         assertEquals(1, respuesta.getPagos().size());
         assertEquals(new BigDecimal("30.00"), respuesta.getCambio());
-        assertEquals(0, new BigDecimal("8").compareTo(respuesta.getCostoTotal()));
         assertEquals(404, error.getCodigo());
     }
 

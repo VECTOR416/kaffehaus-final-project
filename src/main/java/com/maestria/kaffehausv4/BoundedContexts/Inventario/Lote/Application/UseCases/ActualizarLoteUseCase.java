@@ -17,6 +17,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregate
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Repositories.IProveedorRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
@@ -40,16 +42,19 @@ public class ActualizarLoteUseCase {
     private final IProveedorRepository proveedorRepository;
     private final IProductoRepository productoRepository;
     private final IExistenciaRepository existenciaRepository;
+    private final RecalcularStockUseCase recalcularStockUseCase;
 
     public ActualizarLoteUseCase(
             ILoteRepository loteRepository,
             IProveedorRepository proveedorRepository,
             IProductoRepository productoRepository,
-            IExistenciaRepository existenciaRepository) {
+            IExistenciaRepository existenciaRepository,
+            RecalcularStockUseCase recalcularStockUseCase) {
         this.loteRepository = loteRepository;
         this.proveedorRepository = proveedorRepository;
         this.productoRepository = productoRepository;
         this.existenciaRepository = existenciaRepository;
+        this.recalcularStockUseCase = recalcularStockUseCase;
     }
 
     public LoteResponse execute(String loteId, ActualizarLoteRequest actualizarLoteRequest) {
@@ -77,6 +82,8 @@ public class ActualizarLoteUseCase {
         lote.validarRegistrable();
 
         Lote loteActualizado = loteRepository.actualizar(id, lote);
+        // Corregir o dar de baja lineas cambia el stock de sus productos (logica.md PRODUCTO-16).
+        CrearLoteUseCase.productosDe(loteActualizado).forEach(recalcularStockUseCase::execute);
 
         return LoteResponse.createFromAggregate(loteActualizado);
     }
@@ -119,8 +126,9 @@ public class ActualizarLoteUseCase {
         }
 
         ProductoId productoId = new ProductoId(detalle.getIdProducto());
-        productoRepository.obtenerPorId(productoId)
+        Producto producto = productoRepository.obtenerPorId(productoId)
                 .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + detalle.getIdProducto() + "' no existe"));
+        CrearLoteUseCase.exigirQueSeCompre(producto, productoRepository);
 
         lote.agregarDetalle(
                 productoId,

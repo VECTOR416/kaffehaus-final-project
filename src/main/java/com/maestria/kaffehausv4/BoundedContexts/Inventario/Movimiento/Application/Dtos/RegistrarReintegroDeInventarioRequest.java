@@ -1,44 +1,46 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Entrada de RegistrarReintegroDeInventarioUseCase. No viaja por HTTP: la arma la anulacion de
  * una venta, por eso su factoria es crear(...).
  *
- * 'motivoOrigen' identifica los movimientos a compensar (los de la venta citan
- * "Venta '<id>'"); solo las salidas de la venta llevan ese motivo, y todas se reintegran.
+ * Lleva lo que desconto cada linea de la venta: el producto y su cantidad (logica.md VENTA-22).
  */
 public class RegistrarReintegroDeInventarioRequest {
-    private String motivoOrigen;
-    private String motivoReintegro;
-    private String idUsuario;
-    private LocalDateTime fecha;
+    private List<Linea> lineas;
 
-    private RegistrarReintegroDeInventarioRequest(
-        String motivoOrigen,
-        String motivoReintegro,
-        String idUsuario,
-        LocalDateTime fecha
-    ) {
-        this.motivoOrigen = motivoOrigen;
-        this.motivoReintegro = motivoReintegro;
-        this.idUsuario = idUsuario;
-        this.fecha = fecha;
+    private RegistrarReintegroDeInventarioRequest(List<Linea> lineas) {
+        this.lineas = lineas;
     }
 
-    public static RegistrarReintegroDeInventarioRequest crear(
-        String motivoOrigen,
-        String motivoReintegro,
-        String idUsuario,
-        LocalDateTime fecha
-    ) {
-        return new RegistrarReintegroDeInventarioRequest(
-                motivoOrigen, motivoReintegro, idUsuario, fecha != null ? fecha : LocalDateTime.now());
+    public static RegistrarReintegroDeInventarioRequest crear() {
+        return new RegistrarReintegroDeInventarioRequest(new ArrayList<>());
     }
 
-    public String getMotivoOrigen() {return motivoOrigen;}
-    public String getMotivoReintegro() {return motivoReintegro;}
-    public String getIdUsuario() {return idUsuario;}
-    public LocalDateTime getFecha() {return fecha;}
+    /** Agrega la cantidad de un producto a devolver. */
+    public RegistrarReintegroDeInventarioRequest con(String idProducto, BigDecimal cantidad) {
+        this.lineas.add(new Linea(idProducto, cantidad));
+        return this;
+    }
+
+    public List<Linea> getLineas() {return Collections.unmodifiableList(lineas);}
+
+    /** Un producto y la cantidad que vuelve a sus lineas de lote. */
+    public static final class Linea {
+        private final String idProducto;
+        private final BigDecimal cantidad;
+
+        private Linea(String idProducto, BigDecimal cantidad) {
+            this.idProducto = idProducto;
+            this.cantidad = cantidad;
+        }
+
+        public String getIdProducto() {return idProducto;}
+        public BigDecimal getCantidad() {return cantidad;}
+    }
 }

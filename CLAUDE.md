@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 KaffeHaus v4 is the REST backend for a café management system (inventory, sales/cash register, orders, staff). Java 21, Spring Boot 4.1.1 (Spring MVC, Spring Security 7 + own JWTs, Data JPA/Hibernate), PostgreSQL 16.
 
-**`arquitectura.md` is the architectural source of truth** (in Spanish). Read the relevant section before adding or changing a slice; section 6 ("Reglas para la IA") lists the hard rules and section 6.5 lists known deviations that must not be replicated or "fixed" unless asked. Its test inventory (end of 6.5) and references to `databasev4.sql` / `HELP.md` are stale: those files are not in the repo, and the integration/HTTP tests it lists were removed.
+**`arquitectura.md` is the architectural source of truth** (in Spanish). It is a template of the architecture with no business rules: section 4 describes each backend piece, section 5 the reusable patterns, section 6 the procedures to add or extend modules, section 7 ("Reglas para la IA") the hard rules, 7.4 the known deviations that must not be replicated or "fixed" unless asked, and 7.5 the known architectural gaps (e.g. schema objects outside the entities are not versioned). Read the relevant section before adding or changing a slice.
 
 todos los cambios arquitectonicos que propongas y que no esten definidos en el archivo arquitectura.md deben ser explicados al usuario y deben tener su la aprobacion de este usuario para poder alterar el archivo `arquitectura.md` de esta forma no alteraras la fuente de la verdad de la arquitectura.
 
@@ -32,7 +32,7 @@ First run against an empty DB: start the app (`ddl-auto: update` creates tables)
 
 Config is env-overridable in `src/main/resources/application.yaml`: `JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ISSUER`, `JWT_ACCESS_MINUTES`, `JWT_REFRESH_DAYS`, `GOOGLE_CLIENT_ID`, `SEED_HABILITADO`, `SERVER_PORT`. The VS Code launch config reads a `.env` file.
 
-The current test suite is pure unit tests (JUnit 5 + Mockito, no Spring context, no DB), mirroring the production package under `src/test/java/com/maestria/kaffehausv4/`. Shared domain fixtures live in `Soporte/DatosDePrueba`.
+Tests mirror the production package under `src/test/java/com/maestria/kaffehausv4/`. Unit tests (JUnit 5 + Mockito, no Spring context, no DB) use the shared fixtures in `Soporte/DatosDePrueba`. Persistence tests (`*IntegracionTest`) extend `Soporte/PruebaConBaseDeDatos`: full context, profile `test`, H2 in memory in PostgreSQL mode (`src/test/resources/application-test.yaml` plus `h2/esquema-postgresql.sql` for the ticket sequence), each test rolled back; `Soporte/EscenarioDeCafeteria` builds scenarios through the real use cases. H2 does not reproduce PostgreSQL partial unique indexes or row locks, so those are not covered.
 
 ## Architecture
 
@@ -44,7 +44,7 @@ com.maestria.kaffehausv4.BoundedContexts.<Contexto>.<Agregado>.{Domain, Applicat
 
 Contexts: `Inventario`, `Ventas`, `Personal`, `Pedidos`. Plus a cross-cutting `Shared` kernel (errors, `Validador`, pagination, password hashing, seeding, and all security). Package names are PascalCase on purpose.
 
-`Inventario/Tipo` is the reference slice: copy it literally when creating a new aggregate (procedure in arquitectura.md 6.4).
+`Inventario/Tipo` is the reference slice: copy it literally when creating a new aggregate (procedure in arquitectura.md 6.1).
 
 ### Dependency rule and the Repository → Datasource double indirection
 
@@ -66,13 +66,13 @@ Lives entirely in `Shared/Presentation/Security`; `org.springframework.security`
 ### Non-obvious domain mechanics
 
 - **Soft delete only.** Every table/model/aggregate has `borrado`; reads filter `...BorradoFalse...`; `DELETE` endpoints persist an UPDATE. No `deleteById`/`deleteBy...` in `src/main`.
-- **Aggregates with child entities** (`Venta`, `Lote`, `Receta`, `SesionCaja`): children live in the root's `Domain/Aggregates/` package, have no repository/use case/controller, and are mutated only through root methods. A `PUT` with child collections reconciles by id (update / add / soft-delete missing) rather than replacing. Derived values (totals, subtotals, step sequence) are computed by the root, never accepted from the client. `RecetaDatasourceImpl` writes steps in two phases because of a partial unique index. Details in arquitectura.md 5.13.
-- **Internal use cases** (no controller, invoked by other use cases inside their transaction): `RegistrarSalidaDeInventarioUseCase` (FEFO consumption), `RegistrarAperturaUseCase`, `RecalcularStockUseCase`, `RegistrarReintegroDeInventarioUseCase`, `RegistrarAnulacionDeVentaUseCase`. Don't add new ones without documenting them in arquitectura.md 5.5.
+- **Aggregates with child entities** (`Venta`, `Lote`, `Receta`, `SesionCaja`): children live in the root's `Domain/Aggregates/` package, have no repository/use case/controller, and are mutated only through root methods. A `PUT` with child collections reconciles by id (update / add / soft-delete missing) rather than replacing. Derived values (totals, subtotals, step sequence) are computed by the root, never accepted from the client. `RecetaDatasourceImpl` writes steps in two phases because of a partial unique index. Details in arquitectura.md 4.15, 5.8 and 5.9.
+- **Internal use cases** (no controller, invoked by other use cases inside their transaction): `RegistrarSalidaDeInventarioUseCase` (FEFO consumption), `RegistrarAperturaUseCase`, `RecalcularStockUseCase`, `RegistrarReintegroDeInventarioUseCase`, `RegistrarAnulacionDeVentaUseCase`. Don't add new ones without documenting them in arquitectura.md 4.6.
 - **Locking:** reads that precede an inventory decrement use `@Lock(PESSIMISTIC_WRITE)` on derived methods prefixed `read...By`, exposed in ports as `...ParaActualizar` / `...ParaConsumo`; the cash-session read for a sale uses `PESSIMISTIC_READ` with `get...By` / `...ParaVenta`.
 
 ### Implementation constraints worth remembering
 
-- No new `pom.xml` dependencies (no Lombok, MapStruct, Bean Validation, Swagger, loggers). No logging at all.
+- No new `pom.xml` dependencies (no Lombok, MapStruct, Bean Validation, Swagger, loggers); the only exception is H2 with test scope. No logging at all.
 - No `@Query`/JPQL/native SQL/Criteria: derived query methods only. No `@GeneratedValue`. `BigDecimal` for money and quantities.
 - Constructor injection only; aggregates and business DTOs have private constructors + static factories, no setters.
 - No new folders inside a slice; the structure in arquitectura.md 3.1 is closed.

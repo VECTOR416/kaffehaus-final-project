@@ -27,11 +27,9 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseC
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerLotesUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.ExistenciaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.AbrirDetalleLoteRequest;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.DarDeBajaDetalleVencidoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.DetalleAperturableResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.ObtenerDetallesAperturablesRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.AbrirDetalleLoteUseCase;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.DarDeBajaDetalleVencidoUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerDetallesAperturablesUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
@@ -51,7 +49,6 @@ public class LoteControllerV1 {
     private final EliminarLoteUseCase eliminarLoteUseCase;
     private final ObtenerDetallesAperturablesUseCase obtenerDetallesAperturablesUseCase;
     private final AbrirDetalleLoteUseCase abrirDetalleLoteUseCase;
-    private final DarDeBajaDetalleVencidoUseCase darDeBajaDetalleVencidoUseCase;
 
     public LoteControllerV1(
             CrearLoteUseCase crearLoteUseCase,
@@ -60,8 +57,7 @@ public class LoteControllerV1 {
             ObtenerLotesUseCase obtenerLotesUseCase,
             EliminarLoteUseCase eliminarLoteUseCase,
             ObtenerDetallesAperturablesUseCase obtenerDetallesAperturablesUseCase,
-            AbrirDetalleLoteUseCase abrirDetalleLoteUseCase,
-            DarDeBajaDetalleVencidoUseCase darDeBajaDetalleVencidoUseCase) {
+            AbrirDetalleLoteUseCase abrirDetalleLoteUseCase) {
         this.crearLoteUseCase = crearLoteUseCase;
         this.actualizarLoteUseCase = actualizarLoteUseCase;
         this.obtenerLotePorIdUseCase = obtenerLotePorIdUseCase;
@@ -69,7 +65,6 @@ public class LoteControllerV1 {
         this.eliminarLoteUseCase = eliminarLoteUseCase;
         this.obtenerDetallesAperturablesUseCase = obtenerDetallesAperturablesUseCase;
         this.abrirDetalleLoteUseCase = abrirDetalleLoteUseCase;
-        this.darDeBajaDetalleVencidoUseCase = darDeBajaDetalleVencidoUseCase;
     }
 
     @PostMapping
@@ -114,7 +109,7 @@ public class LoteControllerV1 {
         return ResponseEntity.noContent().build();
     }
 
-    // Operaciones de inventario sobre las lineas del lote (inventario.md INV-13, INV-14, INV-42).
+    // Operaciones de inventario sobre las lineas del lote (inventario.md INV-13, INV-14).
     // Viven bajo la raiz porque detalle_lote no tiene endpoints propios (arquitectura.md 4.7).
 
     @GetMapping("/detalles-aperturables")
@@ -132,11 +127,5 @@ public class LoteControllerV1 {
         AbrirDetalleLoteRequest request = AbrirDetalleLoteRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
         ExistenciaResponse response = abrirDetalleLoteUseCase.execute(idDetalleLote, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @PostMapping("/detalles/{idDetalleLote}/vencimiento")
-    public ResponseEntity<List<ExistenciaResponse>> darDeBajaDetalleVencido(@PathVariable String idDetalleLote, @RequestBody(required = false) Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
-        DarDeBajaDetalleVencidoRequest request = DarDeBajaDetalleVencidoRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
-        return ResponseEntity.ok(darDeBajaDetalleVencidoUseCase.execute(idDetalleLote, request));
     }
 }

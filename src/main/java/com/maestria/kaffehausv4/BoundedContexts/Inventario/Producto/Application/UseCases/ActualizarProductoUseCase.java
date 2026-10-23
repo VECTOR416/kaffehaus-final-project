@@ -1,5 +1,8 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases;
 
+import java.util.List;
+import java.util.Objects;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +12,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObje
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Application.Repositories.ICategoriaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.Aggregates.Categoria;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repositories.ILoteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ActualizarProductoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ProductoResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
@@ -26,16 +30,19 @@ public class ActualizarProductoUseCase {
     private final IUnidadRepository unidadRepository;
     private final ITipoRepository tipoRepository;
     private final ICategoriaRepository categoriaRepository;
+    private final ILoteRepository loteRepository;
 
     public ActualizarProductoUseCase(
             IProductoRepository productoRepository,
             IUnidadRepository unidadRepository,
             ITipoRepository tipoRepository,
-            ICategoriaRepository categoriaRepository) {
+            ICategoriaRepository categoriaRepository,
+            ILoteRepository loteRepository) {
         this.productoRepository = productoRepository;
         this.unidadRepository = unidadRepository;
         this.tipoRepository = tipoRepository;
         this.categoriaRepository = categoriaRepository;
+        this.loteRepository = loteRepository;
     }
 
     public ProductoResponse execute(String productoId, ActualizarProductoRequest actualizarProductoRequest) {
@@ -70,6 +77,8 @@ public class ActualizarProductoUseCase {
             exigirJerarquiaDeUnNivel(producto, padre);
         }
 
+        exigirSinInventarioSiCambiaSuManejo(producto, actualizarProductoRequest);
+
         producto.actualizar(
                 actualizarProductoRequest.getNombre(),
                 actualizarProductoRequest.getPrecio(),
@@ -84,6 +93,43 @@ public class ActualizarProductoUseCase {
         Producto productoActualizado = productoRepository.actualizar(id, producto);
 
         return toResponse(productoActualizado);
+    }
+
+    /**
+     * 'esStockDirecto', 'unidadActual' y 'productoPadre' deciden como se maneja el inventario de un
+     * producto; no cambian si ya tiene stock, lineas de lote vivas o presentaciones (logica.md
+     * PRODUCTO-15). Sus existencias cuelgan de esas lineas o de sus presentaciones, asi que tambien
+     * quedan cubiertas.
+     */
+    private void exigirSinInventarioSiCambiaSuManejo(Producto producto, ActualizarProductoRequest request) {
+        boolean cambiaNaturaleza = request.getEsStockDirecto() != null
+                && request.getEsStockDirecto() != producto.isEsStockDirecto();
+        boolean cambiaUnidad = request.getIdUnidadActual() != null
+                && !request.getIdUnidadActual().equals(producto.getUnidadActualId().getValue());
+        boolean cambiaPadre = request.getIdProductoPadre() != null
+                && (producto.getProductoPadreId() == null
+                        || !request.getIdProductoPadre().equals(producto.getProductoPadreId().getValue()));
+        if (!cambiaNaturaleza && !cambiaUnidad && !cambiaPadre) {
+            return;
+        }
+        if (tieneInventario(producto)) {
+            throw DomainException.throwException(409,
+                    "El producto '" + producto.getNombre() + "' ya tiene inventario: no se puede cambiar si es de stock directo, su unidad ni su producto base");
+        }
+    }
+
+    private boolean tieneInventario(Producto producto) {
+        if (producto.getStock() != null && producto.getStock().signum() > 0) {
+            return true;
+        }
+        if (!productoRepository.obtenerPresentaciones(producto.getId()).isEmpty()) {
+            return true;
+        }
+        String idProducto = producto.getId().getValue();
+        return loteRepository.obtenerPorProductos(List.of(producto.getId())).stream()
+                .filter(lote -> !lote.isBorrado())
+                .flatMap(lote -> lote.getDetallesActivos().stream())
+                .anyMatch(detalle -> Objects.equals(idProducto, detalle.getProductoId().getValue()));
     }
 
     /** La jerarquia presentacion -> producto base tiene un solo nivel (inventario.md INV-07). */

@@ -48,6 +48,20 @@ class MovimientoTest {
     }
 
     @Test
+    void laAperturaRegistraUnMovimientoDeCantidadCero() {
+        Movimiento apertura = Movimiento.registrarApertura(
+                LocalDateTime.of(2026, 9, 27, 9, 15),
+                "Apertura de 'Bolsa de cafe'",
+                new ExistenciaId("77777777-7777-7777-7777-777777777777"),
+                new TipoMovimientoId("14141414-1414-1414-1414-141414141414"),
+                new UsuarioId("22222222-2222-2222-2222-222222222222"));
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(apertura.getCantidad()));
+        assertEquals("Apertura de 'Bolsa de cafe'", apertura.getMotivo());
+        assertFalse(apertura.isBorrado());
+    }
+
+    @Test
     void rechazaUnaCantidadNoPositiva() {
         DomainException error = assertThrows(DomainException.class, () -> Movimiento.crear(
                 new BigDecimal("-1"),

@@ -19,9 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -37,6 +39,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -53,6 +56,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repo
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Persona.Domain.ValueObjects.PersonaId;
@@ -85,6 +89,7 @@ class LoteUseCasesTest {
     @Mock private IProductoRepository productoRepository;
     @Mock private IExistenciaRepository existenciaRepository;
     @Mock private IConversionRepository conversionRepository;
+    @Mock private RecalcularStockUseCase recalcularStockUseCase;
 
     @BeforeEach
     void prepararCatalogosYPersistencia() {
@@ -142,7 +147,7 @@ class LoteUseCasesTest {
 
         @BeforeEach
         void crearCasoDeUso() {
-            useCase = new CrearLoteUseCase(loteRepository, proveedorRepository, usuarioRepository, productoRepository);
+            useCase = new CrearLoteUseCase(loteRepository, proveedorRepository, usuarioRepository, productoRepository, recalcularStockUseCase);
         }
 
         private CrearLoteRequest compra(List<Map<String, Object>> lineas) {
@@ -162,6 +167,35 @@ class LoteUseCasesTest {
             assertFalse(respuesta.isEsProduccion());
             assertEquals(2, respuesta.getDetalles().size());
             assertEquals(new BigDecimal("10.00"), respuesta.getDetalles().get(0).getCantidadRestante());
+        }
+
+        @Test
+        void laCompraRecalculaElStockDeCadaProductoEnOrdenDeId() {
+            // Act
+            useCase.execute(compra(List.of(linea(ID_CAFE, "10", "12"), linea(ID_AZUCAR, "8", "5"))));
+
+            // Assert: sube el stock de unidades de lo comprado (logica.md PRODUCTO-16).
+            InOrder orden = inOrder(recalcularStockUseCase);
+            String primero = ID_CAFE.compareTo(ID_AZUCAR) < 0 ? ID_CAFE : ID_AZUCAR;
+            String segundo = primero.equals(ID_CAFE) ? ID_AZUCAR : ID_CAFE;
+            orden.verify(recalcularStockUseCase).execute(primero);
+            orden.verify(recalcularStockUseCase).execute(segundo);
+        }
+
+        @Test
+        void unProductoBaseConPresentacionesNoSeCompraSuelto() {
+            // Arrange: el cafe tiene presentaciones (logica.md LOTE-13).
+            when(productoRepository.obtenerPresentaciones(argThat(id -> id != null && ID_CAFE.equals(id.getValue()))))
+                    .thenReturn(List.of(presentacion("e7000000-0000-0000-0000-0000000000f1", "Bolsa de cafe", ID_CAFE)));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(compra(List.of(linea(ID_CAFE, "1", "1")))));
+
+            // Assert
+            assertEquals(400, error.getCodigo());
+            assertTrue(error.getMensaje().contains("tiene presentaciones"));
+            verify(loteRepository, never()).crear(any());
+            verifyNoInteractions(recalcularStockUseCase);
         }
 
         @Test
@@ -220,7 +254,7 @@ class LoteUseCasesTest {
 
         @BeforeEach
         void crearCasoDeUso() {
-            useCase = new ActualizarLoteUseCase(loteRepository, proveedorRepository, productoRepository, existenciaRepository);
+            useCase = new ActualizarLoteUseCase(loteRepository, proveedorRepository, productoRepository, existenciaRepository, recalcularStockUseCase);
         }
 
         private ActualizarLoteRequest conLineas(List<Map<String, Object>> lineas) {
@@ -447,7 +481,7 @@ class LoteUseCasesTest {
         @Test
         void eliminarDaDeBajaUnLoteSinExistenciasEnUso() {
             // Arrange
-            EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository);
+            EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository, recalcularStockUseCase);
             hayLoteRegistrado();
 
             // Act
@@ -461,7 +495,7 @@ class LoteUseCasesTest {
         @Test
         void unLoteConExistenciasConContenidoNoSeDaDeBaja() {
             // Arrange
-            EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository);
+            EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository, recalcularStockUseCase);
             hayLoteRegistrado();
             when(existenciaRepository.obtenerDisponiblesPorDetallesLote(anyList()))
                     .thenReturn(List.of(existencia("e7000000-0000-0000-0000-0000000000a9", ID_LINEA_CAFE, "1000", "1", null)));
@@ -477,7 +511,7 @@ class LoteUseCasesTest {
         @Test
         void eliminarUnLoteInexistenteRespondeNoEncontrado() {
             // Arrange
-            EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository);
+            EliminarLoteUseCase useCase = new EliminarLoteUseCase(loteRepository, existenciaRepository, recalcularStockUseCase);
             when(loteRepository.obtenerPorId(any())).thenReturn(Optional.empty());
 
             // Act
@@ -605,8 +639,8 @@ class LoteUseCasesTest {
         }
 
         @Test
-        void devuelveUnaFilaPorFuenteOrdenadasPorVencimiento() {
-            // Arrange: hay lineas del producto base y de su presentacion; la del base vence antes.
+        void soloSeOfrecenPresentacionesNoElProductoBase() {
+            // Arrange: una linea vieja del producto base y otra de su presentacion (logica.md LOTE-14).
             when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of(loteDeCompra(ID_LOTE,
                     detalle(ID_LINEA_TARDIA, ID_BOLSA, "5", "2", "50", hoy.plusDays(30)),
                     detalle(ID_LINEA_PROXIMA, ID_HARINA, "5", "3", "9", hoy.plusDays(10)))));
@@ -615,8 +649,7 @@ class LoteUseCasesTest {
             List<DetalleAperturableResponse> filas = consultar(ID_HARINA);
 
             // Assert
-            assertEquals(List.of(ID_LINEA_PROXIMA, ID_LINEA_TARDIA), filas.stream().map(DetalleAperturableResponse::getIdDetalleLote).toList());
-            assertEquals(0, BigDecimal.ONE.compareTo(filas.get(0).getContenidoPorUnidad()));
+            assertEquals(List.of(ID_LINEA_TARDIA), filas.stream().map(DetalleAperturableResponse::getIdDetalleLote).toList());
         }
 
         @Test

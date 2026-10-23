@@ -82,56 +82,43 @@ class ExistenciaTest {
     }
 
     @Test
-    void ajustarAUnConteoMenorDevuelveLaDiferenciaNegativa() {
+    void rellenarSumaContenidoSinCambiarSuEstado() {
         Existencia existencia = bolsaDeCafe("500.0000");
 
-        BigDecimal diferencia = existencia.ajustarA(new BigDecimal("480"), AHORA, AGOTADA);
+        existencia.rellenar(new BigDecimal("15"), ABIERTA);
 
-        assertEquals(new BigDecimal("-20.0000"), diferencia);
-        assertEquals(new BigDecimal("480.0000"), existencia.getContenidoActual());
+        assertEquals(new BigDecimal("515.0000"), existencia.getContenidoActual());
+        assertEquals(new BigDecimal("485.0000"), existencia.espacioDisponible());
+        assertEquals(ABIERTA.getValue(), existencia.getEstadoExistenciaId().getValue());
     }
 
     @Test
-    void ajustarAUnConteoMayorDevuelveLaDiferenciaPositiva() {
-        Existencia existencia = bolsaDeCafe("500.0000");
+    void rellenarUnaAgotadaLaRevive() {
+        Existencia existencia = bolsaDeCafe("18.0000");
+        existencia.consumir(new BigDecimal("18"), AHORA, AGOTADA);
 
-        assertEquals(new BigDecimal("15.0000"), existencia.ajustarA(new BigDecimal("515"), AHORA, AGOTADA));
+        existencia.rellenar(new BigDecimal("5"), ABIERTA);
+
+        assertEquals(new BigDecimal("5.0000"), existencia.getContenidoActual());
+        assertNull(existencia.getFechaAcabado());
+        assertEquals(ABIERTA.getValue(), existencia.getEstadoExistenciaId().getValue());
     }
 
     @Test
-    void unAjustaACeroLaDejaAgotada() {
-        Existencia existencia = bolsaDeCafe("5.0000");
+    void rellenarNoPuedeSuperarElContenidoInicial() {
+        Existencia existencia = bolsaDeCafe("990.0000");
 
-        existencia.ajustarA(BigDecimal.ZERO, AHORA, AGOTADA);
-
-        assertTrue(existencia.isAgotada());
-        assertEquals(AGOTADA.getValue(), existencia.getEstadoExistenciaId().getValue());
-    }
-
-    @Test
-    void noSeAjustaUnaExistenciaAgotada() {
-        Existencia existencia = bolsaDeCafe("0.0000");
-
-        DomainException error = assertThrows(DomainException.class, () -> existencia.ajustarA(BigDecimal.TEN, AHORA, AGOTADA));
+        DomainException error = assertThrows(DomainException.class, () -> existencia.rellenar(new BigDecimal("11"), ABIERTA));
 
         assertEquals(409, error.getCodigo());
+        assertEquals(new BigDecimal("990.0000"), existencia.getContenidoActual());
     }
 
     @Test
-    void unConteoNoPuedeSuperarElContenidoInicial() {
-        Existencia existencia = bolsaDeCafe("500.0000");
+    void rechazaUnRellenoNoPositivo() {
+        DomainException error = assertThrows(DomainException.class, () -> bolsaDeCafe("10.0000").rellenar(BigDecimal.ZERO, ABIERTA));
 
-        DomainException error = assertThrows(DomainException.class, () -> existencia.ajustarA(new BigDecimal("1001"), AHORA, AGOTADA));
-
-        assertEquals(409, error.getCodigo());
-    }
-
-    @Test
-    void darDeBajaTodoDevuelveLoQueQuedaba() {
-        Existencia existencia = bolsaDeCafe("320.0000");
-
-        assertEquals(new BigDecimal("320.0000"), existencia.darDeBajaTodo(AHORA, AGOTADA));
-        assertTrue(existencia.isAgotada());
+        assertEquals(400, error.getCodigo());
     }
 
     @Test

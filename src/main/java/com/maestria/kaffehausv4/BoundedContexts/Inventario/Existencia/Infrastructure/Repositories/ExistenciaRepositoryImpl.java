@@ -58,6 +58,11 @@ public class ExistenciaRepositoryImpl implements IExistenciaRepository{
     }
 
     @Override
+    public List<Existencia> obtenerVivasParaPesaje(List<DetalleLoteId> detalleLoteIds) {
+        return this.existenciaDatasource.obtenerVivasParaPesaje(detalleLoteIds);
+    }
+
+    @Override
     public Optional<Existencia> obtenerPorIdParaActualizar(ExistenciaId existenciaId) {
         return this.existenciaDatasource.obtenerPorIdParaActualizar(existenciaId);
     }

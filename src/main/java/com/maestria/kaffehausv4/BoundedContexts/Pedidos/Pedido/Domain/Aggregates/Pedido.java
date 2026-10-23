@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.EstadoPedido.Domain.ValueObjects.EstadoPedidoId;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.ValueObjects.PedidoId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 public class Pedido {
     private PedidoId id;
@@ -77,8 +78,10 @@ public class Pedido {
         this.estadoId = estadoId != null ? estadoId : this.estadoId;
     }
 
+    /** Un pedido no se da de baja (logica.md PEDIDO-08): se cancela, que anula su venta. */
     public void eliminar(){
-        this.borrado = true;
+        throw DomainException.throwException(409,
+                "Un pedido no se da de baja; cancelalo pasandolo al estado 'Cancelado'");
     }
 
     public PedidoId getId() {return id;}

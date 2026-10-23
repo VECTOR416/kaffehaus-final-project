@@ -17,6 +17,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -31,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.RegistrarReintegroDeInventarioRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.UseCases.RegistrarReintegroDeInventarioUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.Aggregates.Cliente;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
@@ -42,6 +44,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.An
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.RegistrarAnulacionDeVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Repositories.IVentaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.DetalleVenta;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.Venta;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
@@ -50,6 +53,7 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 class RegistrarAnulacionDeVentaUseCaseTest {
 
     private static final String ID_VENTA = "80000000-0000-0000-0000-000000000001";
+    private static final String ID_PAN = "80000000-0000-0000-0000-000000000002";
     private static final EstadoVenta COMPLETADA = EstadoVenta.restaurar("81000000-0000-0000-0000-000000000001", "Completada", false);
     private static final EstadoVenta ANULADA = EstadoVenta.restaurar("81000000-0000-0000-0000-000000000002", "Anulada", false);
 
@@ -74,7 +78,10 @@ class RegistrarAnulacionDeVentaUseCaseTest {
     private Venta hayVentaEn(EstadoVenta estado) {
         Venta venta = Venta.restaurar(ID_VENTA, 7L, AHORA.minusHours(1), new BigDecimal("20.00"), new UsuarioId(ID_USUARIO),
                 new ClienteId(Cliente.ID_MOSTRADOR), new SesionCajaId("82000000-0000-0000-0000-000000000001"), estado.getId(),
-                null, null, null, false, new ArrayList<>(), new ArrayList<>());
+                null, null, null, false,
+                new ArrayList<>(List.of(DetalleVenta.restaurar("83000000-0000-0000-0000-000000000001", new ProductoId(ID_PAN),
+                        new BigDecimal("10.00"), new BigDecimal("2"), new BigDecimal("20.00"), new BigDecimal("0.00"), true, false))),
+                new ArrayList<>());
         lenient().when(ventaRepository.obtenerPorId(any())).thenReturn(Optional.of(venta));
         return venta;
     }
@@ -122,10 +129,9 @@ class RegistrarAnulacionDeVentaUseCaseTest {
 
         // Assert
         verify(registrarReintegroDeInventarioUseCase).execute(reintegro.capture());
-        assertEquals("Venta '" + ID_VENTA + "'", reintegro.getValue().getMotivoOrigen());
-        assertEquals("Anulacion de la venta '" + ID_VENTA + "'", reintegro.getValue().getMotivoReintegro());
-        assertEquals(ID_USUARIO, reintegro.getValue().getIdUsuario());
-        assertEquals(AHORA, reintegro.getValue().getFecha());
+        assertEquals(1, reintegro.getValue().getLineas().size());
+        assertEquals(ID_PAN, reintegro.getValue().getLineas().get(0).getIdProducto());
+        assertEquals(0, new BigDecimal("2").compareTo(reintegro.getValue().getLineas().get(0).getCantidad()));
     }
 
     @Test

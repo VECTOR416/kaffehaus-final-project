@@ -51,6 +51,16 @@ class ProduccionTest {
     }
 
     @Test
+    void unaProduccionNoSeDaDeBaja() {
+        Produccion produccion = Produccion.crear(new BigDecimal("20"), new BigDecimal("18"), null, FECHA, RECETA);
+
+        DomainException error = assertThrows(DomainException.class, produccion::eliminar);
+
+        assertEquals(409, error.getCodigo());
+        assertFalse(produccion.isBorrado());
+    }
+
+    @Test
     void actualizarSoloTocaElMotivoYLaFecha() {
         Produccion produccion = Produccion.crear(new BigDecimal("20"), new BigDecimal("18"), null, FECHA, RECETA);
 

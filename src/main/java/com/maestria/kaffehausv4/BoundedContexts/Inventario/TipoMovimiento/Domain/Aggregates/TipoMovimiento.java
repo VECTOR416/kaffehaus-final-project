@@ -3,16 +3,17 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domai
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.ValueObjects.TipoMovimientoId;
 
 /**
- * Clasifica un movimiento de inventario. El catalogo es corto a proposito, para que el usuario
- * tenga poco que leer: 'Receta' es lo que mueve una receta (los insumos que consume y el
- * producto que ingresa), 'Merma' lo que se pierde (incluido lo vencido) y 'Ajuste' el resto de
- * entradas y salidas de una existencia. El tipo no dice la direccion (entrada o salida):
- * esa se lee del motivo del movimiento. Se reconocen por nombre.
+ * Clasifica un movimiento de inventario (logica.md MOVIMIENTO-09). El catalogo es corto a
+ * proposito, para que el usuario tenga poco que leer: 'Produccion' es lo que mueve una receta al
+ * producirse (los insumos que consume y el producto que ingresa); 'Merma' y 'Ajuste' salen del
+ * pesaje de una existencia abierta, cuando en la realidad hay menos o mas de lo que dice el
+ * sistema; 'Apertura' deja constancia de que se abrio una unidad cerrada. Se reconocen por nombre.
  */
 public class TipoMovimiento {
-    public static final String RECETA = "Receta";
+    public static final String PRODUCCION = "Produccion";
     public static final String AJUSTE = "Ajuste";
     public static final String MERMA = "Merma";
+    public static final String APERTURA = "Apertura";
 
     private TipoMovimientoId id;
     private String nombre;

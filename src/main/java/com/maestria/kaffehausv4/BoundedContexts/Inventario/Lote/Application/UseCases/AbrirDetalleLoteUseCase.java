@@ -53,7 +53,7 @@ public class AbrirDetalleLoteUseCase {
 
         if (detalle.estaVencido(ahora.toLocalDate())) {
             throw DomainException.throwException(409,
-                    "El detalle de lote con id '" + idDetalleLote + "' esta vencido; registra su vencimiento en lugar de abrirlo");
+                    "El detalle de lote con id '" + idDetalleLote + "' esta vencido y no se puede abrir");
         }
         if (!detalle.tieneUnidadesCerradas()) {
             throw DomainException.throwException(409, "El detalle de lote con id '" + idDetalleLote + "' no tiene unidades cerradas para abrir");
@@ -70,6 +70,6 @@ public class AbrirDetalleLoteUseCase {
                     + (queToca.getFechaVencimiento() != null ? " que vence el " + queToca.getFechaVencimiento() : ""));
         }
 
-        return registrarAperturaUseCase.execute(RegistrarAperturaRequest.crear(idDetalleLote, request.getIdUsuario(), false, ahora));
+        return registrarAperturaUseCase.execute(RegistrarAperturaRequest.crear(idDetalleLote, request.getIdUsuario(), ahora));
     }
 }

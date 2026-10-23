@@ -55,7 +55,7 @@ class VentaTest {
                 false,
                 List.of(DetalleVenta.restaurar(ID_LINEA_CAFE, PRODUCTO_CAFE,
                         new BigDecimal("12.50"), new BigDecimal("2"), new BigDecimal("25.00"), BigDecimal.ZERO,
-                        new BigDecimal("0.0000"), true, false)),
+                        true, false)),
                 List.of());
     }
 
@@ -123,16 +123,6 @@ class VentaTest {
     }
 
     @Test
-    void registrarElCostoDeUnaLineaLoSumaAlCostoDeLaVenta() {
-        Venta venta = ventaRegistrada();
-
-        venta.registrarCosto(ID_LINEA_CAFE, new BigDecimal("3.4567"));
-
-        assertEquals(new BigDecimal("3.4567"), venta.getCostoTotal());
-        assertEquals(new BigDecimal("25.00"), venta.getTotal());
-    }
-
-    @Test
     void anularConservaLasLineasYRegistraMotivoYUsuario() {
         Venta venta = ventaRegistrada();
 
@@ -173,11 +163,6 @@ class VentaTest {
 
         assertEquals(409, error.getCodigo());
         assertTrue(!venta.isBorrado());
-    }
-
-    @Test
-    void elMotivoDeSusMovimientosCitaLaVenta() {
-        assertEquals("Venta '55555555-5555-5555-5555-555555555555'", ventaRegistrada().motivoDeMovimientos());
     }
 
     // ------------------------------------------------------------------ CAJ-01, CAJ-02

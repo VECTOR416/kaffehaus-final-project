@@ -22,7 +22,6 @@ public class VentaResponse {
     private String idCliente;
     private String idSesionCaja;
     private EstadoVentaResponse estadoVenta;
-    private BigDecimal costoTotal;
     private String claveIdempotencia;
     private String motivoAnulacion;
     private String idUsuarioAnulacion;
@@ -40,7 +39,6 @@ public class VentaResponse {
         String idCliente,
         String idSesionCaja,
         EstadoVentaResponse estadoVenta,
-        BigDecimal costoTotal,
         String claveIdempotencia,
         String motivoAnulacion,
         String idUsuarioAnulacion,
@@ -57,7 +55,6 @@ public class VentaResponse {
         this.idCliente = idCliente;
         this.idSesionCaja = idSesionCaja;
         this.estadoVenta = estadoVenta;
-        this.costoTotal = costoTotal;
         this.claveIdempotencia = claveIdempotencia;
         this.motivoAnulacion = motivoAnulacion;
         this.idUsuarioAnulacion = idUsuarioAnulacion;
@@ -87,7 +84,6 @@ public class VentaResponse {
             venta.getClienteId() != null ? venta.getClienteId().getValue() : null,
             venta.getSesionCajaId() != null ? venta.getSesionCajaId().getValue() : null,
             estadoVentaResponse,
-            venta.getCostoTotal(),
             venta.getClaveIdempotencia(),
             venta.getMotivoAnulacion(),
             venta.getUsuarioAnulacionId() != null ? venta.getUsuarioAnulacionId().getValue() : null,
@@ -106,7 +102,6 @@ public class VentaResponse {
     public String getIdCliente() {return idCliente;}
     public String getIdSesionCaja() {return idSesionCaja;}
     public EstadoVentaResponse getEstadoVenta() {return estadoVenta;}
-    public BigDecimal getCostoTotal() {return costoTotal;}
     public String getClaveIdempotencia() {return claveIdempotencia;}
     public String getMotivoAnulacion() {return motivoAnulacion;}
     public String getIdUsuarioAnulacion() {return idUsuarioAnulacion;}

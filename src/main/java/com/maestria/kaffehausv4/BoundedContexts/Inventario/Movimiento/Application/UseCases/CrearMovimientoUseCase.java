@@ -3,72 +3,22 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Applicati
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Repositories.IExistenciaRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.CrearMovimientoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.MovimientoResponse;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Repositories.IMovimientoRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Repositories.IProduccionRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.ValueObjects.ProduccionId;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.Repositories.ITipoMovimientoRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.ValueObjects.TipoMovimientoId;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * Se conserva para mantener el contrato de cinco operaciones del controller, pero un movimiento
+ * no se da de alta a mano (logica.md MOVIMIENTO-17): solo lo genera la operacion que explica
+ * (consumo de una receta, pesaje o apertura), y uno suelto romperia la trazabilidad de las
+ * existencias.
+ */
 @Service
 @Transactional
 public class CrearMovimientoUseCase {
-    private final IMovimientoRepository movimientoRepository;
-    private final IExistenciaRepository existenciaRepository;
-    private final ITipoMovimientoRepository tipoMovimientoRepository;
-    private final IUsuarioRepository usuarioRepository;
-    private final IProduccionRepository produccionRepository;
-
-    public CrearMovimientoUseCase(
-            IMovimientoRepository movimientoRepository,
-            IExistenciaRepository existenciaRepository,
-            ITipoMovimientoRepository tipoMovimientoRepository,
-            IUsuarioRepository usuarioRepository,
-            IProduccionRepository produccionRepository) {
-        this.movimientoRepository = movimientoRepository;
-        this.existenciaRepository = existenciaRepository;
-        this.tipoMovimientoRepository = tipoMovimientoRepository;
-        this.usuarioRepository = usuarioRepository;
-        this.produccionRepository = produccionRepository;
-    }
 
     public MovimientoResponse execute(CrearMovimientoRequest crearMovimientoRequest) {
-        ExistenciaId existenciaId = new ExistenciaId(crearMovimientoRequest.getIdExistencia());
-        existenciaRepository.obtenerPorId(existenciaId)
-                .orElseThrow(() -> DomainException.throwException(404, "La existencia con id '" + crearMovimientoRequest.getIdExistencia() + "' no existe"));
-        TipoMovimientoId tipoMovimientoId = new TipoMovimientoId(crearMovimientoRequest.getIdTipoMovimiento());
-        TipoMovimiento tipoMovimiento = tipoMovimientoRepository.obtenerPorId(tipoMovimientoId)
-                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento con id '" + crearMovimientoRequest.getIdTipoMovimiento() + "' no existe"));
-
-        UsuarioId usuarioId = new UsuarioId(crearMovimientoRequest.getIdUsuario());
-        usuarioRepository.obtenerPorId(usuarioId)
-                .orElseThrow(() -> DomainException.throwException(404, "El usuario con id '" + crearMovimientoRequest.getIdUsuario() + "' no existe"));
-        ProduccionId produccionId = null;
-        if (crearMovimientoRequest.getIdProduccion() != null) {
-            produccionId = new ProduccionId(crearMovimientoRequest.getIdProduccion());
-            produccionRepository.obtenerPorId(produccionId)
-                    .orElseThrow(() -> DomainException.throwException(404, "La produccion con id '" + crearMovimientoRequest.getIdProduccion() + "' no existe"));
-        }
-
-        Movimiento movimiento = Movimiento.crear(
-                crearMovimientoRequest.getCantidad(),
-                crearMovimientoRequest.getFechaMovimiento(),
-                crearMovimientoRequest.getMotivo(),
-                existenciaId,
-                tipoMovimientoId,
-                usuarioId,
-                produccionId);
-
-        Movimiento movimientoCreado = movimientoRepository.crear(movimiento);
-
-        return MovimientoResponse.createFromAggregate(movimientoCreado, tipoMovimiento);
+        throw DomainException.throwException(409,
+                "Los movimientos no se crean a mano: los generan las recetas, el pesaje y la apertura de una bolsa");
     }
 }

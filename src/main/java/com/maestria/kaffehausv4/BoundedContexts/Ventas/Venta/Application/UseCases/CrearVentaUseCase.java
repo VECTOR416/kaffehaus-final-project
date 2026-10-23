@@ -14,7 +14,6 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Application.Repositories.IClienteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.Aggregates.Cliente;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId;
@@ -48,18 +47,18 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  *    aunque su caja ya se haya cerrado.
  * 2. Exige una sesion de caja abierta y la toma con bloqueo compartido (FOR SHARE), antes que
  *    cualquier bloqueo de inventario: un cierre de caja espera a que la venta termine (CAJ-01).
- * 3. Valida referencias y cada linea: producto vivo, vendible y base, no presentacion (VEN-10,
- *    VEN-11). Sin cliente, la venta es del cliente 'Mostrador' (CAJ-02).
+ * 3. Valida referencias y cada linea: producto vivo y vendible, y que no sea un producto base
+ *    con presentaciones, cuyo stock vive en existencias (logica.md VENTA-21). Sin cliente, la
+ *    venta es del cliente 'Mostrador' (CAJ-02).
  * 4. Pone el precio de lista y el descuento vigente mas favorable de cada linea (VEN-13,
  *    VEN-14); la raiz calcula subtotales y total.
  * 5. Incorpora los pagos y exige que sumen el total; en efectivo calcula el cambio (CAJ-10..73).
  * 6. Guarda la venta 'Completada' con sus lineas y pagos (VEN-01).
- * 7. Descuenta el inventario de cada linea, en orden de id de producto (inventario.md INV-53):
- *    MTS de sus existencias, MTO por backflush. Los movimientos citan la venta en su motivo.
- * 8. Guarda el costo de cada linea que devuelve el inventario (VEN-23).
+ * 7. Descuenta las unidades de cada linea de las lineas de lote del producto, en orden de id de
+ *    producto (INV-53, logica.md VENTA-23). Un producto bajo demanda no descuenta nada. La venta
+ *    no consume existencias, no registra movimientos y no guarda costo (VENTA-20).
  *
- * Si falta stock responde 409 y no queda ni la venta, ni sus pagos, ni un solo movimiento
- * (VEN-22).
+ * Si falta stock responde 409 y no queda ni la venta ni sus pagos (VEN-22).
  */
 @Service
 @Transactional
@@ -136,7 +135,7 @@ public class CrearVentaUseCase {
 
         descontarInventario(ventaCreada);
 
-        return VentaResponse.createFromAggregate(ventaRepository.actualizar(ventaCreada.getId(), ventaCreada), completada);
+        return VentaResponse.createFromAggregate(ventaCreada, completada);
     }
 
     /** El cliente indicado o, si no se indico ninguno, el cliente 'Mostrador' (CAJ-02). */
@@ -163,7 +162,7 @@ public class CrearVentaUseCase {
         }
     }
 
-    /** Cada linea con su precio de lista y su mejor descuento vigente (VEN-10..VEN-14). */
+    /** Cada linea con su precio de lista y su mejor descuento vigente (VEN-10..VEN-14, logica.md VENTA-21). */
     private void agregarDetalles(Venta venta, List<DetalleVentaRequest> detalles) {
         for (DetalleVentaRequest detalle : detalles) {
             ProductoId productoId = new ProductoId(detalle.getIdProducto());
@@ -172,9 +171,9 @@ public class CrearVentaUseCase {
             if (!producto.isVendible()) {
                 throw DomainException.throwException(400, "El producto '" + producto.getNombre() + "' no es vendible");
             }
-            if (producto.esPresentacion()) {
+            if (producto.isEsStockDirecto() && !productoRepository.obtenerPresentaciones(productoId).isEmpty()) {
                 throw DomainException.throwException(400,
-                        "El producto '" + producto.getNombre() + "' es una presentacion; se vende su producto base");
+                        "El producto '" + producto.getNombre() + "' tiene presentaciones y se maneja por existencias; vende una de sus presentaciones");
             }
 
             BigDecimal precio = producto.getPrecio();
@@ -199,24 +198,18 @@ public class CrearVentaUseCase {
 
     /**
      * Las lineas se procesan en orden de id de producto para que dos ventas concurrentes tomen
-     * los bloqueos en el mismo orden (inventario.md INV-53). El costo de cada una queda en la
-     * linea (VEN-23).
+     * los bloqueos en el mismo orden (inventario.md INV-53).
      */
     private void descontarInventario(Venta venta) {
         List<DetalleVenta> enOrden = venta.getDetallesActivos().stream()
                 .sorted(Comparator.comparing(detalle -> detalle.getProductoId().getValue()))
                 .toList();
         for (DetalleVenta detalle : enOrden) {
-            BigDecimal costo = registrarSalidaDeInventarioUseCase.execute(RegistrarSalidaDeInventarioRequest.crear(
+            registrarSalidaDeInventarioUseCase.execute(RegistrarSalidaDeInventarioRequest.deVenta(
                     detalle.getProductoId().getValue(),
                     detalle.getCantidad(),
-                    TipoMovimiento.AJUSTE,
-                    TipoMovimiento.RECETA,
                     venta.getUsuarioId().getValue(),
-                    null,
-                    venta.motivoDeMovimientos(),
-                    venta.getFechaVenta())).getCostoTotal();
-            venta.registrarCosto(detalle.getId().getValue(), costo);
+                    venta.getFechaVenta()));
         }
     }
 

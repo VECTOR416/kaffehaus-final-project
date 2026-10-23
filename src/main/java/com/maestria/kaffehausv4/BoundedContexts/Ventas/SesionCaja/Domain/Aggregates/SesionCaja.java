@@ -97,10 +97,22 @@ public class SesionCaja {
                 null, null, null, null, ABIERTA, false, null);
     }
 
-    /** Ingreso o egreso menor de efectivo. Solo en una caja abierta. */
-    public void registrarMovimiento(UsuarioId usuarioId, String tipo, BigDecimal monto, String motivo) {
+    /**
+     * Ingreso o egreso menor de efectivo. Solo en una caja abierta. Un egreso no puede dejar el
+     * efectivo esperado por debajo de cero (logica.md SESIONCAJA-10); 'ventasEnEfectivo' es lo
+     * cobrado en efectivo hasta ahora en las ventas completadas de esta sesion.
+     */
+    public void registrarMovimiento(UsuarioId usuarioId, String tipo, BigDecimal monto, String motivo, BigDecimal ventasEnEfectivo) {
         exigirAbierta();
-        this.movimientos.add(MovimientoCaja.crear(usuarioId, tipo, monto, motivo));
+        MovimientoCaja movimiento = MovimientoCaja.crear(usuarioId, tipo, monto, motivo);
+        if (!movimiento.esIngreso()) {
+            BigDecimal disponible = efectivoEsperado(ventasEnEfectivo);
+            if (disponible.compareTo(movimiento.getMonto()) < 0) {
+                throw DomainException.throwException(409,
+                        "El egreso de " + movimiento.getMonto() + " supera el efectivo disponible en la caja (" + disponible + ")");
+            }
+        }
+        this.movimientos.add(movimiento);
     }
 
     /**
@@ -128,10 +140,7 @@ public class SesionCaja {
         if (montoCierreDeclarado == null || montoCierreDeclarado.signum() < 0) {
             throw DomainException.throwException(400, "El monto de cierre declarado no puede ser negativo");
         }
-        BigDecimal esperado = this.montoApertura
-                .add(ventasEnEfectivo != null ? ventasEnEfectivo : BigDecimal.ZERO)
-                .add(getTotalIngresos())
-                .subtract(getTotalEgresos());
+        BigDecimal esperado = efectivoEsperado(ventasEnEfectivo);
 
         this.montoCierreDeclarado = aEscalaMonetaria(montoCierreDeclarado);
         this.montoCierreEsperado = aEscalaMonetaria(esperado);
@@ -139,6 +148,14 @@ public class SesionCaja {
         this.motivoDiferencia = motivoDiferencia;
         this.fechaCierre = fechaCierre;
         this.estado = CERRADA;
+    }
+
+    /** Efectivo que deberia haber en la caja: apertura + ventas en efectivo + ingresos - egresos. */
+    public BigDecimal efectivoEsperado(BigDecimal ventasEnEfectivo) {
+        return aEscalaMonetaria(this.montoApertura
+                .add(ventasEnEfectivo != null ? ventasEnEfectivo : BigDecimal.ZERO)
+                .add(getTotalIngresos())
+                .subtract(getTotalEgresos()));
     }
 
     /** Un turno es auditoria del dinero: no se da de baja. */

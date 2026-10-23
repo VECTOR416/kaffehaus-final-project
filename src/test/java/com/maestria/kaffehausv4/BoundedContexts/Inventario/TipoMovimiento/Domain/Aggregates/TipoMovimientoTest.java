@@ -72,10 +72,11 @@ class TipoMovimientoTest {
     }
 
     @Test
-    void elCatalogoQueReconoceElSistemaSonTresNombres() {
+    void elCatalogoQueReconoceElSistemaSonCuatroNombres() {
         // Assert
-        assertEquals("Receta", TipoMovimiento.RECETA);
+        assertEquals("Produccion", TipoMovimiento.PRODUCCION);
         assertEquals("Ajuste", TipoMovimiento.AJUSTE);
         assertEquals("Merma", TipoMovimiento.MERMA);
+        assertEquals("Apertura", TipoMovimiento.APERTURA);
     }
 }

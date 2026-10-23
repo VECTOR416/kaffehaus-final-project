@@ -3,9 +3,12 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggreg
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
+
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /** Pruebas de dominio puro de Unidad. */
 class UnidadTest {
@@ -75,5 +78,18 @@ class UnidadTest {
 
         // Assert
         assertTrue(unidad.isBorrado());
+    }
+
+    @Test
+    void unaUnidadNoBorrableNoSeDaDeBaja() {
+        // Arrange
+        Unidad unidad = Unidad.restaurar(ID, "Gramo", "g", false, false);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, unidad::eliminar);
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertFalse(unidad.isBorrado());
     }
 }

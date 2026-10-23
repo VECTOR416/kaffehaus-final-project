@@ -160,6 +160,40 @@ public class DetalleLote {
         this.cantidadRestante = aEscala(this.cantidadRestante.subtract(BigDecimal.ONE));
     }
 
+    /** Saca unidades disponibles de la linea (logica.md LOTE-17). Nunca la deja en negativo. */
+    void descontar(BigDecimal cantidad) {
+        if (cantidad == null || cantidad.signum() <= 0) {
+            throw DomainException.throwException(400, "La cantidad a descontar del detalle de lote debe ser mayor a cero");
+        }
+        BigDecimal descuento = aEscala(cantidad);
+        if (descuento.compareTo(this.cantidadRestante) > 0) {
+            throw DomainException.throwException(409, "El detalle de lote no tiene unidades suficientes");
+        }
+        this.cantidadRestante = aEscala(this.cantidadRestante.subtract(descuento));
+    }
+
+    /** Devuelve unidades a la linea sin superar lo comprado o producido (logica.md LOTE-18). */
+    void devolver(BigDecimal cantidad) {
+        if (cantidad == null || cantidad.signum() <= 0) {
+            throw DomainException.throwException(400, "La cantidad a devolver al detalle de lote debe ser mayor a cero");
+        }
+        BigDecimal devolucion = aEscala(cantidad);
+        if (devolucion.compareTo(espacioDisponible()) > 0) {
+            throw DomainException.throwException(409, "La devolucion supera la cantidad inicial del detalle de lote");
+        }
+        this.cantidadRestante = aEscala(this.cantidadRestante.add(devolucion));
+    }
+
+    /** Unidades que faltan para volver a la cantidad inicial. */
+    public BigDecimal espacioDisponible() {
+        return this.cantidadInicial.subtract(this.cantidadRestante);
+    }
+
+    /** Tiene unidades disponibles, aunque sean una fraccion. */
+    public boolean tieneUnidadesDisponibles() {
+        return this.cantidadRestante.signum() > 0;
+    }
+
     /** Vencido si su caducidad es anterior a la fecha dada. Sin caducidad, nunca vence. */
     public boolean estaVencido(LocalDate fecha) {
         return this.fechaVencimiento != null && this.fechaVencimiento.isBefore(fecha);

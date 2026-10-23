@@ -30,4 +30,8 @@ public interface ExistenciaJpaRepository extends JpaRepository<ExistenciaJpaMode
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ExistenciaJpaModel> readByIdAndBorradoFalse(UUID id);
+
+    // Todas las vivas, con o sin contenido, para el pesaje (logica.md EXISTENCIA-16).
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<ExistenciaJpaModel> readByIdDetalleLoteInAndBorradoFalseOrderByIdAsc(Collection<UUID> idsDetalleLote);
 }

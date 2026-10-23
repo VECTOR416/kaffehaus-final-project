@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.EstadoPedido.Domain.ValueObjects.EstadoPedidoId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /** Pruebas de dominio puro de Pedido. */
 class PedidoTest {
@@ -89,15 +91,15 @@ class PedidoTest {
     }
 
     @Test
-    void eliminarEsUnaBajaLogica() {
+    void unPedidoNoSeDaDeBaja() {
         // Arrange
         Pedido pedido = pedido();
 
         // Act
-        pedido.eliminar();
+        DomainException error = assertThrows(DomainException.class, pedido::eliminar);
 
         // Assert
-        assertTrue(pedido.isBorrado());
-        assertEquals(ID, pedido.getId().getValue());
+        assertEquals(409, error.getCodigo());
+        assertFalse(pedido.isBorrado());
     }
 }

@@ -145,7 +145,7 @@ class SembrarSistemaUseCaseTest {
     // ------------------------------------------------------------------ que se siembra
 
     @Test
-    void losTiposDeMovimientoSonSoloRecetaAjusteYMerma() {
+    void losTiposDeMovimientoSonProduccionAjusteMermaYApertura() {
         // Arrange
         ArgumentCaptor<TipoMovimiento> sembrados = ArgumentCaptor.forClass(TipoMovimiento.class);
 
@@ -153,8 +153,8 @@ class SembrarSistemaUseCaseTest {
         useCase.execute();
 
         // Assert
-        verify(tipoMovimientoRepository, times(3)).crear(sembrados.capture());
-        assertEquals(List.of("Receta", "Ajuste", "Merma"), capturados(sembrados).stream().map(TipoMovimiento::getNombre).toList());
+        verify(tipoMovimientoRepository, times(4)).crear(sembrados.capture());
+        assertEquals(List.of("Produccion", "Ajuste", "Merma", "Apertura"), capturados(sembrados).stream().map(TipoMovimiento::getNombre).toList());
     }
 
     @Test
@@ -197,7 +197,7 @@ class SembrarSistemaUseCaseTest {
     }
 
     @Test
-    void siembraLasCategoriasPorDefectoComoBorrables() {
+    void siembraLasCategoriasPorDefectoComoNoBorrables() {
         // Arrange
         ArgumentCaptor<Categoria> sembradas = ArgumentCaptor.forClass(Categoria.class);
 
@@ -207,7 +207,7 @@ class SembrarSistemaUseCaseTest {
         // Assert
         verify(categoriaRepository, times(4)).crear(sembradas.capture());
         assertEquals(List.of("Cafes", "Bebidas", "Pasteleria", "Insumos"), capturados(sembradas).stream().map(Categoria::getNombre).toList());
-        assertTrue(capturados(sembradas).stream().allMatch(Categoria::isEsBorrable));
+        assertTrue(capturados(sembradas).stream().noneMatch(Categoria::isEsBorrable));
     }
 
     @Test
@@ -283,10 +283,10 @@ class SembrarSistemaUseCaseTest {
         // Act
         SembrarSistemaResponse respuesta = useCase.execute();
 
-        // Assert: 2 roles + admin + 3 + 2 + 2 + 2 + 5 + 3 + 2 + 4 catalogos + 5 unidades + 2 conversiones + mostrador.
-        assertEquals(34, respuesta.getCreados().size());
+        // Assert: 2 roles + admin + 4 + 2 + 2 + 2 + 5 + 3 + 2 + 4 catalogos + 5 unidades + 2 conversiones + mostrador.
+        assertEquals(35, respuesta.getCreados().size());
         assertTrue(respuesta.getExistentes().isEmpty());
-        assertTrue(respuesta.getCreados().contains("Tipo de movimiento 'Receta'"));
+        assertTrue(respuesta.getCreados().contains("Tipo de movimiento 'Produccion'"));
         assertTrue(respuesta.getCreados().contains("Tipo de producto 'Insumo'"));
         assertTrue(respuesta.getCreados().contains("Usuario 'admin@gmail.com'"));
         assertTrue(respuesta.getCreados().contains("Conversion 'Kilogramo -> Gramo'"));
@@ -321,8 +321,8 @@ class SembrarSistemaUseCaseTest {
         SembrarSistemaResponse respuesta = useCase.execute();
 
         // Assert
-        verify(tipoMovimientoRepository, times(2)).crear(sembrados.capture());
-        assertEquals(List.of("Receta", "Ajuste"), capturados(sembrados).stream().map(TipoMovimiento::getNombre).toList());
+        verify(tipoMovimientoRepository, times(3)).crear(sembrados.capture());
+        assertEquals(List.of("Produccion", "Ajuste", "Apertura"), capturados(sembrados).stream().map(TipoMovimiento::getNombre).toList());
         assertTrue(respuesta.getExistentes().contains("Tipo de movimiento 'Merma'"));
     }
 

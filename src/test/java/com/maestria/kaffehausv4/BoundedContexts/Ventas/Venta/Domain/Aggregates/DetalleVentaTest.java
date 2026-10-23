@@ -40,14 +40,13 @@ class DetalleVentaTest {
     }
 
     @Test
-    void sinDescuentoElSubtotalEsElImporteBrutoYElCostoNaceEnCero() {
+    void sinDescuentoElSubtotalEsElImporteBruto() {
         // Act
         DetalleVenta detalle = linea("8", "2", null);
 
         // Assert
         assertEquals(new BigDecimal("16.00"), detalle.getSubtotal());
         assertEquals(new BigDecimal("0.00"), detalle.getDescuentoAplicado());
-        assertEquals(new BigDecimal("0.0000"), detalle.getCostoTotal());
     }
 
     @Test
@@ -121,31 +120,4 @@ class DetalleVentaTest {
         assertEquals(400, error.getCodigo());
     }
 
-    @Test
-    void registrarCostoGuardaElCostoACuatroDecimales() {
-        // Arrange
-        DetalleVenta detalle = linea("10", "1", null);
-
-        // Act
-        detalle.registrarCosto(new BigDecimal("4.123456"));
-
-        // Assert
-        assertEquals(new BigDecimal("4.1235"), detalle.getCostoTotal());
-    }
-
-    @Test
-    void registrarCostoAceptaCeroYRechazaNegativoONulo() {
-        // Arrange
-        DetalleVenta detalle = linea("10", "1", null);
-
-        // Act
-        detalle.registrarCosto(BigDecimal.ZERO);
-        DomainException porNegativo = assertThrows(DomainException.class, () -> detalle.registrarCosto(new BigDecimal("-0.0001")));
-        DomainException porNulo = assertThrows(DomainException.class, () -> detalle.registrarCosto(null));
-
-        // Assert
-        assertEquals(new BigDecimal("0.0000"), detalle.getCostoTotal());
-        assertEquals(400, porNegativo.getCodigo());
-        assertEquals(400, porNulo.getCodigo());
-    }
 }

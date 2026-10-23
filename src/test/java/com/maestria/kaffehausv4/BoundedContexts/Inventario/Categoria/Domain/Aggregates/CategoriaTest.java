@@ -3,9 +3,12 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.Agg
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
+
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /** Pruebas de dominio puro de Categoria. */
 class CategoriaTest {
@@ -62,5 +65,18 @@ class CategoriaTest {
         // Assert
         assertTrue(categoria.isBorrado());
         assertEquals("Cafes", categoria.getNombre());
+    }
+
+    @Test
+    void unaCategoriaNoBorrableNoSeDaDeBaja() {
+        // Arrange
+        Categoria categoria = Categoria.restaurar(ID, "Cafes", false, false);
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, categoria::eliminar);
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertFalse(categoria.isBorrado());
     }
 }

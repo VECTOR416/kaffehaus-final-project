@@ -30,18 +30,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
-import com.maestria.kaffehausv4.Soporte.DatosDePrueba;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.EstadoExistencia.Application.Repositories.IEstadoExistenciaRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Repositories.IExistenciaRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.Aggregates.Existencia;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repositories.ILoteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.RegistrarSalidaDeInventarioRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.SalidaDeInventarioResponse;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Repositories.IMovimientoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.UseCases.RegistrarSalidaDeInventarioUseCase;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Dtos.ActualizarProduccionRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Dtos.CrearProduccionRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Dtos.ObtenerProduccionesRequest;
@@ -52,14 +46,13 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Repositories.IRecetaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.ValueObjects.RecetaId;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.Repositories.ITipoMovimientoRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
 
 /**
  * Pruebas unitarias de los casos de uso de Produccion. Registrar una produccion consume los
- * insumos de la receta (a traves del caso de uso de salida, aqui simulado) y abre un lote de
- * produccion con su existencia; el movimiento de entrada es de tipo 'Receta'.
+ * insumos de la receta (a traves del caso de uso de salida, aqui simulado) y crea un lote de
+ * produccion con las unidades del terminado disponibles, sin costo, sin existencia ni movimiento
+ * de entrada (logica.md PRODUCCION-12).
  *
  * Escenario: la receta rinde 10 panes con 4 de harina y 2 de levadura.
  */
@@ -73,17 +66,12 @@ class ProduccionUseCasesTest {
     private static final String ID_LEVADURA = "cf000000-0000-0000-0000-000000000005";
     private static final String ID_LOTE = "cf000000-0000-0000-0000-000000000006";
     private static final String ID_DETALLE = "cf000000-0000-0000-0000-000000000007";
-    private static final String ID_EXISTENCIA = "cf000000-0000-0000-0000-000000000008";
 
     @Mock private IProduccionRepository produccionRepository;
     @Mock private IRecetaRepository recetaRepository;
     @Mock private IProductoRepository productoRepository;
     @Mock private IUsuarioRepository usuarioRepository;
     @Mock private ILoteRepository loteRepository;
-    @Mock private IExistenciaRepository existenciaRepository;
-    @Mock private IEstadoExistenciaRepository estadoExistenciaRepository;
-    @Mock private IMovimientoRepository movimientoRepository;
-    @Mock private ITipoMovimientoRepository tipoMovimientoRepository;
     @Mock private RegistrarSalidaDeInventarioUseCase registrarSalidaDeInventarioUseCase;
     @Mock private RecalcularStockUseCase recalcularStockUseCase;
 
@@ -92,7 +80,6 @@ class ProduccionUseCasesTest {
     @BeforeEach
     void prepararCatalogosYPersistencia() {
         crear = new CrearProduccionUseCase(produccionRepository, recetaRepository, productoRepository, usuarioRepository, loteRepository,
-                existenciaRepository, estadoExistenciaRepository, movimientoRepository, tipoMovimientoRepository,
                 registrarSalidaDeInventarioUseCase, recalcularStockUseCase);
 
         lenient().when(recetaRepository.obtenerPorId(any())).thenReturn(Optional.of(receta(ID_RECETA, ID_PAN, "10",
@@ -100,17 +87,14 @@ class ProduccionUseCasesTest {
                 ingrediente("cf000000-0000-0000-0000-0000000000a2", ID_LEVADURA, "2"))));
         lenient().when(productoRepository.obtenerPorId(any())).thenReturn(Optional.of(productoDirecto(ID_PAN, "Pan")));
         lenient().when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuario()));
-        lenient().when(estadoExistenciaRepository.obtenerPorNombre("Abierta")).thenReturn(Optional.of(ABIERTA));
-        lenient().when(tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.RECETA)).thenReturn(Optional.of(RECETA));
         lenient().when(produccionRepository.crear(any())).thenAnswer(llamada -> {
             Produccion nueva = llamada.getArgument(0);
             return Produccion.restaurar(ID_PRODUCCION, nueva.getCantidadEsperada(), nueva.getCantidadReal(), nueva.getDiferencia(),
                     nueva.getMotivoDiferencia(), nueva.getFechaProduccion(), nueva.getRecetaId(), false);
         });
         lenient().when(produccionRepository.actualizar(any(), any())).thenAnswer(llamada -> llamada.getArgument(1));
-        // Cada ingrediente consumido costo 15.00.
         lenient().when(registrarSalidaDeInventarioUseCase.execute(any()))
-                .thenReturn(SalidaDeInventarioResponse.create(new BigDecimal("15.0000"), List.of()));
+                .thenReturn(SalidaDeInventarioResponse.create(List.of()));
         lenient().when(loteRepository.crear(any())).thenAnswer(llamada -> {
             Lote nuevo = llamada.getArgument(0);
             DetalleLote linea = nuevo.getDetalles().get(0);
@@ -118,8 +102,6 @@ class ProduccionUseCasesTest {
                     List.of(DetalleLote.restaurar(ID_DETALLE, linea.getProductoId(), linea.getCantidadInicial(), linea.getCantidadRestante(),
                             linea.getPrecioUnitario(), linea.isFraccionable(), linea.getFechaVencimiento(), false)));
         });
-        lenient().when(existenciaRepository.crear(any())).thenAnswer(llamada -> DatosDePrueba.guardada(llamada.getArgument(0), ID_EXISTENCIA));
-        lenient().when(movimientoRepository.crear(any())).thenAnswer(llamada -> DatosDePrueba.guardado(llamada.getArgument(0), "cf000000-0000-0000-0000-0000000000d1"));
     }
 
     private static CrearProduccionRequest produccion(String esperada, String real) {
@@ -168,8 +150,7 @@ class ProduccionUseCasesTest {
         assertEquals(0, new BigDecimal("8").compareTo(harina.getCantidad()));
         assertEquals(ID_LEVADURA, levadura.getIdProducto());
         assertEquals(0, new BigDecimal("4").compareTo(levadura.getCantidad()));
-        assertEquals(TipoMovimiento.RECETA, harina.getNombreTipoMovimientoDirecto());
-        assertEquals(TipoMovimiento.RECETA, harina.getNombreTipoMovimientoPorReceta());
+        assertTrue(harina.isExplotarBajoDemanda());
         assertEquals(ID_PRODUCCION, harina.getIdProduccion());
         assertEquals(ID_USUARIO, harina.getIdUsuario());
         assertEquals(AHORA, harina.getFecha());
@@ -177,8 +158,8 @@ class ProduccionUseCasesTest {
     }
 
     @Test
-    void elProductoTerminadoEntraEnUnLoteDeProduccionCosteadoConSusInsumos() {
-        // Arrange: 2 ingredientes a 15.00 = 30.00 de insumos entre 18 unidades reales = 1.67.
+    void elProductoTerminadoEntraEnUnLoteDeProduccionConSusUnidadesDisponiblesYSinCosto() {
+        // Arrange
         ArgumentCaptor<Lote> lote = ArgumentCaptor.forClass(Lote.class);
 
         // Act
@@ -192,45 +173,22 @@ class ProduccionUseCasesTest {
         DetalleLote linea = lote.getValue().getDetalles().get(0);
         assertEquals(ID_PAN, linea.getProductoId().getValue());
         assertEquals(new BigDecimal("18.00"), linea.getCantidadInicial());
-        assertEquals(new BigDecimal("1.67"), linea.getPrecioUnitario());
+        assertEquals(new BigDecimal("18.00"), linea.getCantidadRestante());
+        assertEquals(new BigDecimal("0.00"), linea.getPrecioUnitario());
+        assertEquals(new BigDecimal("0.00"), lote.getValue().getTotal());
         assertEquals(LocalDate.of(2026, 10, 15), linea.getFechaVencimiento());
-    }
-
-    @Test
-    void abreUnaExistenciaConLaCantidadRealYRegistraSuEntradaComoReceta() {
-        // Arrange
-        ArgumentCaptor<Existencia> existencia = ArgumentCaptor.forClass(Existencia.class);
-        ArgumentCaptor<Movimiento> movimiento = ArgumentCaptor.forClass(Movimiento.class);
-
-        // Act
-        crear.execute(produccion("20", "18"));
-
-        // Assert
-        verify(existenciaRepository).crear(existencia.capture());
-        assertEquals(0, new BigDecimal("18").compareTo(existencia.getValue().getContenidoInicial()));
-        assertEquals(0, new BigDecimal("18").compareTo(existencia.getValue().getContenidoActual()));
-        assertEquals(ID_DETALLE, existencia.getValue().getDetalleLoteId().getValue());
-        assertEquals(ID_ESTADO_ABIERTA, existencia.getValue().getEstadoExistenciaId().getValue());
-        assertEquals(LocalDate.of(2026, 10, 15), existencia.getValue().getFechaVencimiento());
-
-        verify(movimientoRepository).crear(movimiento.capture());
-        assertEquals(0, new BigDecimal("18").compareTo(movimiento.getValue().getCantidad()));
-        assertEquals(ID_TIPO_RECETA, movimiento.getValue().getTipoMovimientoId().getValue());
-        assertEquals(ID_EXISTENCIA, movimiento.getValue().getExistenciaId().getValue());
-        assertEquals(ID_PRODUCCION, movimiento.getValue().getProduccionId().getValue());
-        assertTrue(movimiento.getValue().getMotivo().startsWith("Entrada de la produccion"));
         verify(recalcularStockUseCase).execute(ID_PAN);
     }
 
     @Test
-    void unaTandaPerdidaConsumeLosInsumosPeroNoAbreLoteNiExistencia() {
+    void unaTandaPerdidaConsumeLosInsumosPeroNoCreaLoteNiSubeElStock() {
         // Act
         ProduccionResponse respuesta = crear.execute(produccion("20", "0"));
 
         // Assert
         assertEquals(new BigDecimal("-20.00"), respuesta.getDiferencia());
         verify(registrarSalidaDeInventarioUseCase, times(2)).execute(any());
-        verifyNoInteractions(loteRepository, existenciaRepository, movimientoRepository, recalcularStockUseCase);
+        verifyNoInteractions(loteRepository, recalcularStockUseCase);
     }
 
     @Test
@@ -258,7 +216,7 @@ class ProduccionUseCasesTest {
 
         // Assert
         assertEquals(409, error.getCodigo());
-        verifyNoInteractions(loteRepository, existenciaRepository, movimientoRepository);
+        verifyNoInteractions(loteRepository, recalcularStockUseCase);
     }
 
     @Test
@@ -290,19 +248,6 @@ class ProduccionUseCasesTest {
         assertEquals(400, error.getCodigo());
         verify(produccionRepository, never()).crear(any());
         verifyNoInteractions(registrarSalidaDeInventarioUseCase);
-    }
-
-    @Test
-    void sinElCatalogoSembradoNoSeAbreElProductoTerminado() {
-        // Arrange
-        when(tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.RECETA)).thenReturn(Optional.empty());
-
-        // Act
-        DomainException error = assertThrows(DomainException.class, () -> crear.execute(produccion("20", "18")));
-
-        // Assert
-        assertEquals(404, error.getCodigo());
-        verifyNoInteractions(loteRepository, existenciaRepository);
     }
 
     @Test

@@ -83,7 +83,7 @@ class RegistrarAperturaUseCaseTest {
         lenient().when(conversionRepository.obtenerVivas()).thenReturn(List.of(
                 Conversion.crear(new BigDecimal("1000"), false, new UnidadId(ID_OTRA_UNIDAD), new UnidadId(ID_UNIDAD))));
         lenient().when(estadoExistenciaRepository.obtenerPorNombre("Abierta")).thenReturn(Optional.of(ABIERTA));
-        lenient().when(tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.AJUSTE)).thenReturn(Optional.of(AJUSTE));
+        lenient().when(tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.APERTURA)).thenReturn(Optional.of(APERTURA));
         lenient().when(unidadRepository.obtenerPorId(any())).thenReturn(Optional.of(UNIDAD));
         lenient().when(existenciaRepository.crear(any())).thenAnswer(llamada -> DatosDePrueba.guardada(llamada.getArgument(0), ID_EXISTENCIA_NUEVA));
         lenient().when(movimientoRepository.crear(any())).thenAnswer(llamada -> DatosDePrueba.guardado(llamada.getArgument(0), "ed000000-0000-0000-0000-000000000001"));
@@ -96,8 +96,8 @@ class RegistrarAperturaUseCaseTest {
         return lote;
     }
 
-    private static RegistrarAperturaRequest apertura(boolean permitirVencido) {
-        return RegistrarAperturaRequest.crear(ID_DETALLE, ID_USUARIO, permitirVencido, AHORA);
+    private static RegistrarAperturaRequest apertura() {
+        return RegistrarAperturaRequest.crear(ID_DETALLE, ID_USUARIO, AHORA);
     }
 
     @Test
@@ -108,7 +108,7 @@ class RegistrarAperturaUseCaseTest {
         ArgumentCaptor<Existencia> creada = ArgumentCaptor.forClass(Existencia.class);
 
         // Act
-        ExistenciaResponse respuesta = useCase.execute(apertura(false));
+        ExistenciaResponse respuesta = useCase.execute(apertura());
 
         // Assert
         assertEquals(new BigDecimal("4.00"), lote.obtenerDetalle(ID_DETALLE).getCantidadRestante());
@@ -128,22 +128,24 @@ class RegistrarAperturaUseCaseTest {
     }
 
     @Test
-    void laAperturaQuedaComoMovimientoDeAjusteSobreLaExistenciaNueva() {
+    void laAperturaQuedaComoMovimientoDeAperturaConCantidadCeroSobreLaExistenciaNueva() {
         // Arrange
         hayLoteCon(ID_BOLSA, "5", null);
         ArgumentCaptor<Movimiento> movimiento = ArgumentCaptor.forClass(Movimiento.class);
 
         // Act
-        useCase.execute(apertura(false));
+        useCase.execute(apertura());
 
         // Assert
         verify(movimientoRepository).crear(movimiento.capture());
-        assertEquals(0, new BigDecimal("1000").compareTo(movimiento.getValue().getCantidad()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(movimiento.getValue().getCantidad()));
         assertEquals("Apertura de 'Bolsa de harina'", movimiento.getValue().getMotivo());
         assertEquals(ID_EXISTENCIA_NUEVA, movimiento.getValue().getExistenciaId().getValue());
-        assertEquals(ID_TIPO_AJUSTE, movimiento.getValue().getTipoMovimientoId().getValue());
+        assertEquals(ID_TIPO_APERTURA, movimiento.getValue().getTipoMovimientoId().getValue());
         assertEquals(ID_USUARIO, movimiento.getValue().getUsuarioId().getValue());
+        // El producto base suma el contenido y la presentacion pierde una bolsa (logica.md EXISTENCIA-13).
         verify(recalcularStockUseCase).execute(ID_HARINA);
+        verify(recalcularStockUseCase).execute(ID_BOLSA);
     }
 
     @Test
@@ -153,7 +155,7 @@ class RegistrarAperturaUseCaseTest {
         ArgumentCaptor<Existencia> creada = ArgumentCaptor.forClass(Existencia.class);
 
         // Act
-        useCase.execute(apertura(false));
+        useCase.execute(apertura());
 
         // Assert
         verify(existenciaRepository).crear(creada.capture());
@@ -162,12 +164,12 @@ class RegistrarAperturaUseCaseTest {
     }
 
     @Test
-    void unDetalleVencidoNoSeAbreSalvoQueSePermita() {
+    void unDetalleVencidoNoSeAbre() {
         // Arrange
         Lote lote = hayLoteCon(ID_BOLSA, "5", HOY.minusDays(1));
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura(false)));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura()));
 
         // Assert
         assertEquals(409, error.getCodigo());
@@ -177,25 +179,12 @@ class RegistrarAperturaUseCaseTest {
     }
 
     @Test
-    void laBajaPorVencimientoPuedeAbrirUnDetalleVencido() {
-        // Arrange
-        hayLoteCon(ID_BOLSA, "5", HOY.minusDays(1));
-
-        // Act
-        ExistenciaResponse respuesta = useCase.execute(apertura(true));
-
-        // Assert
-        assertEquals(ID_EXISTENCIA_NUEVA, respuesta.getId());
-        verify(existenciaRepository).crear(any());
-    }
-
-    @Test
     void sinUnidadesCerradasNoHayNadaQueAbrir() {
         // Arrange
         hayLoteCon(ID_BOLSA, "0.5", null);
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura(false)));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura()));
 
         // Assert
         assertEquals(409, error.getCodigo());
@@ -211,7 +200,7 @@ class RegistrarAperturaUseCaseTest {
         when(conversionRepository.obtenerVivas()).thenReturn(List.of());
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura(false)));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura()));
 
         // Assert: falla antes de tocar el lote.
         assertEquals(409, error.getCodigo());
@@ -228,7 +217,7 @@ class RegistrarAperturaUseCaseTest {
                 .thenReturn(Optional.of(presentacion(ID_HARINA, "Saco de harina", "e0000000-0000-0000-0000-000000000009")));
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura(false)));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura()));
 
         // Assert
         assertEquals(409, error.getCodigo());
@@ -242,7 +231,7 @@ class RegistrarAperturaUseCaseTest {
         when(loteRepository.obtenerPorDetalleIdParaActualizar(any())).thenReturn(Optional.empty());
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura(false)));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura()));
 
         // Assert
         assertEquals(404, error.getCodigo());
@@ -256,7 +245,7 @@ class RegistrarAperturaUseCaseTest {
         when(productoRepository.obtenerPorId(argThat(id -> id != null && id.getValue().endsWith("aa")))).thenReturn(Optional.empty());
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura(false)));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura()));
 
         // Assert
         assertEquals(404, error.getCodigo());
@@ -269,7 +258,7 @@ class RegistrarAperturaUseCaseTest {
         when(productoRepository.obtenerPorId(argThat(id -> id != null && ID_HARINA.equals(id.getValue())))).thenReturn(Optional.empty());
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura(false)));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura()));
 
         // Assert
         assertEquals(404, error.getCodigo());
@@ -283,7 +272,7 @@ class RegistrarAperturaUseCaseTest {
         when(estadoExistenciaRepository.obtenerPorNombre("Abierta")).thenReturn(Optional.empty());
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura(false)));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura()));
 
         // Assert
         assertEquals(404, error.getCodigo());
@@ -291,13 +280,13 @@ class RegistrarAperturaUseCaseTest {
     }
 
     @Test
-    void sinElTipoAjusteSembradoNoSeCreaLaExistencia() {
+    void sinElTipoAperturaSembradoNoSeCreaLaExistencia() {
         // Arrange
         hayLoteCon(ID_BOLSA, "5", null);
-        when(tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.AJUSTE)).thenReturn(Optional.empty());
+        when(tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.APERTURA)).thenReturn(Optional.empty());
 
         // Act
-        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura(false)));
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(apertura()));
 
         // Assert
         assertEquals(404, error.getCodigo());

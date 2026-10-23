@@ -164,11 +164,6 @@ public class Venta {
         }
     }
 
-    /** Registra el costo que el inventario informo al descontar una linea (VEN-23). */
-    public void registrarCosto(String detalleVentaId, BigDecimal costo) {
-        detalleVivo(detalleVentaId).registrarCosto(costo);
-    }
-
     /** Asocia el cliente a una venta ya cobrada (VEN-31). Una venta anulada no cambia (VEN-32). */
     public void asignarCliente(ClienteId clienteId, EstadoVentaId anulada) {
         exigirNoAnulada(anulada);
@@ -177,7 +172,7 @@ public class Venta {
 
     /**
      * Anula la venta (VEN-40). Solo una venta 'Completada' se anula, y siempre con motivo. Las
-     * lineas, importes y costos se conservan: la anulacion no borra nada.
+     * lineas, importes y pagos se conservan: la anulacion no borra nada.
      */
     public void anular(EstadoVentaId completada, EstadoVentaId anulada, UsuarioId usuarioId, String motivo) {
         exigirNoAnulada(anulada);
@@ -190,15 +185,6 @@ public class Venta {
         this.estadoVentaId = anulada;
         this.motivoAnulacion = motivo;
         this.usuarioAnulacionId = usuarioId;
-    }
-
-    /**
-     * Motivo con el que la venta cita sus movimientos de inventario. 'movimientos' no guarda
-     * id_detalle_venta (inventario.md INV-33): este texto es el unico enlace, y lo usan tanto el
-     * alta como el reintegro de la anulacion.
-     */
-    public String motivoDeMovimientos() {
-        return "Venta '" + this.id.getValue() + "'";
     }
 
     public boolean estaEn(EstadoVentaId estado) {
@@ -230,15 +216,6 @@ public class Venta {
         }
     }
 
-    private DetalleVenta detalleVivo(String detalleVentaId) {
-        return this.detalles.stream()
-                .filter(detalle -> !detalle.isBorrado())
-                .filter(detalle -> detalle.getId() != null && detalle.getId().getValue().equals(detalleVentaId))
-                .findFirst()
-                .orElseThrow(() -> DomainException.throwException(404,
-                        "El detalle con id '" + detalleVentaId + "' no pertenece a esta venta"));
-    }
-
     private void recalcularTotal() {
         BigDecimal suma = getDetallesActivos().stream()
                 .map(DetalleVenta::getSubtotal)
@@ -263,14 +240,6 @@ public class Venta {
     public String getMotivoAnulacion() {return motivoAnulacion;}
     public UsuarioId getUsuarioAnulacionId() {return usuarioAnulacionId;}
     public boolean isBorrado() {return borrado;}
-
-    /** Costo total de lo vendido: la suma de los costos de las lineas vivas (VEN-23). */
-    public BigDecimal getCostoTotal() {
-        return getDetallesActivos().stream()
-                .map(DetalleVenta::getCostoTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .setScale(DetalleVenta.ESCALA_COSTO, RoundingMode.HALF_UP);
-    }
 
     /** Todas las lineas, incluidas las dadas de baja: es lo que la persistencia debe escribir. */
     public List<DetalleVenta> getDetalles() {return Collections.unmodifiableList(detalles);}

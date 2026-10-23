@@ -6,6 +6,7 @@ import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.presentacion;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.productoDirecto;
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.usuario;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,7 +43,6 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Application.Repositories.IClienteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.Aggregates.Cliente;
@@ -132,7 +132,8 @@ class CrearVentaUseCaseTest {
         lenient().when(ventaRepository.crear(any())).thenAnswer(llamada -> persistida(llamada.getArgument(0)));
         lenient().when(ventaRepository.actualizar(any(), any())).thenAnswer(llamada -> llamada.getArgument(1));
         lenient().when(registrarSalidaDeInventarioUseCase.execute(any()))
-                .thenReturn(SalidaDeInventarioResponse.create(new BigDecimal("4.0000"), List.of()));
+                .thenReturn(SalidaDeInventarioResponse.create(List.of()));
+        lenient().when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of());
     }
 
     private void hayProducto(Producto producto) {
@@ -146,7 +147,7 @@ class CrearVentaUseCaseTest {
         for (DetalleVenta detalle : venta.getDetalles()) {
             detalles.add(DetalleVenta.restaurar("21000000-0000-0000-0000-00000000000" + detalles.size(), detalle.getProductoId(),
                     detalle.getPrecioUnitario(), detalle.getCantidad(), detalle.getSubtotal(), detalle.getDescuentoAplicado(),
-                    detalle.getCostoTotal(), detalle.isEstado(), detalle.isBorrado()));
+                    detalle.isEstado(), detalle.isBorrado()));
         }
         List<PagoVenta> pagos = new ArrayList<>();
         for (PagoVenta pago : venta.getPagos()) {
@@ -196,7 +197,6 @@ class CrearVentaUseCaseTest {
         assertEquals(1, respuesta.getDetalles().size());
         assertEquals(1, respuesta.getPagos().size());
         verify(ventaRepository).crear(any());
-        verify(ventaRepository).actualizar(any(), any());
     }
 
     @Test
@@ -219,23 +219,20 @@ class CrearVentaUseCaseTest {
     }
 
     @Test
-    void descuentaElInventarioDeCadaLineaYGuardaSuCosto() {
+    void descuentaElInventarioDeCadaLineaComoSalidaDeVenta() {
         // Arrange
         ArgumentCaptor<RegistrarSalidaDeInventarioRequest> salida = ArgumentCaptor.forClass(RegistrarSalidaDeInventarioRequest.class);
 
         // Act
-        VentaResponse respuesta = useCase.execute(venta(List.of(linea(ID_CAFE, "2")), List.of(pago(ID_EFECTIVO, "20"))));
+        useCase.execute(venta(List.of(linea(ID_CAFE, "2")), List.of(pago(ID_EFECTIVO, "20"))));
 
         // Assert
         verify(registrarSalidaDeInventarioUseCase).execute(salida.capture());
         assertEquals(ID_CAFE, salida.getValue().getIdProducto());
         assertEquals(0, new BigDecimal("2").compareTo(salida.getValue().getCantidad()));
-        assertEquals(TipoMovimiento.AJUSTE, salida.getValue().getNombreTipoMovimientoDirecto());
-        assertEquals(TipoMovimiento.RECETA, salida.getValue().getNombreTipoMovimientoPorReceta());
-        assertEquals("Venta '" + ID_VENTA + "'", salida.getValue().getMotivo());
+        assertFalse(salida.getValue().isExplotarBajoDemanda());
         assertEquals(ID_USUARIO, salida.getValue().getIdUsuario());
         assertEquals(AHORA, salida.getValue().getFecha());
-        assertEquals(0, new BigDecimal("4").compareTo(respuesta.getCostoTotal()));
     }
 
     @Test
@@ -253,15 +250,15 @@ class CrearVentaUseCaseTest {
     }
 
     @Test
-    void laVentaSeGuardaAntesDeDescontarElInventarioYSeActualizaDespues() {
+    void laVentaSeGuardaAntesDeDescontarElInventarioYNoSeVuelveAGuardar() {
         // Act
         useCase.execute(venta(List.of(linea(ID_CAFE, "1")), List.of(pago(ID_EFECTIVO, "10"))));
 
-        // Assert
+        // Assert: sin costo que completar, la venta no se actualiza despues (logica.md VENTA-20).
         InOrder orden = inOrder(ventaRepository, registrarSalidaDeInventarioUseCase);
         orden.verify(ventaRepository).crear(any());
         orden.verify(registrarSalidaDeInventarioUseCase).execute(any());
-        orden.verify(ventaRepository).actualizar(any(), any());
+        verify(ventaRepository, never()).actualizar(any(), any());
     }
 
     // ------------------------------------------------------------------ descuentos
@@ -413,18 +410,34 @@ class CrearVentaUseCaseTest {
     }
 
     @Test
-    void unaPresentacionNoSeVendeSeVendeSuProductoBase() {
-        // Arrange
+    void unaPresentacionSeVendePorUnidad() {
+        // Arrange: una bolsa de cafe cerrada (logica.md VENTA-21).
         String idBolsa = "10000000-0000-0000-0000-0000000000c2";
         hayProducto(presentacion(idBolsa, "Bolsa de cafe", ID_CAFE));
+        ArgumentCaptor<RegistrarSalidaDeInventarioRequest> salida = ArgumentCaptor.forClass(RegistrarSalidaDeInventarioRequest.class);
+
+        // Act
+        useCase.execute(venta(List.of(linea(idBolsa, "1")), List.of(pago(ID_EFECTIVO, "10"))));
+
+        // Assert
+        verify(registrarSalidaDeInventarioUseCase).execute(salida.capture());
+        assertEquals(idBolsa, salida.getValue().getIdProducto());
+    }
+
+    @Test
+    void unProductoBaseConPresentacionesNoSeVende() {
+        // Arrange: el cafe se compra en bolsas; su stock vive en existencias.
+        when(productoRepository.obtenerPresentaciones(argThat(id -> id != null && ID_CAFE.equals(id.getValue()))))
+                .thenReturn(List.of(presentacion("10000000-0000-0000-0000-0000000000c2", "Bolsa de cafe", ID_CAFE)));
 
         // Act
         DomainException error = assertThrows(DomainException.class,
-                () -> useCase.execute(venta(List.of(linea(idBolsa, "1")), List.of(pago(ID_EFECTIVO, "10")))));
+                () -> useCase.execute(venta(List.of(linea(ID_CAFE, "1")), List.of(pago(ID_EFECTIVO, "10")))));
 
         // Assert
         assertEquals(400, error.getCodigo());
-        assertTrue(error.getMensaje().contains("es una presentacion"));
+        assertTrue(error.getMensaje().contains("tiene presentaciones"));
+        verify(ventaRepository, never()).crear(any());
     }
 
     @Test

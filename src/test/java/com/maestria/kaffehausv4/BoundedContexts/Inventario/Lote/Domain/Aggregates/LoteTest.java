@@ -222,7 +222,6 @@ class LoteTest {
                 new UsuarioId("22222222-2222-2222-2222-222222222222"),
                 PRODUCTO_CAFE,
                 new BigDecimal("20"),
-                new BigDecimal("7.25"),
                 LocalDate.of(2026, 9, 29));
     }
 
@@ -237,7 +236,7 @@ class LoteTest {
     }
 
     @Test
-    void unLoteDeProduccionNaceSinProveedorYConUnaLineaAbiertaPorCompleto() {
+    void unLoteDeProduccionNaceSinProveedorNiCostoYConSusUnidadesDisponibles() {
         Lote lote = loteDeProduccion();
 
         assertTrue(lote.isEsProduccion());
@@ -245,8 +244,9 @@ class LoteTest {
         assertEquals("66666666-6666-6666-6666-666666666666", lote.getProduccionId().getValue());
         assertEquals(1, lote.getDetallesActivos().size());
         assertEquals(new BigDecimal("20.00"), lote.getDetallesActivos().get(0).getCantidadInicial());
-        assertEquals(new BigDecimal("0.00"), lote.getDetallesActivos().get(0).getCantidadRestante());
-        assertEquals(new BigDecimal("145.00"), lote.getTotal());
+        assertEquals(new BigDecimal("20.00"), lote.getDetallesActivos().get(0).getCantidadRestante());
+        assertEquals(new BigDecimal("0.00"), lote.getDetallesActivos().get(0).getPrecioUnitario());
+        assertEquals(new BigDecimal("0.00"), lote.getTotal());
     }
 
     @Test
@@ -254,7 +254,7 @@ class LoteTest {
         DomainException error = assertThrows(DomainException.class, () -> Lote.registrarProduccion(
                 LocalDateTime.of(2026, 9, 27, 8, 0), null,
                 new UsuarioId("22222222-2222-2222-2222-222222222222"),
-                PRODUCTO_CAFE, new BigDecimal("20"), new BigDecimal("7.25"), null));
+                PRODUCTO_CAFE, new BigDecimal("20"), null));
 
         assertEquals(400, error.getCodigo());
     }
@@ -327,5 +327,76 @@ class LoteTest {
         assertEquals(List.of("d3333333-3333-3333-3333-333333333333", "d2222222-2222-2222-2222-222222222222",
                         "d1111111-1111-1111-1111-111111111111"),
                 orden.stream().map(detalle -> detalle.getId().getValue()).toList());
+    }
+
+    @Test
+    void lasUnidadesSeDescuentanEnOrdenFefoAdmitiendoFraccionesYSinLasVencidas() {
+        LocalDate hoy = LocalDate.of(2026, 9, 27);
+        List<Lote> lotes = List.of(
+                loteDeCafe("a1111111-1111-1111-1111-111111111111", LocalDateTime.of(2026, 9, 1, 8, 0),
+                        "d1111111-1111-1111-1111-111111111111", null, "2.00"),
+                loteDeCafe("a3333333-3333-3333-3333-333333333333", LocalDateTime.of(2026, 9, 3, 8, 0),
+                        "d3333333-3333-3333-3333-333333333333", LocalDate.of(2026, 10, 15), "0.50"),
+                loteDeCafe("a4444444-4444-4444-4444-444444444444", LocalDateTime.of(2026, 9, 4, 8, 0),
+                        "d4444444-4444-4444-4444-444444444444", LocalDate.of(2026, 9, 1), "3.00"),
+                loteDeCafe("a5555555-5555-5555-5555-555555555555", LocalDateTime.of(2026, 9, 5, 8, 0),
+                        "d5555555-5555-5555-5555-555555555555", LocalDate.of(2026, 10, 1), "0.00"));
+
+        List<DetalleLote> orden = Lote.conUnidadesEnOrden(lotes, PRODUCTO_CAFE, hoy);
+
+        assertEquals(List.of("d3333333-3333-3333-3333-333333333333", "d1111111-1111-1111-1111-111111111111"),
+                orden.stream().map(detalle -> detalle.getId().getValue()).toList());
+    }
+
+    @Test
+    void lasUnidadesVuelvenALasLineasConEspacioAunqueEstenVencidas() {
+        List<Lote> lotes = List.of(
+                loteDeCafe("a1111111-1111-1111-1111-111111111111", LocalDateTime.of(2026, 9, 1, 8, 0),
+                        "d1111111-1111-1111-1111-111111111111", null, "5.00"),
+                loteDeCafe("a4444444-4444-4444-4444-444444444444", LocalDateTime.of(2026, 9, 4, 8, 0),
+                        "d4444444-4444-4444-4444-444444444444", LocalDate.of(2026, 9, 1), "3.00"));
+
+        List<DetalleLote> orden = Lote.conEspacioEnOrden(lotes, PRODUCTO_CAFE);
+
+        assertEquals(List.of("d4444444-4444-4444-4444-444444444444"),
+                orden.stream().map(detalle -> detalle.getId().getValue()).toList());
+        assertEquals(new BigDecimal("2.00"), orden.get(0).espacioDisponible());
+    }
+
+    @Test
+    void descontarYDevolverUnidadesMuevenLasDisponiblesSinTocarElTotal() {
+        Lote lote = lotePersistido();
+
+        lote.descontarUnidades(ID_DETALLE_CAFE, new BigDecimal("2.5"));
+        assertEquals(new BigDecimal("7.50"), lote.obtenerDetalle(ID_DETALLE_CAFE).getCantidadRestante());
+
+        lote.devolverUnidades(ID_DETALLE_CAFE, new BigDecimal("1"));
+        assertEquals(new BigDecimal("8.50"), lote.obtenerDetalle(ID_DETALLE_CAFE).getCantidadRestante());
+        assertEquals(new BigDecimal("160.00"), lote.getTotal());
+    }
+
+    @Test
+    void noSeDescuentaMasDeLoDisponibleNiSeDevuelveMasDeLoComprado() {
+        Lote lote = lotePersistido();
+
+        DomainException porDescuento = assertThrows(DomainException.class,
+                () -> lote.descontarUnidades(ID_DETALLE_CAFE, new BigDecimal("10.01")));
+        DomainException porDevolucion = assertThrows(DomainException.class,
+                () -> lote.devolverUnidades(ID_DETALLE_CAFE, new BigDecimal("0.01")));
+
+        assertEquals(409, porDescuento.getCodigo());
+        assertEquals(409, porDevolucion.getCodigo());
+        assertEquals(new BigDecimal("10.00"), lote.obtenerDetalle(ID_DETALLE_CAFE).getCantidadRestante());
+    }
+
+    @Test
+    void unLoteDadoDeBajaNoDescuentaUnidades() {
+        Lote lote = lotePersistido();
+        lote.eliminar();
+
+        DomainException error = assertThrows(DomainException.class,
+                () -> lote.descontarUnidades(ID_DETALLE_CAFE, BigDecimal.ONE));
+
+        assertEquals(409, error.getCodigo());
     }
 }

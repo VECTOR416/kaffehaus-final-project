@@ -29,7 +29,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
-/** Pruebas unitarias de la proyeccion de 'producto.stock' (INV-20) con repositorios simulados. */
+/**
+ * Pruebas unitarias del recalculo de 'producto.stock' (logica.md PRODUCTO-11, PRODUCTO-16) con
+ * repositorios simulados: contenido abierto para un producto base con presentaciones y unidades
+ * disponibles en lotes para un producto por unidades.
+ */
 @ExtendWith(MockitoExtension.class)
 class RecalcularStockUseCaseTest {
 
@@ -77,7 +81,7 @@ class RecalcularStockUseCaseTest {
         // Arrange
         Producto harina = productoDirecto(ID_HARINA, "Harina");
         when(productoRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.of(harina));
-        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of());
+        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of(presentacion(ID_BOLSA, "Bolsa", ID_HARINA)));
         when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of(loteDeCompra(
                 "b1000000-0000-0000-0000-000000000001", detalle(ID_DETALLE, ID_HARINA, "10", "0", "5", null))));
         when(existenciaRepository.obtenerDisponiblesPorDetallesLote(anyList())).thenReturn(List.of(
@@ -96,7 +100,7 @@ class RecalcularStockUseCaseTest {
         // Arrange
         Producto harina = productoDirecto(ID_HARINA, "Harina");
         when(productoRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.of(harina));
-        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of());
+        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of(presentacion(ID_BOLSA, "Bolsa", ID_HARINA)));
         when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of(loteDeCompra(
                 "b1000000-0000-0000-0000-000000000001",
                 detalle(ID_DETALLE, ID_HARINA, "10", "0", "5", null),
@@ -117,7 +121,7 @@ class RecalcularStockUseCaseTest {
         Producto harina = productoDirecto(ID_HARINA, "Harina");
         harina.proyectarStock(new BigDecimal("40"));
         when(productoRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.of(harina));
-        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of());
+        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of(presentacion(ID_BOLSA, "Bolsa", ID_HARINA)));
         when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of());
         when(existenciaRepository.obtenerDisponiblesPorDetallesLote(anyList())).thenReturn(List.of());
 
@@ -127,6 +131,29 @@ class RecalcularStockUseCaseTest {
         // Assert
         assertEquals(new BigDecimal("0.00"), harina.getStock());
         verify(productoRepository).actualizarStock(harina);
+    }
+
+    @Test
+    void unProductoPorUnidadesSumaLasUnidadesDisponiblesDeSusLineas() {
+        // Arrange: pan sin presentaciones, con 3 y 4.5 unidades disponibles en dos lineas, y una
+        // linea de otro producto en el mismo lote que no cuenta.
+        Producto pan = productoDirecto(ID_HARINA, "Pan");
+        when(productoRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.of(pan));
+        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of());
+        when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of(
+                loteDeCompra("b1000000-0000-0000-0000-000000000001",
+                        detalle(ID_DETALLE, ID_HARINA, "10", "3", "1", null),
+                        detalle(ID_DETALLE_AJENO, "b0000000-0000-0000-0000-000000000099", "10", "10", "1", null)),
+                loteDeCompra("b1000000-0000-0000-0000-000000000002",
+                        detalle(ID_DETALLE_BOLSA, ID_HARINA, "5", "4.5", "1", null))));
+
+        // Act
+        useCase.execute(ID_HARINA);
+
+        // Assert
+        assertEquals(new BigDecimal("7.50"), pan.getStock());
+        verify(productoRepository).actualizarStock(pan);
+        verifyNoInteractions(existenciaRepository);
     }
 
     @Test
@@ -159,7 +186,7 @@ class RecalcularStockUseCaseTest {
     void bloqueaElProductoAntesDeSumarSusExistencias() {
         // Arrange
         when(productoRepository.obtenerPorIdParaActualizar(any())).thenReturn(Optional.of(productoDirecto(ID_HARINA, "Harina")));
-        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of());
+        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of(presentacion(ID_BOLSA, "Bolsa", ID_HARINA)));
         when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of());
         when(existenciaRepository.obtenerDisponiblesPorDetallesLote(anyList())).thenReturn(List.of());
 

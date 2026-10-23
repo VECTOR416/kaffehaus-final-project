@@ -8,22 +8,28 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repo
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
  * Baja logica de un lote y sus lineas. Se rechaza si alguna linea tiene existencias con
- * contenido: su stock quedaria sin origen (inventario.md INV-63). Primero se consumen o se
- * dan de baja con merma o vencimiento.
+ * contenido: su stock quedaria sin origen (logica.md LOTE-07). Primero se consumen o se ajustan
+ * con un pesaje. Las unidades del lote dejan de contar en el stock de sus productos (PRODUCTO-16).
  */
 @Service
 @Transactional
 public class EliminarLoteUseCase {
     private final ILoteRepository loteRepository;
     private final IExistenciaRepository existenciaRepository;
+    private final RecalcularStockUseCase recalcularStockUseCase;
 
-    public EliminarLoteUseCase(ILoteRepository loteRepository, IExistenciaRepository existenciaRepository) {
+    public EliminarLoteUseCase(
+            ILoteRepository loteRepository,
+            IExistenciaRepository existenciaRepository,
+            RecalcularStockUseCase recalcularStockUseCase) {
         this.loteRepository = loteRepository;
         this.existenciaRepository = existenciaRepository;
+        this.recalcularStockUseCase = recalcularStockUseCase;
     }
 
     public void execute(String loteId) {
@@ -39,5 +45,6 @@ public class EliminarLoteUseCase {
         }
 
         loteRepository.eliminar(id);
+        CrearLoteUseCase.productosDe(lote).forEach(recalcularStockUseCase::execute);
     }
 }

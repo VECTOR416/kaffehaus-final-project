@@ -28,6 +28,13 @@ public interface IExistenciaDatasource {
      */
     List<Existencia> obtenerDisponiblesParaConsumo(List<DetalleLoteId> detalleLoteIds);
 
-    /** Lectura con bloqueo de una existencia, para mermas, vencimientos y ajustes. */
+    /**
+     * Todas las existencias vivas de esas lineas de lote, con o sin contenido, bloqueadas
+     * (SELECT ... FOR UPDATE) en orden de id. Las usa el pesaje, que puede rellenar una agotada
+     * (logica.md EXISTENCIA-15, EXISTENCIA-16).
+     */
+    List<Existencia> obtenerVivasParaPesaje(List<DetalleLoteId> detalleLoteIds);
+
+    /** Lectura con bloqueo de una existencia. */
     Optional<Existencia> obtenerPorIdParaActualizar(ExistenciaId existenciaId);
 }

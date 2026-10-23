@@ -61,6 +61,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Application.Repo
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.Aggregates.Tipo;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.Repositories.IUnidadRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates.Unidad;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
@@ -241,7 +242,72 @@ class ProductoUseCasesTest {
 
         @BeforeEach
         void crearCasoDeUso() {
-            useCase = new ActualizarProductoUseCase(productoRepository, unidadRepository, tipoRepository, categoriaRepository);
+            useCase = new ActualizarProductoUseCase(productoRepository, unidadRepository, tipoRepository, categoriaRepository, loteRepository);
+            lenient().when(unidadRepository.obtenerPorId(argThat(id -> id != null && ID_OTRA_UNIDAD.equals(id.getValue()))))
+                    .thenReturn(Optional.of(Unidad.restaurar(ID_OTRA_UNIDAD, "Kilogramo", "kg", false, false)));
+        }
+
+        /** Masa con una linea de lote viva: ya tiene inventario. */
+        private void masaConLote() {
+            hayProducto(productoDirecto(ID_MASA, "Masa"));
+            hayProducto(productoDirecto(ID_HARINA, "Harina"));
+            lenient().when(loteRepository.obtenerPorProductos(anyList())).thenReturn(List.of(loteDeCompra("d7000000-0000-0000-0000-0000000000a1",
+                    detalle("d7000000-0000-0000-0000-0000000000a2", ID_MASA, "5", "5", "10", null))));
+        }
+
+        @Test
+        void conInventarioNoCambiaSuNaturalezaSuUnidadNiSuPadre() {
+            // Arrange
+            masaConLote();
+
+            // Act
+            DomainException porNaturaleza = assertThrows(DomainException.class,
+                    () -> useCase.execute(ID_MASA, ActualizarProductoRequest.createFromRequest(Map.of("esStockDirecto", false))));
+            DomainException porUnidad = assertThrows(DomainException.class,
+                    () -> useCase.execute(ID_MASA, ActualizarProductoRequest.createFromRequest(Map.of("idUnidadActual", ID_OTRA_UNIDAD))));
+            DomainException porPadre = assertThrows(DomainException.class,
+                    () -> useCase.execute(ID_MASA, ActualizarProductoRequest.createFromRequest(Map.of("idProductoPadre", ID_HARINA))));
+
+            // Assert
+            assertEquals(409, porNaturaleza.getCodigo());
+            assertEquals(409, porUnidad.getCodigo());
+            assertEquals(409, porPadre.getCodigo());
+            assertTrue(porUnidad.getMensaje().contains("ya tiene inventario"));
+            verify(productoRepository, never()).actualizar(any(), any());
+        }
+
+        @Test
+        void conInventarioSiguenCambiandoSusOtrosDatosYLosMismosValores() {
+            // Arrange
+            masaConLote();
+
+            // Act
+            ProductoResponse respuesta = useCase.execute(ID_MASA, ActualizarProductoRequest.createFromRequest(
+                    Map.of("nombre", "Masa madre", "precio", "20", "esStockDirecto", true, "idUnidadActual", ID_UNIDAD)));
+
+            // Assert
+            assertEquals("Masa madre", respuesta.getNombre());
+            verify(productoRepository).actualizar(any(), any());
+        }
+
+        @Test
+        void unProductoConStockOConPresentacionesTampocoCambiaSuUnidad() {
+            // Arrange
+            hayProducto(Producto.restaurar(ID_MASA, "Pan", new BigDecimal("20.00"), new BigDecimal("1.00"), BigDecimal.ZERO,
+                    true, true, new UnidadId(ID_UNIDAD), new TipoId(ID_TIPO), new CategoriaId(ID_CATEGORIA), null, false));
+            hayProducto(productoDirecto(ID_HARINA, "Harina"));
+            when(productoRepository.obtenerPresentaciones(argThat(id -> ID_HARINA.equals(id.getValue()))))
+                    .thenReturn(List.of(presentacion(ID_BOLSA, "Bolsa de harina", ID_HARINA)));
+
+            // Act
+            DomainException porStock = assertThrows(DomainException.class,
+                    () -> useCase.execute(ID_MASA, ActualizarProductoRequest.createFromRequest(Map.of("idUnidadActual", ID_OTRA_UNIDAD))));
+            DomainException porPresentaciones = assertThrows(DomainException.class,
+                    () -> useCase.execute(ID_HARINA, ActualizarProductoRequest.createFromRequest(Map.of("idUnidadActual", ID_OTRA_UNIDAD))));
+
+            // Assert
+            assertEquals(409, porStock.getCodigo());
+            assertEquals(409, porPresentaciones.getCodigo());
         }
 
         @Test

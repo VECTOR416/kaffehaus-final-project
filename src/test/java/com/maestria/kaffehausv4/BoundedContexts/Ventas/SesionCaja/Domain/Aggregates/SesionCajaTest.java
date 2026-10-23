@@ -46,8 +46,8 @@ class SesionCajaTest {
     @Test
     void elCierreCalculaElEsperadoYLaDiferencia() {
         SesionCaja sesion = abierta();
-        sesion.registrarMovimiento(TITULAR, "ingreso", new BigDecimal("50"), "Cambio del dueno");
-        sesion.registrarMovimiento(OTRO, "EGRESO", new BigDecimal("15.50"), "Hielo");
+        sesion.registrarMovimiento(TITULAR, "ingreso", new BigDecimal("50"), "Cambio del dueno", BigDecimal.ZERO);
+        sesion.registrarMovimiento(OTRO, "EGRESO", new BigDecimal("15.50"), "Hielo", BigDecimal.ZERO);
 
         sesion.cerrar(new BigDecimal("330"), new BigDecimal("200"), "Faltan 4.50", APERTURA.plusHours(8));
 
@@ -68,7 +68,7 @@ class SesionCajaTest {
         sesion.cerrar(new BigDecimal("100"), BigDecimal.ZERO, null, APERTURA.plusHours(1));
 
         DomainException movimiento = assertThrows(DomainException.class,
-                () -> sesion.registrarMovimiento(TITULAR, "INGRESO", BigDecimal.ONE, "x"));
+                () -> sesion.registrarMovimiento(TITULAR, "INGRESO", BigDecimal.ONE, "x", BigDecimal.ZERO));
         DomainException cierre = assertThrows(DomainException.class,
                 () -> sesion.cerrar(BigDecimal.ONE, BigDecimal.ZERO, null, APERTURA.plusHours(2)));
 
@@ -78,17 +78,31 @@ class SesionCajaTest {
     }
 
     @Test
+    void unEgresoNoPuedeDejarLaCajaEnNegativo() {
+        SesionCaja sesion = abierta();
+
+        // 100 de fondo + 20 de ventas en efectivo = 120 disponibles.
+        DomainException error = assertThrows(DomainException.class,
+                () -> sesion.registrarMovimiento(TITULAR, "EGRESO", new BigDecimal("120.01"), "Compra", new BigDecimal("20")));
+        sesion.registrarMovimiento(TITULAR, "EGRESO", new BigDecimal("120"), "Compra", new BigDecimal("20"));
+
+        assertEquals(409, error.getCodigo());
+        assertEquals(new BigDecimal("120.00"), sesion.getTotalEgresos());
+        assertEquals(new BigDecimal("0.00"), sesion.efectivoEsperado(new BigDecimal("20")));
+    }
+
+    @Test
     void validaTipoMontoYMotivoDeUnMovimiento() {
         SesionCaja sesion = abierta();
 
         assertEquals(400, assertThrows(DomainException.class,
-                () -> sesion.registrarMovimiento(TITULAR, "PRESTAMO", BigDecimal.ONE, "x")).getCodigo());
+                () -> sesion.registrarMovimiento(TITULAR, "PRESTAMO", BigDecimal.ONE, "x", BigDecimal.ZERO)).getCodigo());
         assertEquals(400, assertThrows(DomainException.class,
-                () -> sesion.registrarMovimiento(TITULAR, "EGRESO", BigDecimal.ZERO, "x")).getCodigo());
+                () -> sesion.registrarMovimiento(TITULAR, "EGRESO", BigDecimal.ZERO, "x", BigDecimal.ZERO)).getCodigo());
         assertEquals(400, assertThrows(DomainException.class,
-                () -> sesion.registrarMovimiento(TITULAR, "EGRESO", BigDecimal.ONE, " ")).getCodigo());
+                () -> sesion.registrarMovimiento(TITULAR, "EGRESO", BigDecimal.ONE, " ", BigDecimal.ZERO)).getCodigo());
         assertEquals(400, assertThrows(DomainException.class,
-                () -> sesion.registrarMovimiento(TITULAR, "EGRESO", BigDecimal.ONE, "x".repeat(256))).getCodigo());
+                () -> sesion.registrarMovimiento(TITULAR, "EGRESO", BigDecimal.ONE, "x".repeat(256), BigDecimal.ZERO)).getCodigo());
         assertTrue(sesion.getMovimientos().isEmpty());
     }
 

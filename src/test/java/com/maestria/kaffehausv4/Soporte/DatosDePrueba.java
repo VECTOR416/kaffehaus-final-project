@@ -46,18 +46,20 @@ public final class DatosDePrueba {
     public static final String ID_CATEGORIA = "0a000000-0000-0000-0000-000000000004";
     public static final String ID_ESTADO_ABIERTA = "0e000000-0000-0000-0000-000000000001";
     public static final String ID_ESTADO_AGOTADA = "0e000000-0000-0000-0000-000000000002";
-    public static final String ID_TIPO_RECETA = "07000000-0000-0000-0000-000000000001";
+    public static final String ID_TIPO_PRODUCCION = "07000000-0000-0000-0000-000000000001";
     public static final String ID_TIPO_AJUSTE = "07000000-0000-0000-0000-000000000002";
     public static final String ID_TIPO_MERMA = "07000000-0000-0000-0000-000000000003";
+    public static final String ID_TIPO_APERTURA = "07000000-0000-0000-0000-000000000004";
 
     public static final LocalDateTime AHORA = LocalDateTime.of(2026, 10, 12, 9, 30);
     public static final LocalDate HOY = AHORA.toLocalDate();
 
     public static final EstadoExistencia ABIERTA = EstadoExistencia.restaurar(ID_ESTADO_ABIERTA, "Abierta", false);
     public static final EstadoExistencia AGOTADA = EstadoExistencia.restaurar(ID_ESTADO_AGOTADA, "Agotada", false);
-    public static final TipoMovimiento RECETA = TipoMovimiento.restaurar(ID_TIPO_RECETA, TipoMovimiento.RECETA, false);
+    public static final TipoMovimiento PRODUCCION = TipoMovimiento.restaurar(ID_TIPO_PRODUCCION, TipoMovimiento.PRODUCCION, false);
     public static final TipoMovimiento AJUSTE = TipoMovimiento.restaurar(ID_TIPO_AJUSTE, TipoMovimiento.AJUSTE, false);
     public static final TipoMovimiento MERMA = TipoMovimiento.restaurar(ID_TIPO_MERMA, TipoMovimiento.MERMA, false);
+    public static final TipoMovimiento APERTURA = TipoMovimiento.restaurar(ID_TIPO_APERTURA, TipoMovimiento.APERTURA, false);
     public static final Unidad UNIDAD = Unidad.restaurar(ID_UNIDAD, "Gramo", "g", false, false);
 
     // ------------------------------------------------------------------ personal

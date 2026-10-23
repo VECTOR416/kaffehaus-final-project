@@ -18,10 +18,11 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * logica: esconderlo romperia la traza que explica el contenido actual de la existencia. Un
  * error se corrige registrando un movimiento compensatorio.
  *
- * La cantidad es siempre una magnitud positiva; el tipo de movimiento solo lo clasifica
- * ('Receta', 'Ajuste', 'Merma') y la direccion (entrada o salida) se lee del motivo.
- * 'produccionId' solo se informa en los consumos de insumos y la entrada del producto terminado
- * de una produccion.
+ * La cantidad es una magnitud mayor a cero; el tipo de movimiento lo clasifica ('Produccion',
+ * 'Ajuste', 'Merma', 'Apertura'). La unica excepcion es la apertura de una unidad cerrada, que
+ * deja constancia de que se abrio sin mover contenido y por eso registra cantidad 0
+ * (logica.md MOVIMIENTO-08). 'produccionId' solo se informa en los consumos de insumos y la
+ * entrada del producto terminado de una produccion.
  */
 public class Movimiento {
     private MovimientoId id;
@@ -83,6 +84,21 @@ public class Movimiento {
             throw DomainException.throwException(400, "La cantidad del movimiento debe ser mayor a cero");
         }
         return new Movimiento(null, cantidad, fechaMovimiento, motivo, existenciaId, tipoMovimientoId, usuarioId, produccionId, false);
+    }
+
+    /**
+     * Registra la apertura de una unidad cerrada sobre la existencia que nace de ella (logica.md
+     * EXISTENCIA-13). La cantidad es 0: solo deja constancia de que se abrio, porque el
+     * contenido inicial de la existencia ya dice cuanto trajo.
+     */
+    public static Movimiento registrarApertura(
+        LocalDateTime fechaMovimiento,
+        String motivo,
+        ExistenciaId existenciaId,
+        TipoMovimientoId tipoApertura,
+        UsuarioId usuarioId
+    ){
+        return new Movimiento(null, BigDecimal.ZERO, fechaMovimiento, motivo, existenciaId, tipoApertura, usuarioId, null, false);
     }
 
     public void actualizar(){

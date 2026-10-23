@@ -2,7 +2,6 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Use
 
 import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -79,7 +78,6 @@ class AbrirDetalleLoteUseCaseTest {
         verify(registrarAperturaUseCase).execute(apertura.capture());
         assertEquals(ID_DETALLE, apertura.getValue().getIdDetalleLote());
         assertEquals(ID_USUARIO, apertura.getValue().getIdUsuario());
-        assertFalse(apertura.getValue().isPermitirVencido());
     }
 
     @Test

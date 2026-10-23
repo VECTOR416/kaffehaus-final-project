@@ -20,11 +20,15 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Value
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
- * Operacion interna: recalcula 'producto.stock' de un producto de stock directo como la suma
- * del contenido abierto de sus existencias y de las de sus presentaciones (inventario.md
- * INV-20). No tiene endpoint; la invocan, dentro de su transaccion, todas las operaciones que
- * cambian 'contenido_actual': apertura, consumo, ingreso de produccion, merma, vencimiento y
- * ajuste.
+ * Operacion interna: recalcula 'producto.stock' de un producto de stock directo segun su clase
+ * (logica.md PRODUCTO-11). No tiene endpoint; la invocan, dentro de su transaccion, todas las
+ * operaciones que cambian existencias o unidades de lote: compra y correccion de lotes,
+ * apertura, consumo de una receta, produccion, venta, reintegro y pesaje.
+ *
+ * - Producto base con presentaciones: la suma del contenido de sus existencias abiertas y de las
+ *   abiertas desde sus presentaciones, en su unidad.
+ * - Cualquier otro producto de stock directo: la suma de las unidades disponibles de sus lineas
+ *   de lote vivas (PRODUCTO-16).
  *
  * Recalcula en lugar de sumar o restar a proposito. Primero bloquea la fila del producto
  * (INV-52) y despues suma: la suma se lee ya con el bloqueo tomado, asi que ve lo que otra
@@ -57,9 +61,31 @@ public class RecalcularStockUseCase {
             return;
         }
 
+        List<Producto> presentaciones = productoRepository.obtenerPresentaciones(producto.getId());
+        BigDecimal stock = presentaciones.isEmpty()
+                ? unidadesDisponibles(producto)
+                : contenidoAbierto(producto, presentaciones);
+
+        producto.proyectarStock(stock);
+        productoRepository.actualizarStock(producto);
+    }
+
+    /** Unidades que aun no se abrieron, vendieron ni usaron, en las lineas vivas del producto. */
+    private BigDecimal unidadesDisponibles(Producto producto) {
+        String idProducto = producto.getId().getValue();
+        return loteRepository.obtenerPorProductos(List.of(producto.getId())).stream()
+                .filter(lote -> !lote.isBorrado())
+                .flatMap(lote -> lote.getDetallesActivos().stream())
+                .filter(detalle -> idProducto.equals(detalle.getProductoId().getValue()))
+                .map(DetalleLote::getCantidadRestante)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** Contenido de las existencias abiertas del producto base y de sus presentaciones. */
+    private BigDecimal contenidoAbierto(Producto producto, List<Producto> presentaciones) {
         List<ProductoId> fuentes = new ArrayList<>();
         fuentes.add(producto.getId());
-        productoRepository.obtenerPresentaciones(producto.getId()).forEach(presentacion -> fuentes.add(presentacion.getId()));
+        presentaciones.forEach(presentacion -> fuentes.add(presentacion.getId()));
         Set<String> idsFuente = fuentes.stream().map(ProductoId::getValue).collect(Collectors.toSet());
 
         List<DetalleLoteId> detalles = loteRepository.obtenerPorProductos(fuentes).stream()
@@ -69,12 +95,9 @@ public class RecalcularStockUseCase {
                 .collect(Collectors.toList());
 
         String unidad = producto.getUnidadActualId().getValue();
-        BigDecimal contenidoAbierto = existenciaRepository.obtenerDisponiblesPorDetallesLote(detalles).stream()
+        return existenciaRepository.obtenerDisponiblesPorDetallesLote(detalles).stream()
                 .filter(existencia -> existencia.getUnidadId().getValue().equals(unidad))
                 .map(Existencia::getContenidoActual)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        producto.proyectarStock(contenidoAbierto);
-        productoRepository.actualizarStock(producto);
     }
 }

@@ -102,6 +102,19 @@ class SesionCajaUseCasesTest {
                 null, null, null, null, SesionCaja.ABIERTA, false, new ArrayList<>(List.of(movimientos)));
     }
 
+    private Venta venta(String id, EstadoVenta estado, String total, PagoVenta... pagos) {
+        return Venta.restaurar(id, 1L, AHORA.minusHours(1), new BigDecimal(total), new UsuarioId(ID_USUARIO),
+                new ClienteId(Cliente.ID_MOSTRADOR), new SesionCajaId(ID_CAJA), estado.getId(), null, null, null, false,
+                new ArrayList<>(), new ArrayList<>(List.of(pagos)));
+    }
+
+    private PagoVenta pago(String idTipo, String monto, String recibido) {
+        BigDecimal importe = new BigDecimal(monto);
+        BigDecimal cobrado = new BigDecimal(recibido);
+        return PagoVenta.restaurar("94000000-0000-0000-0000-000000000001", new TipoPagoId(idTipo), importe, cobrado,
+                cobrado.subtract(importe), null, false);
+    }
+
     private static MovimientoCaja movimiento(String tipo, String monto) {
         return MovimientoCaja.restaurar("93000000-0000-0000-0000-000000000001", new UsuarioId(ID_USUARIO), tipo,
                 new BigDecimal(monto), "Motivo", AHORA.minusHours(1), false);
@@ -212,7 +225,14 @@ class SesionCajaUseCasesTest {
 
         @BeforeEach
         void crearCasoDeUso() {
-            useCase = new RegistrarMovimientoCajaUseCase(sesionCajaRepository, usuarioRepository);
+            useCase = new RegistrarMovimientoCajaUseCase(sesionCajaRepository, usuarioRepository, ventaRepository,
+                    estadoVentaRepository, tipoPagoRepository);
+
+            lenient().when(estadoVentaRepository.obtenerPorNombre("Completada")).thenReturn(Optional.of(COMPLETADA));
+            lenient().when(tipoPagoRepository.obtenerVivos()).thenReturn(List.of(
+                    TipoPago.restaurar(ID_EFECTIVO, "Efectivo", false),
+                    TipoPago.restaurar(ID_TARJETA, "Tarjeta", false)));
+            lenient().when(ventaRepository.obtenerPorSesionCaja(any())).thenReturn(List.of());
         }
 
         private RegistrarMovimientoCajaRequest peticion(String tipo, String monto) {
@@ -246,6 +266,39 @@ class SesionCajaUseCasesTest {
 
             // Assert
             assertEquals(new BigDecimal("50.00"), respuesta.getTotalIngresos());
+        }
+
+        @Test
+        void unEgresoQueDejariaLaCajaEnNegativoSeRechaza() {
+            // Arrange: 100 de fondo y ninguna venta; un egreso de 100.01 no cabe.
+            SesionCaja caja = cajaAbierta();
+            when(sesionCajaRepository.obtenerAbiertaParaActualizar()).thenReturn(Optional.of(caja));
+
+            // Act
+            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(peticion("EGRESO", "100.01")));
+
+            // Assert
+            assertEquals(409, error.getCodigo());
+            assertTrue(caja.getMovimientosActivos().isEmpty());
+            verify(sesionCajaRepository, never()).actualizar(any(), any());
+        }
+
+        @Test
+        void elEgresoPuedeUsarElEfectivoDeLasVentasCompletadasPeroNoElDeTarjeta() {
+            // Arrange: 100 de fondo + 30 en efectivo (la tarjeta y la venta anulada no cuentan) = 130.
+            when(sesionCajaRepository.obtenerAbiertaParaActualizar()).thenReturn(Optional.of(cajaAbierta()));
+            when(ventaRepository.obtenerPorSesionCaja(any())).thenReturn(List.of(
+                    venta("95000000-0000-0000-0000-000000000001", COMPLETADA, "80",
+                            pago(ID_EFECTIVO, "30", "50"), pago(ID_TARJETA, "50", "50")),
+                    venta("95000000-0000-0000-0000-000000000002", ANULADA, "40", pago(ID_EFECTIVO, "40", "40"))));
+
+            // Act
+            SesionCajaResponse respuesta = useCase.execute(peticion("EGRESO", "130"));
+            DomainException error = assertThrows(DomainException.class, () -> useCase.execute(peticion("EGRESO", "0.01")));
+
+            // Assert
+            assertEquals(new BigDecimal("130.00"), respuesta.getTotalEgresos());
+            assertEquals(409, error.getCodigo());
         }
 
         @Test
@@ -315,19 +368,6 @@ class SesionCajaUseCasesTest {
 
         private CerrarSesionCajaRequest cierre(String declarado) {
             return CerrarSesionCajaRequest.createFromRequest(Map.of("montoCierreDeclarado", declarado, "motivoDiferencia", "Arqueo"), ID_USUARIO);
-        }
-
-        private Venta venta(String id, EstadoVenta estado, String total, PagoVenta... pagos) {
-            return Venta.restaurar(id, 1L, AHORA.minusHours(1), new BigDecimal(total), new UsuarioId(ID_USUARIO),
-                    new ClienteId(Cliente.ID_MOSTRADOR), new SesionCajaId(ID_CAJA), estado.getId(), null, null, null, false,
-                    new ArrayList<>(), new ArrayList<>(List.of(pagos)));
-        }
-
-        private PagoVenta pago(String idTipo, String monto, String recibido) {
-            BigDecimal importe = new BigDecimal(monto);
-            BigDecimal cobrado = new BigDecimal(recibido);
-            return PagoVenta.restaurar("94000000-0000-0000-0000-000000000001", new TipoPagoId(idTipo), importe, cobrado,
-                    cobrado.subtract(importe), null, false);
         }
 
         @Test

@@ -1,6 +1,5 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases;
 
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +20,10 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * Operacion interna: anula una venta (ventas.md VEN-40..VEN-44). No tiene endpoint; la invocan
  * AnularVentaUseCase y la cancelacion de un pedido (VEN-52), dentro de su transaccion.
  *
- * La venta pasa a 'Anulada' con su motivo y quien la anulo; lineas, importes, costos y
- * movimientos se conservan. Sin reintegro el inventario no cambia (VEN-41). Con reintegro, cada
- * salida de la venta recibe su compensatorio de entrada (VEN-42); si una parte no se
- * puede reintegrar, la anulacion entera falla y la venta sigue 'Completada' (VEN-43).
+ * La venta pasa a 'Anulada' con su motivo y quien la anulo; lineas, importes y pagos se
+ * conservan. Sin reintegro el inventario no cambia (VEN-41). Con reintegro, las unidades de cada
+ * linea vuelven a sus lineas de lote (logica.md VENTA-22); si una parte no se puede devolver, la
+ * anulacion entera falla y la venta sigue 'Completada'.
  */
 @Service
 @Transactional
@@ -65,11 +64,10 @@ public class RegistrarAnulacionDeVentaUseCase {
         Venta ventaAnulada = ventaRepository.actualizar(id, venta);
 
         if (request.isReintegrar()) {
-            registrarReintegroDeInventarioUseCase.execute(RegistrarReintegroDeInventarioRequest.crear(
-                    ventaAnulada.motivoDeMovimientos(),
-                    "Anulacion de la venta '" + ventaAnulada.getId().getValue() + "'",
-                    request.getIdUsuario(),
-                    request.getFecha()));
+            RegistrarReintegroDeInventarioRequest reintegro = RegistrarReintegroDeInventarioRequest.crear();
+            ventaAnulada.getDetallesActivos().forEach(detalle ->
+                    reintegro.con(detalle.getProductoId().getValue(), detalle.getCantidad()));
+            registrarReintegroDeInventarioUseCase.execute(reintegro);
         }
 
         return VentaResponse.createFromAggregate(ventaAnulada, anulada);
