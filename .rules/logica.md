@@ -606,7 +606,48 @@ VENTA-23), P-11 (VENTA-20), P-12 (VENTA-22), P-13 (MOVIMIENTO-14), P-15 (EXISTEN
 (CATALOGO-INV-05), P-04 (PRODUCCION-11), P-05 (PEDIDO-08), P-06 (LOTE-16), P-07 (PRODUCTO-15),
 P-08 (GENERAL-12) y P-09 (SESIONCAJA-10, SESIONCAJA-11).
 
-No hay pendientes abiertos.
+Abiertos el 2026-10-23, al revisar si el sistema puede usarse en un entorno real. Las opciones
+listadas son solo orientativas; ninguna esta elegida.
+
+- **P-21. Consumo de insumos al vender un MTO.** Segun VENTA-23 y PRODUCTO-08, vender un producto
+  MTO (por ejemplo, un capuchino) no descuenta nada. En una cafeteria la mayor parte de lo vendido
+  es MTO, asi que el cafe o la leche gastados al vender solo bajan con el pesaje (EXISTENCIA-16) y
+  aparecen como `Merma`, mezclados con la merma real. Por decidir: si se mantiene asi (el pesaje
+  absorbe el consumo de la venta) o si la venta de un MTO explota su receta vigente y consume sus
+  insumos, como ya hace la produccion (MOVIMIENTO-18), con su tipo de movimiento y su
+  comportamiento cuando falte insumo.
+- **P-22. Vencimientos.** VENCIMIENTO-01 lo deja sin disenar. Hoy `producto.stock` suma tambien
+  las unidades de lineas de lote vencidas, mientras que la venta y la produccion las rechazan: el
+  stock muestra unidades que no se pueden usar (409). Tampoco hay forma de dar de baja lo vencido,
+  cerrado o abierto. Por decidir: si el stock excluye lo vencido, como se da de baja (y con que
+  traza) y si el sistema lo hace solo o lo pide el usuario.
+- **P-23. Costos, ganancias y reportes.** GENERAL-11 deja el dinero para los reportes, que no
+  estan definidos. Lo producido tiene costo 0 (PRODUCCION-12) y la venta no guarda costo
+  (VENTA-20). Por decidir: que reportes se necesitan (ventas, ganancia, valoracion de inventario,
+  mermas) y con que metodo se costea lo producido y lo vendido.
+- **P-24. Devolucion del dinero al anular.** SESIONCAJA-06 supone que al anular se devolvio el
+  dinero, pero no queda registrado. Si se anula una venta de una caja ya cerrada
+  (SESIONCAJA-11), el efectivo sale de la caja abierta en ese momento sin movimiento y su arqueo
+  muestra un faltante. Tampoco esta definido el reembolso de pagos con tarjeta o QR. Por decidir:
+  si la anulacion registra un egreso en la caja abierta, si exige caja abierta, y como se tratan
+  los pagos que no son en efectivo.
+- **P-25. Limites de `fechaVenta`.** VENTA-05 la deja opcional y libre: se acepta cualquier fecha,
+  pasada o futura, y decide que descuentos aplican (DESCUENTO-03). Por decidir: si se acepta del
+  cliente, con que margen respecto de ahora y si debe caer dentro del turno de la caja.
+- **P-26. Quien opera en la caja de otro titular.** El titular responde por el dinero
+  (SESIONCAJA-02), pero hay una sola caja en el local (SESIONCAJA-01) y cualquier `Operador` puede
+  vender y registrar ingresos y egresos en ella. Por decidir: si eso es lo esperado o si solo el
+  titular (o un Administrador) registra egresos o ventas en su turno.
+- **P-27. Cantidades fraccionarias en la venta.** VENTA-21 pide `cantidad > 0` y LOTE-17 admite
+  fracciones, asi que se puede vender 0,5 de un producto por unidades (medio pan, media bolsa
+  cerrada). Por decidir: si se permite, para que productos y con que escala.
+- **P-28. Facturacion e impuestos.** No hay ninguna decision sobre comprobantes fiscales ni
+  impuestos. El ticket (VENTA-12) es un numero interno y la secuencia deja huecos cuando una venta
+  se revierte. Por decidir: si el sistema debe emitir o registrar facturas, que datos fiscales
+  pide del cliente y si los huecos de numeracion son aceptables.
+- **P-29. Correccion de bolsas cerradas sin traza.** LOTE-16 ajusta `cantidadRestante` por PUT sin
+  registrar movimiento y anota que "se revisara al disenar los reportes". Por decidir: si estas
+  correcciones necesitan una traza propia (quien, cuanto, por que) como la tiene el pesaje.
 
 ---
 
