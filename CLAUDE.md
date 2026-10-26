@@ -62,7 +62,7 @@ Errors: throw `DomainException.throwException(codigo, "mensaje")` (returns the e
 
 ### Security
 
-Lives entirely in `Shared/Presentation/Security`; `org.springframework.security` and `io.jsonwebtoken` must not appear in any aggregate. Only `/api/v1/auth/**` (login, google, refresh) is open. Every aggregate controller must carry `@RequiereRol({"Operador", "Administrador"})` at class level; a method-level `@RequiereRol` overrides it. Roles are rows in the `rol` table, never enums/constants. The session user id is injected with `@UsuarioEnSesion String idUsuario` and passed into `createFromRequest`; the client never sends `idUsuario`. Passwords use `IHasheadorDeContrasena` (PBKDF2), not `PasswordEncoder`.
+Lives entirely in `Shared/Presentation/Security`; `org.springframework.security` and `io.jsonwebtoken` must not appear in any aggregate. Only `/api/v1/auth/**` (login, google, refresh) and `GET /api/v1/salud` (public health check: `UP`/`DOWN` for the system and the DB, 200/503; arquitectura.md 4.22) are open. Every aggregate controller must carry `@RequiereRol({"Operador", "Administrador"})` at class level; a method-level `@RequiereRol` overrides it. Roles are rows in the `rol` table, never enums/constants. The session user id is injected with `@UsuarioEnSesion String idUsuario` and passed into `createFromRequest`; the client never sends `idUsuario`. Passwords use `IHasheadorDeContrasena` (PBKDF2), not `PasswordEncoder`.
 
 ### Non-obvious domain mechanics
 

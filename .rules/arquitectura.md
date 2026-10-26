@@ -246,6 +246,9 @@ Lo unico compartido entre contextos. Espeja las mismas capas.
 | `Shared/Presentation/GlobalExceptionHandler` | `@RestControllerAdvice`. Traduce excepciones a `ErrorResponse` (4.16) |
 | `Shared/Application/Inicializacion/SembrarSistemaUseCase` | Siembra idempotente de primer arranque (4.19) |
 | `Shared/Presentation/Inicializacion/InicializacionControllerV1` | `POST api/v1/seed` (4.19) |
+| `Shared/Application/Salud/` | `ConsultarSaludUseCase`, `SaludResponse` y el puerto `IVerificadorDeBaseDeDatos` (4.22) |
+| `Shared/Infrastructure/Salud/VerificadorDeBaseDeDatosJdbc` | `@Component`. Valida una conexion del pool con `Connection.isValid` (4.22) |
+| `Shared/Presentation/Salud/SaludControllerV1` | `GET api/v1/salud`, health check publico (4.22) |
 | `Shared/Presentation/Security/` | Toda la seguridad (4.18) |
 
 ### 3.4 Donde colocar cada cosa
@@ -725,7 +728,7 @@ entera en este paquete y es **la capa mas externa**. Es el unico paquete que imp
 
 | Pieza | Responsabilidad |
 |---|---|
-| `SecurityConfig` | `@EnableWebSecurity`. Cadena stateless, sin CSRF; `/api/v1/auth/**` abierto y el resto autenticado (`anyRequest().authenticated()`); CORS (`corsConfigurationSource`, dentro de la cadena porque el preflight se resuelve antes de Spring MVC) con los origenes enumerados en `seguridad.cors.origenes-permitidos` (`CORS_ORIGENES`, por defecto `localhost` en cualquier puerto): admite patrones acotados y rechaza al arrancar el comodin `*` a secas; registro del interceptor y del resolvedor |
+| `SecurityConfig` | `@EnableWebSecurity`. Cadena stateless, sin CSRF; `/api/v1/auth/**` y `GET /api/v1/salud` (4.22) abiertos y el resto autenticado (`anyRequest().authenticated()`); CORS (`corsConfigurationSource`, dentro de la cadena porque el preflight se resuelve antes de Spring MVC) con los origenes enumerados en `seguridad.cors.origenes-permitidos` (`CORS_ORIGENES`, por defecto `localhost` en cualquier puerto): admite patrones acotados y rechaza al arrancar el comodin `*` a secas; registro del interceptor y del resolvedor |
 | `JwtAuthenticationFilter` | `OncePerRequestFilter`. **Unico sitio donde se valida un token entrante**. Deja al usuario en el `SecurityContext` |
 | `JwtService` | `@Component`. Unico punto que conoce jjwt: firma, claims y vigencia |
 | `RequiereRol` | Anotacion de clase o metodo con nombres de rol tal como estan en la tabla `rol`. La del metodo manda sobre la de la clase |
@@ -839,6 +842,27 @@ Bajo `src/test/java/com/maestria/kaffehausv4/`, espejando el paquete de producci
   `FOR SHARE`; lo que dependa de ellos (unicidad entre transacciones, concurrencia) no se prueba.
 - Un agregado nuevo trae, como minimo, test de su agregado y de sus casos de uso; si tiene
   consultas o mapeo propios, un `*IntegracionTest` de su datasource.
+
+### 4.22 Salud (`Shared/.../Salud`)
+
+`GET api/v1/salud` (`SaludControllerV1`) informa si el sistema y su base de datos estan
+disponibles, para un balanceador, Docker o un monitor externo. No se usa Spring Boot Actuator
+porque seria una dependencia nueva (7.2, regla 9).
+
+- **Publica**: `SecurityConfig` abre solo el `GET` de `RUTA_DE_SALUD`, y el controller no lleva
+  `@RequiereRol`. Por eso el cuerpo solo dice `"UP"` o `"DOWN"`, sin versiones, latencias ni
+  mensajes de error: `{"estado": "UP", "baseDeDatos": "UP"}`.
+- **Codigo HTTP**: 200 si `estado` es `"UP"`, 503 si es `"DOWN"`, con el mismo cuerpo. El sistema
+  esta disponible solo si la base lo esta.
+- **Capas**: `ConsultarSaludUseCase` depende del puerto `IVerificadorDeBaseDeDatos`
+  (`Shared/Application/Salud`); el adaptador `VerificadorDeBaseDeDatosJdbc`
+  (`Shared/Infrastructure/Salud`) pide una conexion al pool y la valida con
+  `Connection.isValid`, sin escribir SQL (regla 18). Cualquier fallo se traduce a `false` y no se
+  propaga (regla 22).
+- **Sin `@Transactional`**: abrir la transaccion pediria una conexion antes de entrar al caso de
+  uso, y con la base caida responderia un error en vez de `"DOWN"`.
+- Con la base caida, la respuesta tarda hasta el `connection-timeout` del pool de Hikari (30 s
+  por defecto), que es lo que espera `getConnection`.
 
 ---
 
@@ -1053,6 +1077,7 @@ recurso, en kebab-case, con su propio caso de uso, **y se registra aqui**:
 | `GET api/v1/sesion-caja/estado` | `ObtenerEstadoCajaUseCase` | — | Consulta del turno abierto |
 | `POST api/v1/seed` | `SembrarSistemaUseCase` | Sin `@RequiereRol` (4.19) | Inicializacion, no es un agregado |
 | `POST api/v1/auth/{login,google,refresh}` | `AutenticacionService` | Publica | Autenticacion (4.18) |
+| `GET api/v1/salud` | `ConsultarSaludUseCase` | Publica, sin `@RequiereRol` (4.22) | Health check, no es un agregado |
 
 Endpoints estandar restringidos a `Administrador` con `@RequiereRol` en el metodo: `crear`,
 `actualizar` y `eliminar` de `usuario`, `rol` y `producto`, y `actualizar` de `lote`. `SesionCaja`

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -65,6 +66,12 @@ public class SecurityConfig implements WebMvcConfigurer {
     public static final String RUTA_DE_SIEMBRA = "/api/v1/seed";
 
     /**
+     * Health check (SaludControllerV1). Publica para que la consulten un balanceador o un
+     * monitor sin credenciales; solo el GET, y solo responde "UP" o "DOWN".
+     */
+    public static final String RUTA_DE_SALUD = "/api/v1/salud";
+
+    /**
      * Lo unico que se inyecta por constructor es el guardia, porque hace falta para configurar
      * Spring MVC. El filtro y el escritor llegan como parametros del @Bean de abajo: asi no se
      * construyen hasta que se arma la cadena, y la configuracion de MVC no arrastra media
@@ -96,10 +103,12 @@ public class SecurityConfig implements WebMvcConfigurer {
                         (peticion, respuesta, excepcion) -> escritorDeErrorHttp.escribir(respuesta,
                                 new AutorizacionException(401,
                                         "Falta la cabecera Authorization con un token Bearer valido"))))
-                // Solo el login, los tokens y la siembra habilitada quedan abiertos; todo lo demas
-                // exige un token valido. SecurityUser concede ROLE_ADMINISTRADOR al rol 'Administrador'.
+                // Solo el login, los tokens, el health check y la siembra habilitada quedan abiertos;
+                // todo lo demas exige un token valido. SecurityUser concede ROLE_ADMINISTRADOR al rol
+                // 'Administrador'.
                 .authorizeHttpRequests(rutas -> {
                     rutas.requestMatchers(RUTA_DE_AUTENTICACION + "/**").permitAll();
+                    rutas.requestMatchers(HttpMethod.GET, RUTA_DE_SALUD).permitAll();
                     if (seedHabilitado) {
                         rutas.requestMatchers(RUTA_DE_SIEMBRA).permitAll();
                     } else {
