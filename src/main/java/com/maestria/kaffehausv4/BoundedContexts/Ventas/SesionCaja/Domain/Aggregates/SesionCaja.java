@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.Aggreg
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -10,6 +11,7 @@ import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.ValueObjects.SesionCajaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
@@ -97,10 +99,43 @@ public class SesionCaja {
                 null, null, null, null, ABIERTA, false, null);
     }
 
-    /** Ingreso o egreso menor de efectivo. Solo en una caja abierta. */
-    public void registrarMovimiento(UsuarioId usuarioId, String tipo, BigDecimal monto, String motivo) {
+    /**
+     * Ingreso o egreso menor de efectivo. Solo en una caja abierta. Un egreso no puede dejar el
+     * efectivo esperado por debajo de cero (logica.md SESIONCAJA-10); 'ventasEnEfectivo' es lo
+     * cobrado en efectivo hasta ahora en las ventas completadas de esta sesion.
+     *
+     * Cualquiera que atienda registra un ingreso, pero sacar dinero es cosa del titular, que
+     * responde por la caja, o de un Administrador (SESIONCAJA-15): si no, 403.
+     */
+    public void registrarMovimiento(UsuarioId usuarioId, String tipo, BigDecimal monto, String motivo, BigDecimal ventasEnEfectivo, boolean esAdministrador) {
         exigirAbierta();
-        this.movimientos.add(MovimientoCaja.crear(usuarioId, tipo, monto, motivo));
+        MovimientoCaja movimiento = MovimientoCaja.crear(usuarioId, tipo, monto, motivo);
+        if (!movimiento.esIngreso() && !esAdministrador && !esTitular(usuarioId)) {
+            throw AutorizacionException.throwException(403,
+                    "Solo el titular de la sesion de caja o un Administrador registran un egreso");
+        }
+        agregar(movimiento, ventasEnEfectivo);
+    }
+
+    /**
+     * Devuelve desde esta caja abierta el efectivo de una venta de un turno ya cerrado que se
+     * anula (logica.md VENTA-27, SESIONCAJA-13): un egreso con la venta, que no puede dejar la
+     * caja en negativo (SESIONCAJA-10). El arqueo de la caja de la venta no cambia (SESIONCAJA-14).
+     */
+    public void registrarDevolucion(UsuarioId usuarioId, BigDecimal monto, String motivo, VentaId ventaId, BigDecimal ventasEnEfectivo) {
+        exigirAbierta();
+        agregar(MovimientoCaja.crearDevolucion(usuarioId, monto, motivo, ventaId), ventasEnEfectivo);
+    }
+
+    private void agregar(MovimientoCaja movimiento, BigDecimal ventasEnEfectivo) {
+        if (!movimiento.esIngreso()) {
+            BigDecimal disponible = efectivoEsperado(ventasEnEfectivo);
+            if (disponible.compareTo(movimiento.getMonto()) < 0) {
+                throw DomainException.throwException(409,
+                        "El egreso de " + movimiento.getMonto() + " supera el efectivo disponible en la caja (" + disponible + ")");
+            }
+        }
+        this.movimientos.add(movimiento);
     }
 
     /**
@@ -108,7 +143,7 @@ public class SesionCaja {
      * diferencia de la que responde el titular.
      */
     public void exigirQuePuedaCerrar(UsuarioId usuarioId, boolean esAdministrador) {
-        if (!esAdministrador && !this.usuarioId.getValue().equals(usuarioId.getValue())) {
+        if (!esAdministrador && !esTitular(usuarioId)) {
             throw AutorizacionException.throwException(403,
                     "Solo el titular de la sesion de caja o un Administrador pueden cerrarla");
         }
@@ -128,10 +163,7 @@ public class SesionCaja {
         if (montoCierreDeclarado == null || montoCierreDeclarado.signum() < 0) {
             throw DomainException.throwException(400, "El monto de cierre declarado no puede ser negativo");
         }
-        BigDecimal esperado = this.montoApertura
-                .add(ventasEnEfectivo != null ? ventasEnEfectivo : BigDecimal.ZERO)
-                .add(getTotalIngresos())
-                .subtract(getTotalEgresos());
+        BigDecimal esperado = efectivoEsperado(ventasEnEfectivo);
 
         this.montoCierreDeclarado = aEscalaMonetaria(montoCierreDeclarado);
         this.montoCierreEsperado = aEscalaMonetaria(esperado);
@@ -141,6 +173,14 @@ public class SesionCaja {
         this.estado = CERRADA;
     }
 
+    /** Efectivo que deberia haber en la caja: apertura + ventas en efectivo + ingresos - egresos. */
+    public BigDecimal efectivoEsperado(BigDecimal ventasEnEfectivo) {
+        return aEscalaMonetaria(this.montoApertura
+                .add(ventasEnEfectivo != null ? ventasEnEfectivo : BigDecimal.ZERO)
+                .add(getTotalIngresos())
+                .subtract(getTotalEgresos()));
+    }
+
     /** Un turno es auditoria del dinero: no se da de baja. */
     public void eliminar() {
         throw DomainException.throwException(409, "Una sesion de caja no se da de baja");
@@ -148,6 +188,18 @@ public class SesionCaja {
 
     public boolean estaAbierta() {
         return ABIERTA.equals(this.estado);
+    }
+
+    /**
+     * Turno abierto en un dia anterior (logica.md SESIONCAJA-17): sigue operativo, porque hay
+     * turnos que pasan la medianoche, pero el frontend debe pedir cerrarlo.
+     */
+    public boolean abiertaDesdeDiaAnterior(LocalDate hoy) {
+        return estaAbierta() && this.fechaApertura != null && this.fechaApertura.toLocalDate().isBefore(hoy);
+    }
+
+    private boolean esTitular(UsuarioId usuarioId) {
+        return this.usuarioId.getValue().equals(usuarioId.getValue());
     }
 
     private void exigirAbierta() {

@@ -24,7 +24,6 @@ public class DetalleVentaJpaMapper {
         model.setCantidad(detalleVenta.getCantidad());
         model.setSubtotal(detalleVenta.getSubtotal());
         model.setDescuentoAplicado(detalleVenta.getDescuentoAplicado());
-        model.setCostoTotal(detalleVenta.getCostoTotal());
         model.setEstado(detalleVenta.isEstado());
         model.setIdVenta(idVenta);
         model.setIdProducto(UUID.fromString(detalleVenta.getProductoId().getValue()));
@@ -39,7 +38,6 @@ public class DetalleVentaJpaMapper {
         model.setCantidad(detalleVenta.getCantidad());
         model.setSubtotal(detalleVenta.getSubtotal());
         model.setDescuentoAplicado(detalleVenta.getDescuentoAplicado());
-        model.setCostoTotal(detalleVenta.getCostoTotal());
         model.setEstado(detalleVenta.isEstado());
         model.setBorrado(detalleVenta.isBorrado());
         model.setFecU(OffsetDateTime.now());
@@ -53,7 +51,6 @@ public class DetalleVentaJpaMapper {
                 model.getCantidad(),
                 model.getSubtotal(),
                 model.getDescuentoAplicado(),
-                model.getCostoTotal(),
                 model.getEstado() != null && model.getEstado(),
                 model.getBorrado() != null && model.getBorrado());
     }

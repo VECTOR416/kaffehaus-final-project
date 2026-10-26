@@ -13,9 +13,11 @@ public class MovimientoResponse {
     private LocalDateTime fechaMovimiento;
     private String motivo;
     private String idExistencia;
+    private String idDetalleLote;
     private TipoMovimientoResponse tipoMovimiento;
     private String idUsuario;
     private String idProduccion;
+    private String idVenta;
     private boolean borrado;
 
     private MovimientoResponse(
@@ -24,9 +26,11 @@ public class MovimientoResponse {
         LocalDateTime fechaMovimiento,
         String motivo,
         String idExistencia,
+        String idDetalleLote,
         TipoMovimientoResponse tipoMovimiento,
         String idUsuario,
         String idProduccion,
+        String idVenta,
         boolean borrado
     ) {
         this.id = id;
@@ -34,9 +38,11 @@ public class MovimientoResponse {
         this.fechaMovimiento = fechaMovimiento;
         this.motivo = motivo;
         this.idExistencia = idExistencia;
+        this.idDetalleLote = idDetalleLote;
         this.tipoMovimiento = tipoMovimiento;
         this.idUsuario = idUsuario;
         this.idProduccion = idProduccion;
+        this.idVenta = idVenta;
         this.borrado = borrado;
     }
 
@@ -48,9 +54,11 @@ public class MovimientoResponse {
             movimiento.getFechaMovimiento(),
             movimiento.getMotivo(),
             movimiento.getExistenciaId() != null ? movimiento.getExistenciaId().getValue() : null,
+            movimiento.getDetalleLoteId() != null ? movimiento.getDetalleLoteId().getValue() : null,
             tipoMovimientoResponse,
             movimiento.getUsuarioId() != null ? movimiento.getUsuarioId().getValue() : null,
             movimiento.getProduccionId() != null ? movimiento.getProduccionId().getValue() : null,
+            movimiento.getVentaId() != null ? movimiento.getVentaId().getValue() : null,
             movimiento.isBorrado()
         );
     }
@@ -60,8 +68,10 @@ public class MovimientoResponse {
     public LocalDateTime getFechaMovimiento() {return fechaMovimiento;}
     public String getMotivo() {return motivo;}
     public String getIdExistencia() {return idExistencia;}
+    public String getIdDetalleLote() {return idDetalleLote;}
     public TipoMovimientoResponse getTipoMovimiento() {return tipoMovimiento;}
     public String getIdUsuario() {return idUsuario;}
     public String getIdProduccion() {return idProduccion;}
+    public String getIdVenta() {return idVenta;}
     public boolean isBorrado() {return borrado;}
 }

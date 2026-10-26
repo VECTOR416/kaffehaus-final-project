@@ -52,9 +52,8 @@ public class ObtenerDetallesAperturablesUseCase {
                     "El producto '" + base.getNombre() + "' es una presentacion; consulta por su producto base");
         }
 
-        List<Producto> fuentes = new ArrayList<>();
-        fuentes.add(base);
-        fuentes.addAll(productoRepository.obtenerPresentaciones(base.getId()));
+        // Se abren presentaciones: el producto base no se compra suelto (logica.md LOTE-13, LOTE-14).
+        List<Producto> fuentes = new ArrayList<>(productoRepository.obtenerPresentaciones(base.getId()));
 
         List<Lote> lotes = loteRepository.obtenerPorProductos(fuentes.stream().map(Producto::getId).toList());
         List<Conversion> conversiones = conversionRepository.obtenerVivas();

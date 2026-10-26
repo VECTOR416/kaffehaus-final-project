@@ -16,7 +16,8 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * venta entra en la caja abierta y el ticket lo numera la base (CAJ-01, CAJ-14).
  * 'claveIdempotencia' es opcional: la genera el POS para que un reintento tras un timeout no
  * cobre dos veces (VEN-66). 'idCliente' es opcional: sin el, la venta es del cliente
- * 'Mostrador' (CAJ-02). 'pagos' debe sumar el total (CAJ-11).
+ * 'Mostrador' (CAJ-02). 'pagos' debe sumar el total (CAJ-11). 'fechaVenta' solo la puede enviar
+ * un Administrador, para una venta de contingencia (logica.md VENTA-28).
  */
 public class CrearVentaRequest {
     private static final List<String> CAMPOS_DERIVADOS = List.of("total", "idEstadoVenta", "idSesionCaja", "numeroTicket");
@@ -54,8 +55,8 @@ public class CrearVentaRequest {
                 throw DomainException.throwException(400, "El campo '" + campo + "' de una venta lo asigna el sistema; no se envia");
             }
         }
+        // Nula si no se envia: la fija el caso de uso, que sabe si quien vende puede fijarla (VENTA-28).
         LocalDateTime fechaVenta = Validador.fechaOpcional(request.get("fechaVenta"), "fechaVenta");
-        fechaVenta = fechaVenta != null ? fechaVenta : LocalDateTime.now();
         String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
         String idCliente = Validador.textoOpcional(request.get("idCliente"), "idCliente");
         String claveIdempotencia = Validador.textoOpcional(request.get("claveIdempotencia"), "claveIdempotencia");

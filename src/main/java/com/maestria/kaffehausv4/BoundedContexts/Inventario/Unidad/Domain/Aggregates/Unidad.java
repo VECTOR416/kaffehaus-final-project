@@ -1,6 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 public class Unidad {
     private UnidadId id;
@@ -51,7 +52,11 @@ public class Unidad {
         this.esBorrable = esBorrable != null ? esBorrable : this.esBorrable;
     }
 
+    /** Un registro base marcado como no borrable no se da de baja (logica.md CATALOGO-INV-05). */
     public void eliminar(){
+        if (!this.esBorrable) {
+            throw DomainException.throwException(409, "La unidad con id '" + this.id.getValue() + "' no se puede dar de baja");
+        }
         this.borrado = true;
     }
 

@@ -1,50 +1,34 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * Entrada de RegistrarReintegroDeInventarioUseCase. No viaja por HTTP: la arma la anulacion de
  * una venta, por eso su factoria es crear(...).
  *
- * 'motivoOrigen' identifica los movimientos a compensar (los de la venta citan
- * "Venta '<id>'"); 'nombresTiposSalida' dice cuales de ellos son salidas que se reintegran.
+ * Solo lleva la venta: lo que se devuelve sale de sus movimientos 'Venta', no de sus lineas
+ * (logica.md VENTA-25).
  */
 public class RegistrarReintegroDeInventarioRequest {
-    private String motivoOrigen;
-    private List<String> nombresTiposSalida;
-    private String motivoReintegro;
-    private String idUsuario;
-    private LocalDateTime fecha;
+    private final String idVenta;
+    private final String idUsuario;
+    private final String motivo;
+    private final LocalDateTime fecha;
 
-    private RegistrarReintegroDeInventarioRequest(
-        String motivoOrigen,
-        List<String> nombresTiposSalida,
-        String motivoReintegro,
-        String idUsuario,
-        LocalDateTime fecha
-    ) {
-        this.motivoOrigen = motivoOrigen;
-        this.nombresTiposSalida = nombresTiposSalida;
-        this.motivoReintegro = motivoReintegro;
+    private RegistrarReintegroDeInventarioRequest(String idVenta, String idUsuario, String motivo, LocalDateTime fecha) {
+        this.idVenta = idVenta;
         this.idUsuario = idUsuario;
+        this.motivo = motivo;
         this.fecha = fecha;
     }
 
-    public static RegistrarReintegroDeInventarioRequest crear(
-        String motivoOrigen,
-        List<String> nombresTiposSalida,
-        String motivoReintegro,
-        String idUsuario,
-        LocalDateTime fecha
-    ) {
-        return new RegistrarReintegroDeInventarioRequest(
-                motivoOrigen, List.copyOf(nombresTiposSalida), motivoReintegro, idUsuario, fecha != null ? fecha : LocalDateTime.now());
+    /** 'idUsuario' es quien anula; 'fecha', el momento de la anulacion. */
+    public static RegistrarReintegroDeInventarioRequest crear(String idVenta, String idUsuario, String motivo, LocalDateTime fecha) {
+        return new RegistrarReintegroDeInventarioRequest(idVenta, idUsuario, motivo, fecha != null ? fecha : LocalDateTime.now());
     }
 
-    public String getMotivoOrigen() {return motivoOrigen;}
-    public List<String> getNombresTiposSalida() {return nombresTiposSalida;}
-    public String getMotivoReintegro() {return motivoReintegro;}
+    public String getIdVenta() {return idVenta;}
     public String getIdUsuario() {return idUsuario;}
+    public String getMotivo() {return motivo;}
     public LocalDateTime getFecha() {return fecha;}
 }

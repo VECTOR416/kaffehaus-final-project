@@ -12,14 +12,16 @@ public class MovimientoCajaResponse {
     private BigDecimal monto;
     private String motivo;
     private LocalDateTime fecha;
+    private String idVenta;
 
-    private MovimientoCajaResponse(String id, String idUsuario, String tipo, BigDecimal monto, String motivo, LocalDateTime fecha) {
+    private MovimientoCajaResponse(String id, String idUsuario, String tipo, BigDecimal monto, String motivo, LocalDateTime fecha, String idVenta) {
         this.id = id;
         this.idUsuario = idUsuario;
         this.tipo = tipo;
         this.monto = monto;
         this.motivo = motivo;
         this.fecha = fecha;
+        this.idVenta = idVenta;
     }
 
     public static MovimientoCajaResponse createFromAggregate(MovimientoCaja movimiento) {
@@ -29,7 +31,8 @@ public class MovimientoCajaResponse {
             movimiento.getTipo(),
             movimiento.getMonto(),
             movimiento.getMotivo(),
-            movimiento.getFecha()
+            movimiento.getFecha(),
+            movimiento.getVentaId() != null ? movimiento.getVentaId().getValue() : null
         );
     }
 
@@ -39,4 +42,5 @@ public class MovimientoCajaResponse {
     public BigDecimal getMonto() {return monto;}
     public String getMotivo() {return motivo;}
     public LocalDateTime getFecha() {return fecha;}
+    public String getIdVenta() {return idVenta;}
 }

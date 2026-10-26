@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dtos.ActualizarDescuentoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dtos.DescuentoResponse;
@@ -40,8 +41,12 @@ public class ActualizarDescuentoUseCase {
         ProductoId productoId = null;
         if (actualizarDescuentoRequest.getIdProducto() != null) {
             productoId = new ProductoId(actualizarDescuentoRequest.getIdProducto());
-            productoRepository.obtenerPorId(productoId)
+            Producto producto = productoRepository.obtenerPorId(productoId)
                     .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + actualizarDescuentoRequest.getIdProducto() + "' no existe"));
+            // Cambiarle el producto exige lo mismo que crearlo (logica.md DESCUENTO-05).
+            if (!productoId.getValue().equals(descuento.getProductoId().getValue())) {
+                CrearDescuentoUseCase.exigirQueSeVenda(producto, productoRepository);
+            }
         }
         TipoDescuentoId tipoDescuentoId = null;
         if (actualizarDescuentoRequest.getIdTipoDescuento() != null) {

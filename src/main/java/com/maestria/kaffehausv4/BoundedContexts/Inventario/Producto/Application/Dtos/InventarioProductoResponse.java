@@ -13,6 +13,9 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggre
  *   informativo: avisa que hay stock por abrir (INV-13, INV-14).
  * - Los saldos fisicos (abierto, cerrado, total, valor) solo aplican a un MTS; en un MTO son
  *   nulos, porque no tiene stock propio.
+ * - 'stock' es el stock fisico, que incluye lo vencido aun no dado de baja; 'stockVigente' es la
+ *   parte no vencida a hoy y 'stockVencido' la diferencia (logica.md VENCIMIENTO-02). En un MTO,
+ *   nulos.
  */
 public class InventarioProductoResponse {
     private String idProducto;
@@ -20,6 +23,8 @@ public class InventarioProductoResponse {
     private boolean esStockDirecto;
     private String idUnidad;
     private BigDecimal stock;
+    private BigDecimal stockVigente;
+    private BigDecimal stockVencido;
     private BigDecimal stockMinimo;
     private boolean bajoMinimo;
     private BigDecimal stockAbierto;
@@ -35,6 +40,8 @@ public class InventarioProductoResponse {
         boolean esStockDirecto,
         String idUnidad,
         BigDecimal stock,
+        BigDecimal stockVigente,
+        BigDecimal stockVencido,
         BigDecimal stockMinimo,
         boolean bajoMinimo,
         BigDecimal stockAbierto,
@@ -49,6 +56,8 @@ public class InventarioProductoResponse {
         this.esStockDirecto = esStockDirecto;
         this.idUnidad = idUnidad;
         this.stock = stock;
+        this.stockVigente = stockVigente;
+        this.stockVencido = stockVencido;
         this.stockMinimo = stockMinimo;
         this.bajoMinimo = bajoMinimo;
         this.stockAbierto = stockAbierto;
@@ -62,6 +71,7 @@ public class InventarioProductoResponse {
     public static InventarioProductoResponse deStockDirecto(
             Producto producto,
             BigDecimal stockAbierto,
+            BigDecimal stockAbiertoVigente,
             BigDecimal stockCerrado,
             BigDecimal valorInventario,
             BigDecimal disponible,
@@ -72,6 +82,8 @@ public class InventarioProductoResponse {
                 true,
                 producto.getUnidadActualId().getValue(),
                 producto.getStock(),
+                stockAbiertoVigente,
+                stockAbierto.subtract(stockAbiertoVigente),
                 producto.getStockMinimo(),
                 producto.getStock().compareTo(producto.getStockMinimo()) < 0,
                 stockAbierto,
@@ -90,6 +102,8 @@ public class InventarioProductoResponse {
                 producto.getUnidadActualId().getValue(),
                 null,
                 null,
+                null,
+                null,
                 false,
                 null,
                 null,
@@ -104,6 +118,8 @@ public class InventarioProductoResponse {
     public boolean isEsStockDirecto() {return esStockDirecto;}
     public String getIdUnidad() {return idUnidad;}
     public BigDecimal getStock() {return stock;}
+    public BigDecimal getStockVigente() {return stockVigente;}
+    public BigDecimal getStockVencido() {return stockVencido;}
     public BigDecimal getStockMinimo() {return stockMinimo;}
     public boolean isBajoMinimo() {return bajoMinimo;}
     public BigDecimal getStockAbierto() {return stockAbierto;}

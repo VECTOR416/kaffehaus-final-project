@@ -79,6 +79,10 @@ public class Produccion {
         if (cantidadReal == null || cantidadReal.signum() < 0) {
             throw DomainException.throwException(400, "La cantidad real de la produccion no puede ser negativa");
         }
+        // Lo producido se cuenta en unidades enteras (logica.md GENERAL-16).
+        if (cantidadEsperada.stripTrailingZeros().scale() > 0 || cantidadReal.stripTrailingZeros().scale() > 0) {
+            throw DomainException.throwException(400, "Las cantidades esperada y real de la produccion deben ser numeros enteros de unidades");
+        }
         if (recetaId == null || recetaId.getValue() == null) {
             throw DomainException.throwException(400, "La produccion requiere una receta");
         }
@@ -101,8 +105,13 @@ public class Produccion {
         this.fechaProduccion = fechaProduccion != null ? fechaProduccion : this.fechaProduccion;
     }
 
+    /**
+     * Una produccion no se da de baja (logica.md PRODUCCION-11): ya movio el stock del terminado y
+     * los insumos. Un error se corrige con el pesaje; la produccion se conserva como registro.
+     */
     public void eliminar(){
-        this.borrado = true;
+        throw DomainException.throwException(409,
+                "Una produccion no se da de baja: ya movio stock e insumos; corrige las existencias con un pesaje");
     }
 
     /** Factor por el que se multiplica cada ingrediente: cantidad esperada / rendimiento de la receta. */

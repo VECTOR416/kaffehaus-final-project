@@ -52,4 +52,13 @@ public class RecetaRepositoryImpl implements IRecetaRepository{
         return this.recetaDatasource.obtenerPorProductoObtenido(productoId);
     }
 
+    @Override
+    public List<Receta> obtenerPorIngrediente(ProductoId productoId) {
+        return this.recetaDatasource.obtenerPorIngrediente(productoId);
+    }
+
+    @Override
+    public List<Receta> obtenerVivasPorProductoObtenido(ProductoId productoId) {
+        return this.recetaDatasource.obtenerVivasPorProductoObtenido(productoId);
+    }
 }

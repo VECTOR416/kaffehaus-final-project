@@ -1,5 +1,8 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -16,10 +19,17 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregate
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Repositories.IMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.Repositories.ITipoMovimientoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Repositories.IProveedorRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
@@ -32,6 +42,13 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  *
  * Toda mutacion pasa por la raiz, que es quien recalcula el costo del lote y valida que el
  * stock restante siga siendo coherente con lo comprado.
+ *
+ * Corregir 'cantidadRestante' es un conteo (logica.md LOTE-23): exige 'motivo' y registra sobre
+ * la linea un movimiento 'Merma' si se contaron menos o 'Ajuste' si se contaron mas, por la
+ * diferencia.
+ *
+ * El lote se bloquea por su raiz antes de leerlo (logica.md LOTE-27): la diferencia de un conteo
+ * se calcula sobre la cantidad vigente y ninguna venta descuenta de sus lineas a la vez.
  */
 @Service
 @Transactional
@@ -40,22 +57,31 @@ public class ActualizarLoteUseCase {
     private final IProveedorRepository proveedorRepository;
     private final IProductoRepository productoRepository;
     private final IExistenciaRepository existenciaRepository;
+    private final IMovimientoRepository movimientoRepository;
+    private final ITipoMovimientoRepository tipoMovimientoRepository;
+    private final RecalcularStockUseCase recalcularStockUseCase;
 
     public ActualizarLoteUseCase(
             ILoteRepository loteRepository,
             IProveedorRepository proveedorRepository,
             IProductoRepository productoRepository,
-            IExistenciaRepository existenciaRepository) {
+            IExistenciaRepository existenciaRepository,
+            IMovimientoRepository movimientoRepository,
+            ITipoMovimientoRepository tipoMovimientoRepository,
+            RecalcularStockUseCase recalcularStockUseCase) {
         this.loteRepository = loteRepository;
         this.proveedorRepository = proveedorRepository;
         this.productoRepository = productoRepository;
         this.existenciaRepository = existenciaRepository;
+        this.movimientoRepository = movimientoRepository;
+        this.tipoMovimientoRepository = tipoMovimientoRepository;
+        this.recalcularStockUseCase = recalcularStockUseCase;
     }
 
     public LoteResponse execute(String loteId, ActualizarLoteRequest actualizarLoteRequest) {
         LoteId id = new LoteId(loteId);
 
-        Lote lote = loteRepository.obtenerPorId(id)
+        Lote lote = loteRepository.obtenerPorIdParaActualizar(id)
                 .orElseThrow(() -> DomainException.throwException(404, "El lote con id '" + loteId + "' no existe"));
 
         ProveedorId proveedorId = null;
@@ -70,18 +96,26 @@ public class ActualizarLoteUseCase {
                 proveedorId,
                 null);
 
+        List<Conteo> conteos = new ArrayList<>();
         if (actualizarLoteRequest.getDetalles() != null) {
-            conciliarDetalles(lote, actualizarLoteRequest.getDetalles());
+            conciliarDetalles(lote, actualizarLoteRequest.getDetalles(), conteos);
+        }
+        if (!conteos.isEmpty() && (actualizarLoteRequest.getMotivo() == null || actualizarLoteRequest.getMotivo().isBlank())) {
+            throw DomainException.throwException(400,
+                    "Corregir 'cantidadRestante' es un conteo de inventario y requiere 'motivo'");
         }
 
         lote.validarRegistrable();
 
         Lote loteActualizado = loteRepository.actualizar(id, lote);
+        registrarConteos(conteos, actualizarLoteRequest);
+        // Corregir o dar de baja lineas cambia el stock de sus productos (logica.md PRODUCTO-16).
+        CrearLoteUseCase.productosDe(loteActualizado).forEach(recalcularStockUseCase::execute);
 
         return LoteResponse.createFromAggregate(loteActualizado);
     }
 
-    private void conciliarDetalles(Lote lote, List<ActualizarDetalleLoteRequest> detalles) {
+    private void conciliarDetalles(Lote lote, List<ActualizarDetalleLoteRequest> detalles, List<Conteo> conteos) {
         Set<String> idsRecibidos = detalles.stream()
                 .map(ActualizarDetalleLoteRequest::getId)
                 .filter(idDetalle -> idDetalle != null)
@@ -93,11 +127,12 @@ public class ActualizarLoteUseCase {
 
         for (String idVivo : idsVivos) {
             if (!idsRecibidos.contains(idVivo)) {
-                // Una linea con existencias en uso no se da de baja: su stock quedaria sin
-                // origen (inventario.md INV-63).
-                if (!existenciaRepository.obtenerDisponiblesPorDetallesLote(List.of(new DetalleLoteId(idVivo))).isEmpty()) {
+                // Solo se quita una linea que no se uso y de la que no se abrio nada (logica.md
+                // LOTE-26, que amplia LOTE-07).
+                lote.exigirQueLaLineaPuedaDarseDeBaja(idVivo);
+                if (existenciaRepository.existenPorDetallesLote(List.of(new DetalleLoteId(idVivo)))) {
                     throw DomainException.throwException(409,
-                            "El detalle con id '" + idVivo + "' tiene existencias con contenido y no se puede dar de baja");
+                            "Del detalle con id '" + idVivo + "' ya se abrieron existencias y no se puede dar de baja");
                 }
                 lote.removerDetalle(idVivo);
             }
@@ -107,7 +142,7 @@ public class ActualizarLoteUseCase {
             if (detalle.getId() == null) {
                 agregarDetalleNuevo(lote, detalle);
             } else {
-                corregirDetalleExistente(lote, detalle);
+                corregirDetalleExistente(lote, detalle, conteos);
             }
         }
     }
@@ -119,8 +154,9 @@ public class ActualizarLoteUseCase {
         }
 
         ProductoId productoId = new ProductoId(detalle.getIdProducto());
-        productoRepository.obtenerPorId(productoId)
+        Producto producto = productoRepository.obtenerPorId(productoId)
                 .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + detalle.getIdProducto() + "' no existe"));
+        CrearLoteUseCase.exigirQueSeCompre(producto, productoRepository);
 
         lote.agregarDetalle(
                 productoId,
@@ -130,7 +166,7 @@ public class ActualizarLoteUseCase {
                 detalle.getFechaVencimiento());
     }
 
-    private void corregirDetalleExistente(Lote lote, ActualizarDetalleLoteRequest detalle) {
+    private void corregirDetalleExistente(Lote lote, ActualizarDetalleLoteRequest detalle, List<Conteo> conteos) {
         // Cambiar el producto de una linea ya comprada equivaldria a rehacer la compra y
         // dejaria sin sentido las existencias que ya colgaban de ella.
         if (detalle.getIdProducto() != null && !detalle.getIdProducto().equals(productoActualDe(lote, detalle.getId()))) {
@@ -146,8 +182,34 @@ public class ActualizarLoteUseCase {
                 detalle.getFechaVencimiento());
 
         if (detalle.getCantidadRestante() != null) {
+            BigDecimal antes = lote.obtenerDetalle(detalle.getId()).getCantidadRestante();
             lote.ajustarCantidadRestante(detalle.getId(), detalle.getCantidadRestante());
+            BigDecimal diferencia = lote.obtenerDetalle(detalle.getId()).getCantidadRestante().subtract(antes);
+            if (diferencia.signum() != 0) {
+                conteos.add(new Conteo(new DetalleLoteId(detalle.getId()), diferencia));
+            }
         }
+    }
+
+    /** Un movimiento por linea contada: 'Merma' si hay menos, 'Ajuste' si hay mas (LOTE-23). */
+    private void registrarConteos(List<Conteo> conteos, ActualizarLoteRequest request) {
+        if (conteos.isEmpty()) {
+            return;
+        }
+        TipoMovimiento merma = tipo(TipoMovimiento.MERMA);
+        TipoMovimiento ajuste = tipo(TipoMovimiento.AJUSTE);
+        UsuarioId usuarioId = new UsuarioId(request.getIdUsuario());
+        LocalDateTime ahora = LocalDateTime.now();
+        for (Conteo conteo : conteos) {
+            TipoMovimiento tipo = conteo.diferencia.signum() < 0 ? merma : ajuste;
+            movimientoRepository.crear(Movimiento.registrarSobreLinea(
+                    conteo.diferencia.abs(), ahora, request.getMotivo(), conteo.detalleLoteId, tipo.getId(), usuarioId, null, null));
+        }
+    }
+
+    private TipoMovimiento tipo(String nombre) {
+        return tipoMovimientoRepository.obtenerPorNombre(nombre)
+                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento '" + nombre + "' no esta registrado"));
     }
 
     private String productoActualDe(Lote lote, String detalleLoteId) {
@@ -158,5 +220,16 @@ public class ActualizarLoteUseCase {
                 .findFirst()
                 .orElseThrow(() -> DomainException.throwException(404,
                         "El detalle con id '" + detalleLoteId + "' no pertenece a este lote"));
+    }
+
+    /** La correccion de una linea: cuanto cambio su cantidad restante con el conteo. */
+    private static final class Conteo {
+        private final DetalleLoteId detalleLoteId;
+        private final BigDecimal diferencia;
+
+        private Conteo(DetalleLoteId detalleLoteId, BigDecimal diferencia) {
+            this.detalleLoteId = detalleLoteId;
+            this.diferencia = diferencia;
+        }
     }
 }

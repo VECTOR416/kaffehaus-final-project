@@ -15,7 +15,6 @@ public class DetalleVentaResponse {
     private BigDecimal cantidad;
     private BigDecimal subtotal;
     private BigDecimal descuentoAplicado;
-    private BigDecimal costoTotal;
     private boolean estado;
     private boolean borrado;
 
@@ -26,7 +25,6 @@ public class DetalleVentaResponse {
         BigDecimal cantidad,
         BigDecimal subtotal,
         BigDecimal descuentoAplicado,
-        BigDecimal costoTotal,
         boolean estado,
         boolean borrado
     ) {
@@ -36,7 +34,6 @@ public class DetalleVentaResponse {
         this.cantidad = cantidad;
         this.subtotal = subtotal;
         this.descuentoAplicado = descuentoAplicado;
-        this.costoTotal = costoTotal;
         this.estado = estado;
         this.borrado = borrado;
     }
@@ -49,7 +46,6 @@ public class DetalleVentaResponse {
             detalleVenta.getCantidad(),
             detalleVenta.getSubtotal(),
             detalleVenta.getDescuentoAplicado(),
-            detalleVenta.getCostoTotal(),
             detalleVenta.isEstado(),
             detalleVenta.isBorrado()
         );
@@ -61,7 +57,6 @@ public class DetalleVentaResponse {
     public BigDecimal getCantidad() {return cantidad;}
     public BigDecimal getSubtotal() {return subtotal;}
     public BigDecimal getDescuentoAplicado() {return descuentoAplicado;}
-    public BigDecimal getCostoTotal() {return costoTotal;}
     public boolean isEstado() {return estado;}
     public boolean isBorrado() {return borrado;}
 }

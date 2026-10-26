@@ -3,12 +3,13 @@ services:
     image: postgres:16-alpine
     container_name: kaffehausdb
     restart: unless-stopped
+    # Docker Compose lee el .env de esta carpeta; son las mismas variables que usa la aplicacion.
     environment:
-      POSTGRES_DB: kaffehausdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: ${DB_NAME:?Falta DB_NAME en .env}
+      POSTGRES_USER: ${DB_USERNAME:?Falta DB_USERNAME en .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Falta DB_PASSWORD en .env}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:?Falta DB_PORT en .env}:5432"
     volumes:
       - kaffehaus_postgres_data:/var/lib/postgresql/data
     networks:

@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Datasources;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,11 +30,32 @@ public interface ILoteDatasource {
      */
     List<Lote> obtenerPorProductos(List<ProductoId> productoIds);
 
+    /** Los mismos lotes que obtenerPorProductos, sin cargarlos en el contexto de persistencia. */
+    List<Lote> obtenerPorProductosSinCargar(List<ProductoId> productoIds);
+
     /**
-     * Como obtenerPorDetalleId, pero bloqueando la linea (SELECT ... FOR UPDATE) antes de
-     * leerla. Lo usa la apertura para que dos usuarios no abran la misma unidad (INV-52).
+     * Como obtenerPorDetalleId, pero bloqueando el lote por su raiz (SELECT ... FOR UPDATE)
+     * antes de leer sus lineas (logica.md LOTE-27).
      */
     Optional<Lote> obtenerPorDetalleIdParaActualizar(DetalleLoteId detalleLoteId);
+
+    /** El lote bloqueado por su raiz antes de leer sus lineas. */
+    Optional<Lote> obtenerPorIdParaActualizar(LoteId loteId);
+
+    /** Varios lotes bloqueados por su raiz, en orden de id. */
+    List<Lote> obtenerPorIdsParaActualizar(List<LoteId> loteIds);
+
+    /** El lote de una linea viva, sin cargar la linea. */
+    Optional<LoteId> obtenerLoteDeDetalle(DetalleLoteId detalleLoteId);
+
+    /** El producto de una linea viva, sin cargar la linea en el contexto de persistencia. */
+    Optional<ProductoId> obtenerProductoDeDetalle(DetalleLoteId detalleLoteId);
     PaginatedResponse<List<Lote>> obtenerTodos(ObtenerLotesRequest obtenerLotesRequest);
     void eliminar(LoteId loteId);
+
+    /**
+     * Lotes vivos con alguna linea viva con unidades disponibles que vence hasta esa fecha, incluida
+     * (logica.md VENCIMIENTO-04). Trae el lote completo; quien consulta filtra sus lineas.
+     */
+    List<Lote> obtenerConUnidadesQueVencenHasta(LocalDate fecha);
 }

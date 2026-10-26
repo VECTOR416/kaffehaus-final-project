@@ -52,10 +52,11 @@ class VentaTest {
                 null,
                 null,
                 null,
+                null,
                 false,
                 List.of(DetalleVenta.restaurar(ID_LINEA_CAFE, PRODUCTO_CAFE,
                         new BigDecimal("12.50"), new BigDecimal("2"), new BigDecimal("25.00"), BigDecimal.ZERO,
-                        new BigDecimal("0.0000"), true, false)),
+                        true, false)),
                 List.of());
     }
 
@@ -123,20 +124,10 @@ class VentaTest {
     }
 
     @Test
-    void registrarElCostoDeUnaLineaLoSumaAlCostoDeLaVenta() {
-        Venta venta = ventaRegistrada();
-
-        venta.registrarCosto(ID_LINEA_CAFE, new BigDecimal("3.4567"));
-
-        assertEquals(new BigDecimal("3.4567"), venta.getCostoTotal());
-        assertEquals(new BigDecimal("25.00"), venta.getTotal());
-    }
-
-    @Test
     void anularConservaLasLineasYRegistraMotivoYUsuario() {
         Venta venta = ventaRegistrada();
 
-        venta.anular(COMPLETADA, ANULADA, CAJERO, "Cobro duplicado");
+        venta.anular(COMPLETADA, ANULADA, CAJERO, "Cobro duplicado", null);
 
         assertTrue(venta.estaEn(ANULADA));
         assertEquals("Cobro duplicado", venta.getMotivoAnulacion());
@@ -148,9 +139,9 @@ class VentaTest {
     @Test
     void unaVentaAnuladaNoSeVuelveAAnularNiCambia() {
         Venta venta = ventaRegistrada();
-        venta.anular(COMPLETADA, ANULADA, CAJERO, "Cobro duplicado");
+        venta.anular(COMPLETADA, ANULADA, CAJERO, "Cobro duplicado", null);
 
-        DomainException otraVez = assertThrows(DomainException.class, () -> venta.anular(COMPLETADA, ANULADA, CAJERO, "Otra"));
+        DomainException otraVez = assertThrows(DomainException.class, () -> venta.anular(COMPLETADA, ANULADA, CAJERO, "Otra", null));
         DomainException cliente = assertThrows(DomainException.class,
                 () -> venta.asignarCliente(new ClienteId("66666666-6666-6666-6666-666666666666"), ANULADA));
 
@@ -160,7 +151,7 @@ class VentaTest {
 
     @Test
     void anularExigeMotivo() {
-        DomainException error = assertThrows(DomainException.class, () -> ventaRegistrada().anular(COMPLETADA, ANULADA, CAJERO, " "));
+        DomainException error = assertThrows(DomainException.class, () -> ventaRegistrada().anular(COMPLETADA, ANULADA, CAJERO, " ", null));
 
         assertEquals(400, error.getCodigo());
     }
@@ -173,11 +164,6 @@ class VentaTest {
 
         assertEquals(409, error.getCodigo());
         assertTrue(!venta.isBorrado());
-    }
-
-    @Test
-    void elMotivoDeSusMovimientosCitaLaVenta() {
-        assertEquals("Venta '55555555-5555-5555-5555-555555555555'", ventaRegistrada().motivoDeMovimientos());
     }
 
     // ------------------------------------------------------------------ CAJ-01, CAJ-02

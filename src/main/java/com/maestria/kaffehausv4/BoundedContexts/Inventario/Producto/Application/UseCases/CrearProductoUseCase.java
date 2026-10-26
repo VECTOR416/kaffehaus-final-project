@@ -58,6 +58,7 @@ public class CrearProductoUseCase {
                 throw DomainException.throwException(409,
                         "El producto '" + padre.getNombre() + "' es una presentacion y no puede ser producto base de otra");
             }
+            ActualizarProductoUseCase.exigirQueElPadreTengaStock(padre);
         }
 
         Producto producto = Producto.crear(

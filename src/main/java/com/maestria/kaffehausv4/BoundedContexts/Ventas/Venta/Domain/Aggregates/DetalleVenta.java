@@ -19,16 +19,12 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * de la raiz al persistir.
  *
  * Una linea registrada es inmutable en sus importes (ventas.md VEN-30): precio y descuento se
- * copian al registrarla (VEN-13, VEN-14) y solo se completa despues su costo, que lo devuelve
- * el inventario al descontarla (VEN-23).
+ * copian al registrarla (VEN-13, VEN-14). No guarda costo (logica.md VENTA-20).
  */
 public class DetalleVenta {
 
     /** Escala de NUMERIC(12, 2) en 'detalle_venta'. Todo importe se redondea a este valor. */
     static final int ESCALA_MONETARIA = 2;
-
-    /** Escala de NUMERIC(12, 4) de 'detalle_venta.costo_total'. */
-    static final int ESCALA_COSTO = 4;
 
     private DetalleVentaId id;
     private ProductoId productoId;
@@ -36,7 +32,6 @@ public class DetalleVenta {
     private BigDecimal cantidad;
     private BigDecimal subtotal;
     private BigDecimal descuentoAplicado;
-    private BigDecimal costoTotal;
     private boolean estado;
     private boolean borrado;
 
@@ -47,7 +42,6 @@ public class DetalleVenta {
         BigDecimal cantidad,
         BigDecimal subtotal,
         BigDecimal descuentoAplicado,
-        BigDecimal costoTotal,
         boolean estado,
         boolean borrado
     ){
@@ -57,7 +51,6 @@ public class DetalleVenta {
         this.cantidad = cantidad;
         this.subtotal = subtotal;
         this.descuentoAplicado = descuentoAplicado;
-        this.costoTotal = costoTotal;
         this.estado = estado;
         this.borrado = borrado;
     }
@@ -73,7 +66,6 @@ public class DetalleVenta {
         BigDecimal cantidad,
         BigDecimal subtotal,
         BigDecimal descuentoAplicado,
-        BigDecimal costoTotal,
         boolean estado,
         boolean borrado
     ){
@@ -84,14 +76,13 @@ public class DetalleVenta {
                 cantidad,
                 subtotal,
                 descuentoAplicado,
-                costoTotal,
                 estado,
                 borrado);
     }
 
     /**
-     * Crea una linea nueva validando sus invariantes y calculando el subtotal. El costo nace
-     * en cero hasta que el inventario lo informe. Package-private: solo Venta puede llamarla.
+     * Crea una linea nueva validando sus invariantes y calculando el subtotal. Package-private:
+     * solo Venta puede llamarla.
      */
     static DetalleVenta crear(
         ProductoId productoId,
@@ -114,17 +105,8 @@ public class DetalleVenta {
                 cantidad,
                 aEscalaMonetaria(importeBruto.subtract(descuento)),
                 aEscalaMonetaria(descuento),
-                BigDecimal.ZERO.setScale(ESCALA_COSTO),
                 true,
                 false);
-    }
-
-    /** Costo de lo descontado del inventario por esta linea (VEN-23). Package-private. */
-    void registrarCosto(BigDecimal costo) {
-        if (costo == null || costo.signum() < 0) {
-            throw DomainException.throwException(400, "El costo de la linea de venta no puede ser negativo");
-        }
-        this.costoTotal = costo.setScale(ESCALA_COSTO, RoundingMode.HALF_UP);
     }
 
     private static void exigirImportesValidos(BigDecimal precioUnitario, BigDecimal cantidad, BigDecimal descuento) {
@@ -133,6 +115,10 @@ public class DetalleVenta {
         }
         if (cantidad == null || cantidad.signum() <= 0) {
             throw DomainException.throwException(400, "La cantidad del detalle de venta debe ser mayor a cero");
+        }
+        // Se vende por unidades enteras (logica.md GENERAL-16): medio pan solo existe dentro de una receta.
+        if (cantidad.stripTrailingZeros().scale() > 0) {
+            throw DomainException.throwException(400, "La cantidad del detalle de venta debe ser un numero entero de unidades");
         }
         if (descuento == null || descuento.signum() < 0) {
             throw DomainException.throwException(400, "El descuento aplicado del detalle de venta no puede ser negativo");
@@ -152,7 +138,6 @@ public class DetalleVenta {
     public BigDecimal getCantidad() {return cantidad;}
     public BigDecimal getSubtotal() {return subtotal;}
     public BigDecimal getDescuentoAplicado() {return descuentoAplicado;}
-    public BigDecimal getCostoTotal() {return costoTotal;}
     public boolean isEstado() {return estado;}
     public boolean isBorrado() {return borrado;}
 }

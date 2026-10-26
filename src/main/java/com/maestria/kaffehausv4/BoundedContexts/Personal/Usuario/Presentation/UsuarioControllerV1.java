@@ -27,6 +27,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Use
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.UseCases.ObtenerUsuariosUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
 // Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
 // restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
@@ -93,8 +94,8 @@ public class UsuarioControllerV1 {
 
     @RequiereRol("Administrador")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable String id) {
-        eliminarUsuarioUseCase.execute(id);
+    public ResponseEntity<Void> eliminar(@PathVariable String id, @UsuarioEnSesion String idUsuario) {
+        eliminarUsuarioUseCase.execute(id, idUsuario);
         return ResponseEntity.noContent().build();
     }
 }

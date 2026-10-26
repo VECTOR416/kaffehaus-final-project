@@ -1,5 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Datasources;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObje
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.DetalleLoteJpaMapper;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.DetalleLoteJpaModel;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.DetalleLoteLecturaProyeccion;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.DetalleLoteJpaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.LoteJpaMapper;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa.LoteJpaModel;
@@ -98,7 +101,11 @@ public class LoteDatasourceImpl implements ILoteDatasource {
                 .orElseThrow(() -> DomainException.throwException(404,
                         "El detalle de lote con id '" + detalle.getId().getValue() + "' no existe"));
 
-        DetalleLoteJpaMapper.copiarCambios(detalle, model);
+        // Una linea que la operacion no cambio no se reescribe: pisaria lo que otra transaccion
+        // haya hecho con ella despues de leerla (arquitectura.md 5.7).
+        if (DetalleLoteJpaMapper.difiere(detalle, model)) {
+            DetalleLoteJpaMapper.copiarCambios(detalle, model);
+        }
 
         return model;
     }
@@ -120,11 +127,79 @@ public class LoteDatasourceImpl implements ILoteDatasource {
 
     @Override
     public Optional<Lote> obtenerPorDetalleIdParaActualizar(DetalleLoteId detalleLoteId) {
-        // La linea bloqueada es la primera carga de la fila en la transaccion, asi que el lote
-        // que se reconstruye despues la trae con su estado vigente.
-        return detalleLoteJpaRepository.readByIdAndBorradoFalse(aUuid(detalleLoteId.getValue()))
-                .map(DetalleLoteJpaModel::getIdLote)
-                .flatMap(idLote -> obtenerPorId(new LoteId(idLote.toString())));
+        // El lote de la linea se averigua sin cargarla, y se bloquea el agregado por su raiz.
+        return obtenerLoteDeDetalle(detalleLoteId).flatMap(this::obtenerPorIdParaActualizar);
+    }
+
+    @Override
+    public Optional<Lote> obtenerPorIdParaActualizar(LoteId loteId) {
+        // Las lineas se leen despues de tomar el bloqueo de la raiz: ninguna otra transaccion
+        // puede cambiarlas mientras dure esta (logica.md LOTE-27).
+        UUID id = aUuid(loteId.getValue());
+        return loteJpaRepository.readByIdAndBorradoFalse(id)
+                .map(model -> LoteJpaMapper.toDomain(model, detalleLoteJpaRepository.findByIdLoteAndBorradoFalse(id)));
+    }
+
+    @Override
+    public List<Lote> obtenerPorIdsParaActualizar(List<LoteId> loteIds) {
+        if (loteIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<UUID> ids = loteIds.stream()
+                .map(loteId -> aUuid(loteId.getValue()))
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<LoteJpaModel> lotes = loteJpaRepository.readByIdInAndBorradoFalseOrderByIdAsc(ids);
+        Map<UUID, List<DetalleLoteJpaModel>> detallesPorLote = detallesDe(lotes);
+
+        return lotes.stream()
+                .map(model -> LoteJpaMapper.toDomain(
+                        model,
+                        detallesPorLote.getOrDefault(model.getId(), Collections.emptyList())))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<LoteId> obtenerLoteDeDetalle(DetalleLoteId detalleLoteId) {
+        return detalleLoteJpaRepository.findLecturaByIdAndBorradoFalse(aUuid(detalleLoteId.getValue()))
+                .map(lectura -> new LoteId(lectura.getIdLote().toString()));
+    }
+
+    @Override
+    public List<Lote> obtenerPorProductosSinCargar(List<ProductoId> productoIds) {
+        if (productoIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<UUID> idsProducto = productoIds.stream()
+                .map(productoId -> aUuid(productoId.getValue()))
+                .collect(Collectors.toList());
+
+        List<UUID> idsLote = detalleLoteJpaRepository.findLecturaByIdProductoInAndBorradoFalse(idsProducto).stream()
+                .map(DetalleLoteLecturaProyeccion::getIdLote)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (idsLote.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<UUID, List<DetalleLoteLecturaProyeccion>> detallesPorLote = detalleLoteJpaRepository
+                .findLecturaByIdLoteInAndBorradoFalse(idsLote).stream()
+                .collect(Collectors.groupingBy(DetalleLoteLecturaProyeccion::getIdLote));
+
+        return loteJpaRepository.findLecturaByIdInAndBorradoFalse(idsLote).stream()
+                .map(lectura -> LoteJpaMapper.toDomain(
+                        lectura,
+                        detallesPorLote.getOrDefault(lectura.getId(), Collections.emptyList())))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<ProductoId> obtenerProductoDeDetalle(DetalleLoteId detalleLoteId) {
+        return detalleLoteJpaRepository.findLecturaByIdAndBorradoFalse(aUuid(detalleLoteId.getValue()))
+                .map(lectura -> new ProductoId(lectura.getIdProducto().toString()));
     }
 
     @Override
@@ -224,5 +299,26 @@ public class LoteDatasourceImpl implements ILoteDatasource {
         } catch (IllegalArgumentException | NullPointerException e) {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
+    }
+
+    @Override
+    public List<Lote> obtenerConUnidadesQueVencenHasta(LocalDate fecha) {
+        List<UUID> idsLote = detalleLoteJpaRepository
+                .findByBorradoFalseAndCantidadRestanteGreaterThanAndFechaVencimientoLessThanEqual(BigDecimal.ZERO, fecha).stream()
+                .map(DetalleLoteJpaModel::getIdLote)
+                .distinct()
+                .collect(Collectors.toList());
+        if (idsLote.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<LoteJpaModel> lotes = loteJpaRepository.findByIdInAndBorradoFalse(idsLote);
+        Map<UUID, List<DetalleLoteJpaModel>> detallesPorLote = detallesDe(lotes);
+
+        return lotes.stream()
+                .map(model -> LoteJpaMapper.toDomain(
+                        model,
+                        detallesPorLote.getOrDefault(model.getId(), Collections.emptyList())))
+                .collect(Collectors.toList());
     }
 }

@@ -33,6 +33,7 @@ public class VentaJpaMapper {
         model.setIdEstadoVenta(UUID.fromString(venta.getEstadoVentaId().getValue()));
         model.setClaveIdempotencia(venta.getClaveIdempotencia());
         model.setMotivoAnulacion(venta.getMotivoAnulacion());
+        model.setReferenciaReembolso(venta.getReferenciaReembolso());
         model.setIdUsuarioAnulacion(venta.getUsuarioAnulacionId() != null ? UUID.fromString(venta.getUsuarioAnulacionId().getValue()) : null);
         model.setBorrado(venta.isBorrado());
         model.setFecC(OffsetDateTime.now());
@@ -48,6 +49,7 @@ public class VentaJpaMapper {
         model.setIdEstadoVenta(UUID.fromString(venta.getEstadoVentaId().getValue()));
         model.setClaveIdempotencia(venta.getClaveIdempotencia());
         model.setMotivoAnulacion(venta.getMotivoAnulacion());
+        model.setReferenciaReembolso(venta.getReferenciaReembolso());
         model.setIdUsuarioAnulacion(venta.getUsuarioAnulacionId() != null ? UUID.fromString(venta.getUsuarioAnulacionId().getValue()) : null);
         model.setBorrado(venta.isBorrado());
         model.setFecU(OffsetDateTime.now());
@@ -73,6 +75,7 @@ public class VentaJpaMapper {
                 model.getClaveIdempotencia(),
                 model.getMotivoAnulacion(),
                 model.getIdUsuarioAnulacion() != null ? new UsuarioId(model.getIdUsuarioAnulacion().toString()) : null,
+                model.getReferenciaReembolso(),
                 model.getBorrado() != null && model.getBorrado(),
                 detalles,
                 pagos);

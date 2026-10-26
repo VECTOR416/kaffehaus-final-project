@@ -247,4 +247,24 @@ public class RecetaDatasourceImpl implements IRecetaDatasource {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
     }
+
+    @Override
+    public List<Receta> obtenerPorIngrediente(ProductoId productoId) {
+        List<UUID> idsReceta = ingredienteRecetaJpaRepository.findByIdProductoAndBorradoFalse(aUuid(productoId.getValue())).stream()
+                .map(IngredienteRecetaJpaModel::getIdReceta)
+                .distinct()
+                .collect(Collectors.toList());
+        return idsReceta.stream()
+                .map(idReceta -> obtenerPorId(new RecetaId(idReceta.toString())))
+                .flatMap(Optional::stream)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Receta> obtenerVivasPorProductoObtenido(ProductoId productoId) {
+        return recetaJpaRepository.findByIdProductoObtenidoAndBorradoFalseOrderByFecCDesc(aUuid(productoId.getValue())).stream()
+                .map(model -> obtenerPorId(new RecetaId(model.getId().toString())))
+                .flatMap(Optional::stream)
+                .collect(Collectors.toList());
+    }
 }

@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.Aggreg
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.ArqueoCajaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.CerrarSesionCajaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.RecaudacionPorTipoPagoResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos.RecaudacionPorUsuarioResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Repositories.ISesionCajaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.Aggregates.SesionCaja;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoPago.Application.Repositories.ITipoPagoRepository;
@@ -34,8 +37,8 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * 1. Solo el titular del turno o un Administrador (CAJ-23).
  * 2. Bloquea la sesion en exclusiva (FOR UPDATE): espera a que terminen las ventas en curso,
  *    que la tienen con FOR SHARE, y ninguna venta nueva entra mientras se cierra.
- * 3. Suma por tipo de pago lo cobrado en las ventas completadas de la sesion. Las anuladas no
- *    cuentan: al anular se devuelve el dinero (CAJ-24).
+ * 3. Suma por tipo de pago y por usuario lo cobrado en las ventas completadas de la sesion
+ *    (logica.md SESIONCAJA-16). Las anuladas no cuentan: al anular se devuelve el dinero (CAJ-24).
  * 4. La raiz calcula el esperado (apertura + efectivo + ingresos - egresos) y la diferencia con
  *    lo declarado, y queda cerrada.
  */
@@ -102,6 +105,10 @@ public class CerrarSesionCajaUseCase {
         for (Recaudacion porTipo : recaudacion.values()) {
             desglose.add(RecaudacionPorTipoPagoResponse.crear(porTipo.idTipoPago(), porTipo.nombre(), porTipo.monto(), porTipo.cantidad()));
         }
+        Set<String> tiposEfectivo = recaudacion.values().stream()
+                .filter(Recaudacion::esEfectivo)
+                .map(Recaudacion::idTipoPago)
+                .collect(Collectors.toSet());
 
         return ArqueoCajaResponse.createFromAggregate(
                 cerrada,
@@ -109,7 +116,36 @@ public class CerrarSesionCajaUseCase {
                 totalVendido,
                 completadas.size(),
                 ventas.size() - completadas.size(),
-                desglose);
+                desglose,
+                porUsuario(completadas, tiposEfectivo));
+    }
+
+    /**
+     * Lo vendido por cada usuario del turno (logica.md SESIONCAJA-16), en el orden de su primera
+     * venta: su total, la parte cobrada en efectivo y cuantas ventas hizo.
+     */
+    private List<RecaudacionPorUsuarioResponse> porUsuario(List<Venta> completadas, Set<String> tiposEfectivo) {
+        Map<String, List<Venta>> ventasPorUsuario = new LinkedHashMap<>();
+        for (Venta venta : completadas) {
+            ventasPorUsuario.computeIfAbsent(venta.getUsuarioId().getValue(), id -> new ArrayList<>()).add(venta);
+        }
+
+        List<RecaudacionPorUsuarioResponse> desglose = new ArrayList<>();
+        for (Map.Entry<String, List<Venta>> entrada : ventasPorUsuario.entrySet()) {
+            BigDecimal total = entrada.getValue().stream()
+                    .map(Venta::getTotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal efectivo = entrada.getValue().stream()
+                    .flatMap(venta -> venta.getPagosActivos().stream())
+                    .filter(pago -> tiposEfectivo.contains(pago.getTipoPagoId().getValue()))
+                    .map(PagoVenta::getMonto)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            String correo = usuarioRepository.obtenerPorId(new UsuarioId(entrada.getKey()))
+                    .map(Usuario::getCorreo)
+                    .orElse(null);
+            desglose.add(RecaudacionPorUsuarioResponse.crear(entrada.getKey(), correo, total, efectivo, entrada.getValue().size()));
+        }
+        return desglose;
     }
 
     /**

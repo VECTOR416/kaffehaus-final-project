@@ -1,6 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Infrastructure.Datasources;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -107,6 +108,21 @@ public class ExistenciaDatasourceImpl implements IExistenciaDatasource {
     }
 
     @Override
+    public List<Existencia> obtenerVivasParaPesaje(List<DetalleLoteId> detalleLoteIds) {
+        if (detalleLoteIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<UUID> ids = detalleLoteIds.stream()
+                .map(detalleLoteId -> aUuid(detalleLoteId.getValue()))
+                .collect(Collectors.toList());
+
+        return existenciaJpaRepository.readByIdDetalleLoteInAndBorradoFalseOrderByIdAsc(ids).stream()
+                .map(ExistenciaJpaMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<Existencia> obtenerDisponiblesParaConsumo(List<DetalleLoteId> detalleLoteIds) {
         if (detalleLoteIds.isEmpty()) {
             return Collections.emptyList();
@@ -129,11 +145,36 @@ public class ExistenciaDatasourceImpl implements IExistenciaDatasource {
                 .map(ExistenciaJpaMapper::toDomain);
     }
 
+    @Override
+    public Optional<DetalleLoteId> obtenerDetalleLoteDe(ExistenciaId existenciaId) {
+        return existenciaJpaRepository.findDetalleLoteByIdAndBorradoFalse(aUuid(existenciaId.getValue()))
+                .map(proyeccion -> new DetalleLoteId(proyeccion.getIdDetalleLote().toString()));
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);
         } catch (IllegalArgumentException | NullPointerException e) {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
+    }
+
+    @Override
+    public boolean existenPorDetallesLote(List<DetalleLoteId> detalleLoteIds) {
+        if (detalleLoteIds.isEmpty()) {
+            return false;
+        }
+        return existenciaJpaRepository.existsByIdDetalleLoteInAndBorradoFalse(detalleLoteIds.stream()
+                .map(detalleLoteId -> aUuid(detalleLoteId.getValue()))
+                .collect(Collectors.toList()));
+    }
+
+    @Override
+    public List<Existencia> obtenerConContenidoQueVencenHasta(LocalDate fecha) {
+        return existenciaJpaRepository
+                .findByBorradoFalseAndContenidoActualGreaterThanAndFechaVencimientoLessThanEqualOrderByFechaVencimientoAscIdAsc(BigDecimal.ZERO, fecha)
+                .stream()
+                .map(ExistenciaJpaMapper::toDomain)
+                .collect(Collectors.toList());
     }
 }

@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Conversion.Domain.ValueObjects.ConversionId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 public class Conversion {
 
@@ -74,7 +75,11 @@ public class Conversion {
         this.unidadDestinoId = unidadDestinoId != null ? unidadDestinoId : this.unidadDestinoId;
     }
 
+    /** Un registro base marcado como no borrable no se da de baja (logica.md CATALOGO-INV-05). */
     public void eliminar(){
+        if (!this.esBorrable) {
+            throw DomainException.throwException(409, "La conversion con id '" + this.id.getValue() + "' no se puede dar de baja");
+        }
         this.borrado = true;
     }
 

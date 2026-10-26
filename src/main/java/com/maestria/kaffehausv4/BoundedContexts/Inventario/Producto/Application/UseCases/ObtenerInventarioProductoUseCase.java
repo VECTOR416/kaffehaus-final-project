@@ -36,7 +36,10 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * INV-46). Es una lectura: no bloquea filas. La validacion definitiva de una venta sigue
  * siendo la del algoritmo de consumo, dentro de su transaccion (INV-54).
  *
- * - MTS: saldos del producto base y de sus presentaciones. 'disponible' excluye lo vencido.
+ * - MTS con presentaciones: saldos del producto base y de sus presentaciones. 'disponible'
+ *   excluye lo vencido.
+ * - MTS por unidades: sus unidades disponibles en lotes (logica.md PRODUCTO-17).
+ * - En un MTS, el stock fisico se separa en vigente y vencido a hoy (VENCIMIENTO-02).
  * - MTO: min(floor(saldo de cada insumo / lo que consume una unidad)), explotando
  *   recursivamente los insumos que son a su vez MTO. Sin receta viva, disponibilidad 0; un
  *   ciclo entre recetas es un error de datos (409).
@@ -77,6 +80,7 @@ public class ObtenerInventarioProductoUseCase {
             return InventarioProductoResponse.deStockDirecto(
                     producto,
                     saldos.abierto,
+                    saldos.abiertoVigente,
                     saldos.cerrado,
                     saldos.valor.setScale(2, RoundingMode.HALF_UP),
                     saldos.abiertoVigente,
@@ -134,9 +138,16 @@ public class ObtenerInventarioProductoUseCase {
             return enCache;
         }
 
+        List<Producto> presentaciones = productoRepository.obtenerPresentaciones(base.getId());
+        if (presentaciones.isEmpty()) {
+            Saldos saldos = saldosDeUnidades(base, consulta);
+            consulta.saldos.put(base.getId().getValue(), saldos);
+            return saldos;
+        }
+
         List<Producto> fuentes = new ArrayList<>();
         fuentes.add(base);
-        fuentes.addAll(productoRepository.obtenerPresentaciones(base.getId()));
+        fuentes.addAll(presentaciones);
         Map<String, Producto> fuentePorId = new HashMap<>();
         fuentes.forEach(fuente -> fuentePorId.put(fuente.getId().getValue(), fuente));
 
@@ -179,6 +190,33 @@ public class ObtenerInventarioProductoUseCase {
 
         saldos.aEscala();
         consulta.saldos.put(base.getId().getValue(), saldos);
+        return saldos;
+    }
+
+    /**
+     * Saldos de un producto por unidades (logica.md PRODUCTO-14, PRODUCTO-17): sus unidades
+     * disponibles en lineas de lote vivas son su saldo abierto, sin nada cerrado que abrir.
+     * 'valor' es lo que costaron esas unidades al comprarlas; lo producido no tiene costo.
+     */
+    private Saldos saldosDeUnidades(Producto producto, Consulta consulta) {
+        String idProducto = producto.getId().getValue();
+        Saldos saldos = new Saldos();
+        for (Lote lote : loteRepository.obtenerPorProductos(List.of(producto.getId()))) {
+            if (lote.isBorrado()) {
+                continue;
+            }
+            for (DetalleLote detalle : lote.getDetallesActivos()) {
+                if (!idProducto.equals(detalle.getProductoId().getValue())) {
+                    continue;
+                }
+                saldos.abierto = saldos.abierto.add(detalle.getCantidadRestante());
+                if (!detalle.estaVencido(consulta.hoy)) {
+                    saldos.abiertoVigente = saldos.abiertoVigente.add(detalle.getCantidadRestante());
+                }
+                saldos.valor = saldos.valor.add(detalle.getCantidadRestante().multiply(detalle.getPrecioUnitario()));
+            }
+        }
+        saldos.aEscala();
         return saldos;
     }
 

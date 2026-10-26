@@ -1,5 +1,8 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases;
 
+import java.util.List;
+import java.util.Objects;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +12,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObje
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Application.Repositories.ICategoriaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.Aggregates.Categoria;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repositories.ILoteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ActualizarProductoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ProductoResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
@@ -17,6 +21,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Value
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.Repositories.IUnidadRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates.Unidad;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Repositories.IDescuentoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.Aggregates.Descuento;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 @Service
@@ -26,16 +32,22 @@ public class ActualizarProductoUseCase {
     private final IUnidadRepository unidadRepository;
     private final ITipoRepository tipoRepository;
     private final ICategoriaRepository categoriaRepository;
+    private final ILoteRepository loteRepository;
+    private final IDescuentoRepository descuentoRepository;
 
     public ActualizarProductoUseCase(
             IProductoRepository productoRepository,
             IUnidadRepository unidadRepository,
             ITipoRepository tipoRepository,
-            ICategoriaRepository categoriaRepository) {
+            ICategoriaRepository categoriaRepository,
+            ILoteRepository loteRepository,
+            IDescuentoRepository descuentoRepository) {
         this.productoRepository = productoRepository;
         this.unidadRepository = unidadRepository;
         this.tipoRepository = tipoRepository;
         this.categoriaRepository = categoriaRepository;
+        this.loteRepository = loteRepository;
+        this.descuentoRepository = descuentoRepository;
     }
 
     public ProductoResponse execute(String productoId, ActualizarProductoRequest actualizarProductoRequest) {
@@ -70,6 +82,9 @@ public class ActualizarProductoUseCase {
             exigirJerarquiaDeUnNivel(producto, padre);
         }
 
+        exigirSinInventarioSiCambiaSuManejo(producto, actualizarProductoRequest);
+        boolean dejaDeSerVendible = producto.isVendible() && Boolean.FALSE.equals(actualizarProductoRequest.getVendible());
+
         producto.actualizar(
                 actualizarProductoRequest.getNombre(),
                 actualizarProductoRequest.getPrecio(),
@@ -82,8 +97,51 @@ public class ActualizarProductoUseCase {
                 productoPadreId);
 
         Producto productoActualizado = productoRepository.actualizar(id, producto);
+        // Lo que no se vende no tiene descuentos (logica.md DESCUENTO-05).
+        if (dejaDeSerVendible) {
+            descuentoRepository.obtenerPorProducto(id).stream()
+                    .map(Descuento::getId)
+                    .forEach(descuentoRepository::eliminar);
+        }
 
         return toResponse(productoActualizado);
+    }
+
+    /**
+     * 'esStockDirecto', 'unidadActual' y 'productoPadre' deciden como se maneja el inventario de un
+     * producto; no cambian si ya tiene stock, lineas de lote vivas o presentaciones (logica.md
+     * PRODUCTO-15). Sus existencias cuelgan de esas lineas o de sus presentaciones, asi que tambien
+     * quedan cubiertas.
+     */
+    private void exigirSinInventarioSiCambiaSuManejo(Producto producto, ActualizarProductoRequest request) {
+        boolean cambiaNaturaleza = request.getEsStockDirecto() != null
+                && request.getEsStockDirecto() != producto.isEsStockDirecto();
+        boolean cambiaUnidad = request.getIdUnidadActual() != null
+                && !request.getIdUnidadActual().equals(producto.getUnidadActualId().getValue());
+        boolean cambiaPadre = request.getIdProductoPadre() != null
+                && (producto.getProductoPadreId() == null
+                        || !request.getIdProductoPadre().equals(producto.getProductoPadreId().getValue()));
+        if (!cambiaNaturaleza && !cambiaUnidad && !cambiaPadre) {
+            return;
+        }
+        if (tieneInventario(producto)) {
+            throw DomainException.throwException(409,
+                    "El producto '" + producto.getNombre() + "' ya tiene inventario: no se puede cambiar si es de stock directo, su unidad ni su producto base");
+        }
+    }
+
+    private boolean tieneInventario(Producto producto) {
+        if (producto.getStock() != null && producto.getStock().signum() > 0) {
+            return true;
+        }
+        if (!productoRepository.obtenerPresentaciones(producto.getId()).isEmpty()) {
+            return true;
+        }
+        String idProducto = producto.getId().getValue();
+        return loteRepository.obtenerPorProductos(List.of(producto.getId())).stream()
+                .filter(lote -> !lote.isBorrado())
+                .flatMap(lote -> lote.getDetallesActivos().stream())
+                .anyMatch(detalle -> Objects.equals(idProducto, detalle.getProductoId().getValue()));
     }
 
     /** La jerarquia presentacion -> producto base tiene un solo nivel (inventario.md INV-07). */
@@ -95,9 +153,21 @@ public class ActualizarProductoUseCase {
             throw DomainException.throwException(409,
                     "El producto '" + padre.getNombre() + "' es una presentacion y no puede ser producto base de otra");
         }
+        exigirQueElPadreTengaStock(padre);
         if (!productoRepository.obtenerPresentaciones(producto.getId()).isEmpty()) {
             throw DomainException.throwException(409,
                     "El producto '" + producto.getNombre() + "' es producto base de otras presentaciones y no puede tener padre");
+        }
+    }
+
+    /**
+     * Un MTO no tiene inventario propio, asi que no es producto base de presentaciones (logica.md
+     * PRODUCTO-18): lo que se compra de el no tendria a que stock sumar.
+     */
+    static void exigirQueElPadreTengaStock(Producto padre) {
+        if (!padre.isEsStockDirecto()) {
+            throw DomainException.throwException(409,
+                    "El producto '" + padre.getNombre() + "' se prepara bajo demanda (MTO) y no puede tener presentaciones");
         }
     }
 

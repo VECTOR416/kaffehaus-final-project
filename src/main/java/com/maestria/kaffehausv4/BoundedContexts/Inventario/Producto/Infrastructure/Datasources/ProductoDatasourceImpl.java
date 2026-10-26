@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Datasources.IProductoDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ObtenerProductosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
@@ -17,6 +18,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Value
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Infrastructure.Persistence.Jpa.ProductoJpaMapper;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Infrastructure.Persistence.Jpa.ProductoJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Infrastructure.Persistence.Jpa.ProductoJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Shared.Infrastructure.Persistence.OffsetPageRequest;
@@ -118,5 +121,20 @@ public class ProductoDatasourceImpl implements IProductoDatasource {
         } catch (IllegalArgumentException | NullPointerException e) {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
+    }
+
+    @Override
+    public boolean existeConTipo(TipoId tipoId) {
+        return productoJpaRepository.existsByIdTipoAndBorradoFalse(aUuid(tipoId.getValue()));
+    }
+
+    @Override
+    public boolean existeConCategoria(CategoriaId categoriaId) {
+        return productoJpaRepository.existsByIdCategoriaAndBorradoFalse(aUuid(categoriaId.getValue()));
+    }
+
+    @Override
+    public boolean existeConUnidad(UnidadId unidadId) {
+        return productoJpaRepository.existsByUnidadActualAndBorradoFalse(aUuid(unidadId.getValue()));
     }
 }

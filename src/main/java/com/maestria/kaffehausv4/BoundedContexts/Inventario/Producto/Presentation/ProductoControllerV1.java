@@ -16,19 +16,23 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.ExistenciaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ActualizarProductoRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.CrearProductoRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.InventarioProductoResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ObtenerProductosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ProductoResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.RegistrarPesajeRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.ActualizarProductoUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.CrearProductoUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.EliminarProductoUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.ObtenerInventarioProductoUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.ObtenerProductoPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.ObtenerProductosUseCase;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.InventarioProductoResponse;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.ObtenerInventarioProductoUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RegistrarPesajeUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
 // Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
 // restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
@@ -43,6 +47,7 @@ public class ProductoControllerV1 {
     private final ObtenerProductosUseCase obtenerProductosUseCase;
     private final EliminarProductoUseCase eliminarProductoUseCase;
     private final ObtenerInventarioProductoUseCase obtenerInventarioProductoUseCase;
+    private final RegistrarPesajeUseCase registrarPesajeUseCase;
 
     public ProductoControllerV1(
             CrearProductoUseCase crearProductoUseCase,
@@ -50,13 +55,15 @@ public class ProductoControllerV1 {
             ObtenerProductoPorIdUseCase obtenerProductoPorIdUseCase,
             ObtenerProductosUseCase obtenerProductosUseCase,
             EliminarProductoUseCase eliminarProductoUseCase,
-            ObtenerInventarioProductoUseCase obtenerInventarioProductoUseCase) {
+            ObtenerInventarioProductoUseCase obtenerInventarioProductoUseCase,
+            RegistrarPesajeUseCase registrarPesajeUseCase) {
         this.crearProductoUseCase = crearProductoUseCase;
         this.actualizarProductoUseCase = actualizarProductoUseCase;
         this.obtenerProductoPorIdUseCase = obtenerProductoPorIdUseCase;
         this.obtenerProductosUseCase = obtenerProductosUseCase;
         this.eliminarProductoUseCase = eliminarProductoUseCase;
         this.obtenerInventarioProductoUseCase = obtenerInventarioProductoUseCase;
+        this.registrarPesajeUseCase = registrarPesajeUseCase;
     }
 
     @RequiereRol("Administrador")
@@ -107,5 +114,14 @@ public class ProductoControllerV1 {
     @GetMapping("/{id}/inventario")
     public ResponseEntity<InventarioProductoResponse> obtenerInventario(@PathVariable String id) {
         return ResponseEntity.ok(obtenerInventarioProductoUseCase.execute(id));
+    }
+
+    // Pesaje de las existencias abiertas de un producto base: el sistema decide si la diferencia
+    // es una 'Merma' o un 'Ajuste' (logica.md EXISTENCIA-16, EXISTENCIA-18).
+    @RequiereRol("Administrador")
+    @PostMapping("/{id}/pesaje")
+    public ResponseEntity<List<ExistenciaResponse>> registrarPesaje(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        RegistrarPesajeRequest request = RegistrarPesajeRequest.createFromRequest(body, idUsuario);
+        return ResponseEntity.ok(registrarPesajeUseCase.execute(id, request));
     }
 }

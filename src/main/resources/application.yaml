@@ -1,30 +1,55 @@
 spring:
   application:
     name: kaffehausv4
+  # Variables del entorno en un .env en la raiz del proyecto (plantilla en .env.template). Las
+  # variables del sistema operativo tienen prioridad sobre el archivo. Formato KEY=valor, sin comillas.
+  config:
+    import: optional:file:.env[.properties]
   datasource:
-    url: jdbc:postgresql://localhost:5432/kaffehausdb
-    username: postgres
-    password: postgrespassword
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # Ninguna operacion espera un bloqueo de fila indefinidamente (logica.md GENERAL-15): al vencer,
+      # PostgreSQL aborta la sentencia y GlobalExceptionHandler responde 409 pidiendo reintentar.
+      connection-init-sql: SET lock_timeout = '${DB_LOCK_TIMEOUT}'
   jpa:
+    # El script de esquema corre despues de que Hibernate crea o amplia las tablas.
+    defer-datasource-initialization: true
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  # Objetos del esquema que no salen de las entidades (arquitectura.md 4.20). Idempotente.
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
 
 server:
-  port: ${SERVER_PORT:8081}
+  port: ${SERVER_PORT}
 
 seguridad:
   jwt:
-    secreto-acceso: ${JWT_SECRET:desarrollo-kaffehaus-secreto-de-acceso-cambiar-en-produccion}
-    secreto-refresco: ${JWT_REFRESH_SECRET:desarrollo-kaffehaus-secreto-de-refresco-cambiar-en-produccion}
-    emisor: ${JWT_ISSUER:kaffehausv4}
+    # Sin valores por defecto: la aplicacion no arranca si faltan.
+    secreto-acceso: ${JWT_SECRET}
+    secreto-refresco: ${JWT_REFRESH_SECRET}
+    emisor: ${JWT_ISSUER}
     # Vigencias fijadas por especificacion: 15 minutos y 7 dias.
-    minutos-de-acceso: ${JWT_ACCESS_MINUTES:15}
-    dias-de-refresco: ${JWT_REFRESH_DAYS:7}
+    minutos-de-acceso: ${JWT_ACCESS_MINUTES}
+    dias-de-refresco: ${JWT_REFRESH_DAYS}
   google:
+    # Vacio deshabilita el login con Google.
     client-id: ${GOOGLE_CLIENT_ID:}
-  # POST /api/v1/seed publico para el primer arranque. En false solo lo llama un Administrador.
-  seed-habilitado: ${SEED_HABILITADO:true}
+  # POST /api/v1/seed publico solo para la primera siembra de una base nueva (logica.md SIEMBRA-02).
+  # En false, el valor por defecto, solo lo llama un Administrador.
+  seed-habilitado: ${SEED_HABILITADO:false}
+  # Contrasena del administrador inicial (SIEMBRA-02). Sin ella la siembra de una base sin
+  # administrador responde 409. No tiene valor por defecto a proposito.
+  seed-admin-contrasena: ${SEED_ADMIN_CONTRASENA:}
+  cors:
+    # Origenes del frontend, separados por coma. Admite patrones de puerto ('[*]') y de subdominio
+    # ('https://*.dominio.com'); el comodin '*' solo esta prohibido (SecurityConfig).
+    origenes-permitidos: ${CORS_ORIGENES}

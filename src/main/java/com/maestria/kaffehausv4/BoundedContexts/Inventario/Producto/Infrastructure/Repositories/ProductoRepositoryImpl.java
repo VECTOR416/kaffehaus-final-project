@@ -5,11 +5,14 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Categoria.Domain.ValueObjects.CategoriaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Datasources.IProductoDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Dtos.ObtenerProductosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Tipo.Domain.ValueObjects.TipoId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 @Repository
@@ -61,4 +64,18 @@ public class ProductoRepositoryImpl implements IProductoRepository{
         this.productoDatasource.eliminar(productoId);
     }
 
+    @Override
+    public boolean existeConTipo(TipoId tipoId) {
+        return this.productoDatasource.existeConTipo(tipoId);
+    }
+
+    @Override
+    public boolean existeConCategoria(CategoriaId categoriaId) {
+        return this.productoDatasource.existeConCategoria(categoriaId);
+    }
+
+    @Override
+    public boolean existeConUnidad(UnidadId unidadId) {
+        return this.productoDatasource.existeConUnidad(unidadId);
+    }
 }

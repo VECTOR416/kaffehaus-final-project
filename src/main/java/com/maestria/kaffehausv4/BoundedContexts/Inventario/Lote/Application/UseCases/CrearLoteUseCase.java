@@ -11,6 +11,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repositories.ILoteRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Aggregates.Producto;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Application.Repositories.IProveedorRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
@@ -33,16 +35,19 @@ public class CrearLoteUseCase {
     private final IProveedorRepository proveedorRepository;
     private final IUsuarioRepository usuarioRepository;
     private final IProductoRepository productoRepository;
+    private final RecalcularStockUseCase recalcularStockUseCase;
 
     public CrearLoteUseCase(
             ILoteRepository loteRepository,
             IProveedorRepository proveedorRepository,
             IUsuarioRepository usuarioRepository,
-            IProductoRepository productoRepository) {
+            IProductoRepository productoRepository,
+            RecalcularStockUseCase recalcularStockUseCase) {
         this.loteRepository = loteRepository;
         this.proveedorRepository = proveedorRepository;
         this.usuarioRepository = usuarioRepository;
         this.productoRepository = productoRepository;
+        this.recalcularStockUseCase = recalcularStockUseCase;
     }
 
     public LoteResponse execute(CrearLoteRequest crearLoteRequest) {
@@ -62,6 +67,8 @@ public class CrearLoteUseCase {
         lote.validarRegistrable();
 
         Lote loteCreado = loteRepository.crear(lote);
+        // Las unidades compradas suben el stock de cada producto (logica.md PRODUCTO-16).
+        productosDe(loteCreado).forEach(recalcularStockUseCase::execute);
 
         return LoteResponse.createFromAggregate(loteCreado);
     }
@@ -73,8 +80,9 @@ public class CrearLoteUseCase {
     private void agregarDetalles(Lote lote, List<DetalleLoteRequest> detalles) {
         for (DetalleLoteRequest detalle : detalles) {
             ProductoId productoId = new ProductoId(detalle.getIdProducto());
-            productoRepository.obtenerPorId(productoId)
+            Producto producto = productoRepository.obtenerPorId(productoId)
                     .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + detalle.getIdProducto() + "' no existe"));
+            exigirQueSeCompre(producto, productoRepository);
 
             lote.agregarDetalle(
                     productoId,
@@ -83,5 +91,30 @@ public class CrearLoteUseCase {
                     detalle.getFraccionable(),
                     detalle.getFechaVencimiento());
         }
+    }
+
+    /**
+     * Un lote compra presentaciones o productos por unidades; un producto base con presentaciones
+     * se compra a traves de una de ellas (logica.md LOTE-13), y un MTO no se compra: no tiene
+     * inventario propio (PRODUCTO-18).
+     */
+    static void exigirQueSeCompre(Producto producto, IProductoRepository productoRepository) {
+        if (!producto.isEsStockDirecto()) {
+            throw DomainException.throwException(400,
+                    "El producto '" + producto.getNombre() + "' se prepara bajo demanda (MTO) y no se compra: se compran sus insumos");
+        }
+        if (!productoRepository.obtenerPresentaciones(producto.getId()).isEmpty()) {
+            throw DomainException.throwException(400,
+                    "El producto '" + producto.getNombre() + "' tiene presentaciones: compra una de ellas o registra una presentacion para comprarlo suelto");
+        }
+    }
+
+    /** Productos de las lineas del lote, en orden de id para bloquearlos siempre igual (INV-53). */
+    static List<String> productosDe(Lote lote) {
+        return lote.getDetalles().stream()
+                .map(detalle -> detalle.getProductoId().getValue())
+                .distinct()
+                .sorted()
+                .toList();
     }
 }

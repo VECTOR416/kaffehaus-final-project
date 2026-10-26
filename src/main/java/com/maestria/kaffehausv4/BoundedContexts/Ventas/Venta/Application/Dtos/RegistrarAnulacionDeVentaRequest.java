@@ -11,23 +11,27 @@ public class RegistrarAnulacionDeVentaRequest {
     private String idUsuario;
     private String motivo;
     private boolean reintegrar;
+    private String referenciaReembolso;
     private LocalDateTime fecha;
 
-    private RegistrarAnulacionDeVentaRequest(String idVenta, String idUsuario, String motivo, boolean reintegrar, LocalDateTime fecha) {
+    private RegistrarAnulacionDeVentaRequest(String idVenta, String idUsuario, String motivo, boolean reintegrar, String referenciaReembolso, LocalDateTime fecha) {
         this.idVenta = idVenta;
         this.idUsuario = idUsuario;
         this.motivo = motivo;
         this.reintegrar = reintegrar;
+        this.referenciaReembolso = referenciaReembolso;
         this.fecha = fecha;
     }
 
-    public static RegistrarAnulacionDeVentaRequest crear(String idVenta, String idUsuario, String motivo, boolean reintegrar, LocalDateTime fecha) {
-        return new RegistrarAnulacionDeVentaRequest(idVenta, idUsuario, motivo, reintegrar, fecha != null ? fecha : LocalDateTime.now());
+    /** 'referenciaReembolso' es opcional (logica.md VENTA-27). */
+    public static RegistrarAnulacionDeVentaRequest crear(String idVenta, String idUsuario, String motivo, boolean reintegrar, String referenciaReembolso, LocalDateTime fecha) {
+        return new RegistrarAnulacionDeVentaRequest(idVenta, idUsuario, motivo, reintegrar, referenciaReembolso, fecha != null ? fecha : LocalDateTime.now());
     }
 
     public String getIdVenta() {return idVenta;}
     public String getIdUsuario() {return idUsuario;}
     public String getMotivo() {return motivo;}
     public boolean isReintegrar() {return reintegrar;}
+    public String getReferenciaReembolso() {return referenciaReembolso;}
     public LocalDateTime getFecha() {return fecha;}
 }

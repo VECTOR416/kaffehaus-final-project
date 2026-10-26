@@ -46,6 +46,24 @@ public class LoteJpaMapper {
         model.setFecU(OffsetDateTime.now());
     }
 
+    /** El mismo agregado reconstruido desde sus proyecciones de lectura (arquitectura.md 5.7). */
+    public static Lote toDomain(LoteLecturaProyeccion lectura, List<DetalleLoteLecturaProyeccion> detallesLectura) {
+        List<DetalleLote> detalles = detallesLectura.stream()
+                .map(DetalleLoteJpaMapper::toDomain)
+                .collect(Collectors.toList());
+
+        return Lote.restaurar(
+                lectura.getId().toString(),
+                lectura.getFechaCompra(),
+                lectura.getTotal(),
+                lectura.getIdProveedor() != null ? new ProveedorId(lectura.getIdProveedor().toString()) : null,
+                new UsuarioId(lectura.getIdUsuario().toString()),
+                lectura.getEsProduccion() != null && lectura.getEsProduccion(),
+                lectura.getIdProduccion() != null ? new ProduccionId(lectura.getIdProduccion().toString()) : null,
+                lectura.getBorrado() != null && lectura.getBorrado(),
+                detalles);
+    }
+
     public static Lote toDomain(LoteJpaModel model, List<DetalleLoteJpaModel> detallesModel) {
         List<DetalleLote> detalles = detallesModel != null
                 ? detallesModel.stream().map(DetalleLoteJpaMapper::toDomain).collect(Collectors.toList())

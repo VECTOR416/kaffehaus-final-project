@@ -18,19 +18,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.ActualizarExistenciaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.CrearExistenciaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.DarDeBajaVencidaExistenciaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.ExistenciaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.ObtenerExistenciasRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.ActualizarExistenciaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.CrearExistenciaUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.DarDeBajaVencidaExistenciaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.EliminarExistenciaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.ObtenerExistenciaPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.ObtenerExistenciasUseCase;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.AjustarExistenciaRequest;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.RegistrarMermaRequest;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.RegistrarVencimientoRequest;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.AjustarExistenciaUseCase;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.RegistrarMermaUseCase;
-import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases.RegistrarVencimientoUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
 import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
@@ -47,9 +43,7 @@ public class ExistenciaControllerV1 {
     private final ObtenerExistenciaPorIdUseCase obtenerExistenciaPorIdUseCase;
     private final ObtenerExistenciasUseCase obtenerExistenciasUseCase;
     private final EliminarExistenciaUseCase eliminarExistenciaUseCase;
-    private final RegistrarMermaUseCase registrarMermaUseCase;
-    private final RegistrarVencimientoUseCase registrarVencimientoUseCase;
-    private final AjustarExistenciaUseCase ajustarExistenciaUseCase;
+    private final DarDeBajaVencidaExistenciaUseCase darDeBajaVencidaExistenciaUseCase;
 
     public ExistenciaControllerV1(
             CrearExistenciaUseCase crearExistenciaUseCase,
@@ -57,17 +51,13 @@ public class ExistenciaControllerV1 {
             ObtenerExistenciaPorIdUseCase obtenerExistenciaPorIdUseCase,
             ObtenerExistenciasUseCase obtenerExistenciasUseCase,
             EliminarExistenciaUseCase eliminarExistenciaUseCase,
-            RegistrarMermaUseCase registrarMermaUseCase,
-            RegistrarVencimientoUseCase registrarVencimientoUseCase,
-            AjustarExistenciaUseCase ajustarExistenciaUseCase) {
+            DarDeBajaVencidaExistenciaUseCase darDeBajaVencidaExistenciaUseCase) {
         this.crearExistenciaUseCase = crearExistenciaUseCase;
         this.actualizarExistenciaUseCase = actualizarExistenciaUseCase;
         this.obtenerExistenciaPorIdUseCase = obtenerExistenciaPorIdUseCase;
         this.obtenerExistenciasUseCase = obtenerExistenciasUseCase;
         this.eliminarExistenciaUseCase = eliminarExistenciaUseCase;
-        this.registrarMermaUseCase = registrarMermaUseCase;
-        this.registrarVencimientoUseCase = registrarVencimientoUseCase;
-        this.ajustarExistenciaUseCase = ajustarExistenciaUseCase;
+        this.darDeBajaVencidaExistenciaUseCase = darDeBajaVencidaExistenciaUseCase;
     }
 
     @PostMapping
@@ -98,6 +88,9 @@ public class ExistenciaControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    // Cambiar el vencimiento de una existencia es solo de Administrador (logica.md GENERAL-17,
+    // VENCIMIENTO-05).
+    @RequiereRol("Administrador")
     @PutMapping("/{id}")
     public ResponseEntity<ExistenciaResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body) {
         ActualizarExistenciaRequest request = ActualizarExistenciaRequest.createFromRequest(body);
@@ -111,24 +104,10 @@ public class ExistenciaControllerV1 {
         return ResponseEntity.noContent().build();
     }
 
-    // Movimientos operativos sobre una existencia (inventario.md INV-42, INV-43).
-
-    @PostMapping("/{id}/merma")
-    public ResponseEntity<ExistenciaResponse> registrarMerma(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
-        RegistrarMermaRequest request = RegistrarMermaRequest.createFromRequest(body, idUsuario);
-        return ResponseEntity.ok(registrarMermaUseCase.execute(id, request));
-    }
-
+    // Baja por vencimiento (logica.md VENCIMIENTO-03): Operador o Administrador.
     @PostMapping("/{id}/vencimiento")
-    public ResponseEntity<ExistenciaResponse> registrarVencimiento(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
-        RegistrarVencimientoRequest request = RegistrarVencimientoRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
-        return ResponseEntity.ok(registrarVencimientoUseCase.execute(id, request));
-    }
-
-    @RequiereRol("Administrador")
-    @PostMapping("/{id}/ajuste")
-    public ResponseEntity<ExistenciaResponse> ajustar(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
-        AjustarExistenciaRequest request = AjustarExistenciaRequest.createFromRequest(body, idUsuario);
-        return ResponseEntity.ok(ajustarExistenciaUseCase.execute(id, request));
+    public ResponseEntity<ExistenciaResponse> darDeBajaVencida(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        DarDeBajaVencidaExistenciaRequest request = DarDeBajaVencidaExistenciaRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
+        return ResponseEntity.ok(darDeBajaVencidaExistenciaUseCase.execute(id, request));
     }
 }

@@ -15,8 +15,13 @@ import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Dtos.
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Repositories.IPedidoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.Aggregates.Pedido;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.ValueObjects.PedidoId;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Application.Repositories.IRolRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.Aggregates.Rol;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.RegistrarAnulacionDeVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.RegistrarAnulacionDeVentaUseCase;
+import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
@@ -41,14 +46,20 @@ public class ActualizarPedidoUseCase {
 
     private final IPedidoRepository pedidoRepository;
     private final IEstadoPedidoRepository estadoPedidoRepository;
+    private final IUsuarioRepository usuarioRepository;
+    private final IRolRepository rolRepository;
     private final RegistrarAnulacionDeVentaUseCase registrarAnulacionDeVentaUseCase;
 
     public ActualizarPedidoUseCase(
             IPedidoRepository pedidoRepository,
             IEstadoPedidoRepository estadoPedidoRepository,
+            IUsuarioRepository usuarioRepository,
+            IRolRepository rolRepository,
             RegistrarAnulacionDeVentaUseCase registrarAnulacionDeVentaUseCase) {
         this.pedidoRepository = pedidoRepository;
         this.estadoPedidoRepository = estadoPedidoRepository;
+        this.usuarioRepository = usuarioRepository;
+        this.rolRepository = rolRepository;
         this.registrarAnulacionDeVentaUseCase = registrarAnulacionDeVentaUseCase;
     }
 
@@ -72,7 +83,7 @@ public class ActualizarPedidoUseCase {
                         "Un pedido no puede pasar de '" + actual + "' a '" + destino + "'");
             }
             if (CANCELADO.equals(destino)) {
-                anularVentaDe(pedido, actual, actualizarPedidoRequest.getIdUsuario());
+                anularVentaDe(pedido, actual, actualizarPedidoRequest);
             }
         }
 
@@ -89,17 +100,34 @@ public class ActualizarPedidoUseCase {
         return toResponse(pedidoActualizado);
     }
 
-    /** Cancelar un pedido anula su venta; se reintegra solo si nada se preparo (VEN-52). */
-    private void anularVentaDe(Pedido pedido, String estadoActual, String idUsuario) {
-        if (idUsuario == null) {
-            throw DomainException.throwException(400, "Cancelar un pedido requiere 'idUsuario': anula su venta");
+    /**
+     * Cancelar un pedido anula su venta (logica.md PEDIDO-05), asi que exige lo mismo que anular
+     * (PEDIDO-09): un Administrador (403) y un motivo (400), que pasa tal cual a la anulacion. Se
+     * reintegra solo si nada se preparo. El permiso depende del estado destino y no del endpoint,
+     * por eso lo comprueba el caso de uso y no un @RequiereRol.
+     */
+    private void anularVentaDe(Pedido pedido, String estadoActual, ActualizarPedidoRequest request) {
+        if (!esAdministrador(request.getIdUsuario())) {
+            throw AutorizacionException.throwException(403,
+                    "Solo un Administrador cancela un pedido: cancelarlo anula su venta");
+        }
+        if (request.getMotivo() == null) {
+            throw DomainException.throwException(400, "Cancelar un pedido requiere 'motivo': anula su venta");
         }
         registrarAnulacionDeVentaUseCase.execute(RegistrarAnulacionDeVentaRequest.crear(
                 pedido.getVentaId().getValue(),
-                idUsuario,
-                "Cancelacion del pedido '" + pedido.getId().getValue() + "'",
+                request.getIdUsuario(),
+                request.getMotivo(),
                 RECIBIDO.equals(estadoActual),
+                request.getReferenciaReembolso(),
                 LocalDateTime.now()));
+    }
+
+    private boolean esAdministrador(String idUsuario) {
+        return usuarioRepository.obtenerPorId(new UsuarioId(idUsuario))
+                .flatMap(usuario -> rolRepository.obtenerPorId(usuario.getRolId()))
+                .map(rol -> Rol.ADMINISTRADOR.equalsIgnoreCase(rol.getNombre()))
+                .orElse(false);
     }
 
     private String nombreDe(EstadoPedidoId estadoId) {

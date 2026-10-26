@@ -89,6 +89,8 @@ public class CategoriaControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    // Solo un Administrador da de baja recetas y filas de catalogo (logica.md GENERAL-17).
+    @RequiereRol("Administrador")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarCategoriaUseCase.execute(id);

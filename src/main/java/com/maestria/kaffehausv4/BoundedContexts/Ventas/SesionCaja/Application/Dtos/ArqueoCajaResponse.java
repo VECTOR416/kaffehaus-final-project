@@ -23,6 +23,7 @@ public class ArqueoCajaResponse {
     private long cantidadVentas;
     private long cantidadVentasAnuladas;
     private List<RecaudacionPorTipoPagoResponse> recaudacionPorTipoPago;
+    private List<RecaudacionPorUsuarioResponse> recaudacionPorUsuario;
 
     private ArqueoCajaResponse(
         SesionCajaResponse sesion,
@@ -36,7 +37,8 @@ public class ArqueoCajaResponse {
         BigDecimal totalVendido,
         long cantidadVentas,
         long cantidadVentasAnuladas,
-        List<RecaudacionPorTipoPagoResponse> recaudacionPorTipoPago
+        List<RecaudacionPorTipoPagoResponse> recaudacionPorTipoPago,
+        List<RecaudacionPorUsuarioResponse> recaudacionPorUsuario
     ) {
         this.sesion = sesion;
         this.montoApertura = montoApertura;
@@ -50,6 +52,7 @@ public class ArqueoCajaResponse {
         this.cantidadVentas = cantidadVentas;
         this.cantidadVentasAnuladas = cantidadVentasAnuladas;
         this.recaudacionPorTipoPago = recaudacionPorTipoPago;
+        this.recaudacionPorUsuario = recaudacionPorUsuario;
     }
 
     public static ArqueoCajaResponse createFromAggregate(
@@ -58,7 +61,8 @@ public class ArqueoCajaResponse {
         BigDecimal totalVendido,
         long cantidadVentas,
         long cantidadVentasAnuladas,
-        List<RecaudacionPorTipoPagoResponse> recaudacionPorTipoPago
+        List<RecaudacionPorTipoPagoResponse> recaudacionPorTipoPago,
+        List<RecaudacionPorUsuarioResponse> recaudacionPorUsuario
     ) {
         return new ArqueoCajaResponse(
             SesionCajaResponse.createFromAggregate(sesionCaja),
@@ -72,7 +76,8 @@ public class ArqueoCajaResponse {
             totalVendido,
             cantidadVentas,
             cantidadVentasAnuladas,
-            recaudacionPorTipoPago
+            recaudacionPorTipoPago,
+            recaudacionPorUsuario
         );
     }
 
@@ -88,4 +93,5 @@ public class ArqueoCajaResponse {
     public long getCantidadVentas() {return cantidadVentas;}
     public long getCantidadVentasAnuladas() {return cantidadVentasAnuladas;}
     public List<RecaudacionPorTipoPagoResponse> getRecaudacionPorTipoPago() {return recaudacionPorTipoPago;}
+    public List<RecaudacionPorUsuarioResponse> getRecaudacionPorUsuario() {return recaudacionPorUsuario;}
 }

@@ -1,6 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Conversion.Domain.Aggregates;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -9,6 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /** Pruebas de dominio puro de la resolucion de factores de conversion (inventario.md INV-09). */
 class ConversionTest {
@@ -27,6 +29,24 @@ class ConversionTest {
             conversion("c0000000-0000-0000-0000-000000000001", BOLSA_5KG, KG, "5"),
             conversion("c0000000-0000-0000-0000-000000000002", KG, G, "1000"),
             conversion("c0000000-0000-0000-0000-000000000003", L, ML, "1000"));
+
+    @Test
+    void unaConversionNoBorrableNoSeDaDeBaja() {
+        Conversion conversion = Conversion.restaurar("c0000000-0000-0000-0000-000000000008", new BigDecimal("1000"), false, KG, G, false);
+
+        DomainException error = assertThrows(DomainException.class, conversion::eliminar);
+
+        assertEquals(409, error.getCodigo());
+    }
+
+    @Test
+    void unaConversionBorrableSeDaDeBajaLogica() {
+        Conversion conversion = conversion("c0000000-0000-0000-0000-000000000008", KG, G, "1000");
+
+        conversion.eliminar();
+
+        assertTrue(conversion.isBorrado());
+    }
 
     @Test
     void laMismaUnidadTieneFactorUno() {

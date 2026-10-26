@@ -1,5 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases;
 
+import java.time.LocalDate;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +15,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Repositories.IExistenciaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.Aggregates.Existencia;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.Repositories.IUnidadRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates.Unidad;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
@@ -73,9 +76,24 @@ public class ActualizarExistenciaUseCase {
                 unidadId,
                 null);
 
+        if (actualizarExistenciaRequest.getFechaVencimiento() != null) {
+            existencia.exigirQueNoVenzaDespuesDe(vencimientoDeSuLinea(existencia));
+        }
+
         Existencia existenciaActualizada = existenciaRepository.actualizar(id, existencia);
 
         return toResponse(existenciaActualizada);
+    }
+
+    /** Vencimiento de la linea de lote de la que se abrio, aunque esa linea ya no tenga unidades. */
+    private LocalDate vencimientoDeSuLinea(Existencia existencia) {
+        String idDetalle = existencia.getDetalleLoteId().getValue();
+        return loteRepository.obtenerPorDetalleId(existencia.getDetalleLoteId())
+                .flatMap(lote -> lote.getDetalles().stream()
+                        .filter(detalle -> detalle.getId().getValue().equals(idDetalle))
+                        .findFirst())
+                .map(DetalleLote::getFechaVencimiento)
+                .orElse(null);
     }
 
     private ExistenciaResponse toResponse(Existencia existencia) {

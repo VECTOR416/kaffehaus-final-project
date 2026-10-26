@@ -1,11 +1,15 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Application.Dtos;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.Aggregates.SesionCaja;
 
-/** Si hay un turno abierto y, en ese caso, desde cuando y quien responde por el. */
+/**
+ * Si hay un turno abierto y, en ese caso, desde cuando, quien responde por el y si se abrio un dia
+ * anterior (logica.md SESIONCAJA-08, SESIONCAJA-17).
+ */
 public class EstadoCajaResponse {
     private boolean abierta;
     private String idSesionCaja;
@@ -13,6 +17,7 @@ public class EstadoCajaResponse {
     private BigDecimal montoApertura;
     private String idResponsable;
     private String nombreResponsable;
+    private boolean abiertaDesdeDiaAnterior;
 
     private EstadoCajaResponse(
         boolean abierta,
@@ -20,7 +25,8 @@ public class EstadoCajaResponse {
         LocalDateTime fechaApertura,
         BigDecimal montoApertura,
         String idResponsable,
-        String nombreResponsable
+        String nombreResponsable,
+        boolean abiertaDesdeDiaAnterior
     ) {
         this.abierta = abierta;
         this.idSesionCaja = idSesionCaja;
@@ -28,12 +34,13 @@ public class EstadoCajaResponse {
         this.montoApertura = montoApertura;
         this.idResponsable = idResponsable;
         this.nombreResponsable = nombreResponsable;
+        this.abiertaDesdeDiaAnterior = abiertaDesdeDiaAnterior;
     }
 
     /** Con 'sesionCaja' nula describe una caja cerrada. */
-    public static EstadoCajaResponse createFromAggregate(SesionCaja sesionCaja, String nombreResponsable) {
+    public static EstadoCajaResponse createFromAggregate(SesionCaja sesionCaja, String nombreResponsable, LocalDate hoy) {
         if (sesionCaja == null) {
-            return new EstadoCajaResponse(false, null, null, null, null, null);
+            return new EstadoCajaResponse(false, null, null, null, null, null, false);
         }
         return new EstadoCajaResponse(
             true,
@@ -41,7 +48,8 @@ public class EstadoCajaResponse {
             sesionCaja.getFechaApertura(),
             sesionCaja.getMontoApertura(),
             sesionCaja.getUsuarioId().getValue(),
-            nombreResponsable
+            nombreResponsable,
+            sesionCaja.abiertaDesdeDiaAnterior(hoy)
         );
     }
 
@@ -51,4 +59,5 @@ public class EstadoCajaResponse {
     public BigDecimal getMontoApertura() {return montoApertura;}
     public String getIdResponsable() {return idResponsable;}
     public String getNombreResponsable() {return nombreResponsable;}
+    public boolean isAbiertaDesdeDiaAnterior() {return abiertaDesdeDiaAnterior;}
 }

@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Applicati
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,11 +36,12 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * Operacion interna: abre una unidad cerrada de un detalle de lote y la convierte en una
  * existencia del producto base (inventario.md INV-10). No tiene endpoint.
  *
- * En una sola transaccion: bloquea la linea (INV-52), resuelve el producto base y el factor
- * de conversion de la unidad de la presentacion a la del producto base (INV-06, INV-09),
+ * En una sola transaccion: bloquea el lote por su raiz (logica.md LOTE-27), resuelve el producto
+ * base y el factor de conversion de la unidad de la presentacion a la del producto base (INV-06,
+ * INV-09),
  * descuenta la unidad de 'cantidad_restante' a traves de la raiz Lote, crea la existencia
- * 'Abierta' con ese contenido, registra el movimiento 'Apertura' y recalcula el stock del
- * producto base.
+ * 'Abierta' con ese contenido, registra el movimiento 'Apertura' de cantidad 0 (logica.md
+ * EXISTENCIA-13) y recalcula el stock del producto base.
  *
  * No decide que linea se abre: eso lo resuelve quien la invoca (INV-14).
  */
@@ -48,7 +50,6 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 public class RegistrarAperturaUseCase {
     // Filas de catalogo que el flujo resuelve por nombre (ver databasev4.sql, seccion 7).
     private static final String ESTADO_ABIERTA = "Abierta";
-    private static final String TIPO_APERTURA = "Apertura";
 
     /** Escala de NUMERIC(12, 4) en 'existencias'. */
     private static final int ESCALA_CONTENIDO = 4;
@@ -89,9 +90,9 @@ public class RegistrarAperturaUseCase {
                 .orElseThrow(() -> DomainException.throwException(404, "El detalle de lote con id '" + request.getIdDetalleLote() + "' no existe"));
         DetalleLote detalle = lote.obtenerDetalle(request.getIdDetalleLote());
 
-        if (!request.isPermitirVencido() && detalle.estaVencido(request.getFecha().toLocalDate())) {
+        if (detalle.estaVencido(request.getFecha().toLocalDate())) {
             throw DomainException.throwException(409,
-                    "El detalle de lote con id '" + request.getIdDetalleLote() + "' esta vencido; registra su vencimiento en lugar de abrirlo");
+                    "El detalle de lote con id '" + request.getIdDetalleLote() + "' esta vencido y no se puede abrir");
         }
 
         Producto presentacion = productoRepository.obtenerPorId(detalle.getProductoId())
@@ -112,8 +113,8 @@ public class RegistrarAperturaUseCase {
 
         EstadoExistencia abierta = estadoExistenciaRepository.obtenerPorNombre(ESTADO_ABIERTA)
                 .orElseThrow(() -> DomainException.throwException(404, "El estado de existencia '" + ESTADO_ABIERTA + "' no esta registrado"));
-        TipoMovimiento apertura = tipoMovimientoRepository.obtenerPorNombre(TIPO_APERTURA)
-                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento '" + TIPO_APERTURA + "' no esta registrado"));
+        TipoMovimiento apertura = tipoMovimientoRepository.obtenerPorNombre(TipoMovimiento.APERTURA)
+                .orElseThrow(() -> DomainException.throwException(404, "El tipo de movimiento '" + TipoMovimiento.APERTURA + "' no esta registrado"));
         UsuarioId usuarioId = new UsuarioId(request.getIdUsuario());
 
         Existencia existencia = existenciaRepository.crear(Existencia.crear(
@@ -127,16 +128,19 @@ public class RegistrarAperturaUseCase {
                 base.getUnidadActualId(),
                 usuarioId));
 
-        movimientoRepository.crear(Movimiento.crear(
-                contenido,
+        movimientoRepository.crear(Movimiento.registrarApertura(
                 request.getFecha(),
                 "Apertura de '" + presentacion.getNombre() + "'",
                 existencia.getId(),
                 apertura.getId(),
-                usuarioId,
-                null));
+                usuarioId));
 
-        recalcularStockUseCase.execute(base.getId().getValue());
+        // La bolsa abierta deja de contar como unidad de su presentacion y su contenido suma al
+        // producto base (logica.md EXISTENCIA-13); se recalculan en orden de id (INV-53).
+        Stream.of(base.getId().getValue(), presentacion.getId().getValue())
+                .distinct()
+                .sorted()
+                .forEach(recalcularStockUseCase::execute);
 
         Unidad unidad = unidadRepository.obtenerPorId(base.getUnidadActualId())
                 .orElseThrow(() -> DomainException.throwException(404, "La unidad del producto base no existe"));

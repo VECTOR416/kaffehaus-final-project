@@ -22,4 +22,9 @@ public interface ProductoJpaRepository extends JpaRepository<ProductoJpaModel, U
     // misma consulta derivada, con SELECT ... FOR UPDATE (inventario.md INV-52).
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ProductoJpaModel> readByIdAndBorradoFalse(UUID id);
+
+    // Bajas de catalogos con productos vivos (logica.md GENERAL-18).
+    boolean existsByIdTipoAndBorradoFalse(UUID idTipo);
+    boolean existsByIdCategoriaAndBorradoFalse(UUID idCategoria);
+    boolean existsByUnidadActualAndBorradoFalse(UUID unidadActual);
 }

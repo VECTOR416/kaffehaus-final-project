@@ -22,10 +22,10 @@ public class VentaResponse {
     private String idCliente;
     private String idSesionCaja;
     private EstadoVentaResponse estadoVenta;
-    private BigDecimal costoTotal;
     private String claveIdempotencia;
     private String motivoAnulacion;
     private String idUsuarioAnulacion;
+    private String referenciaReembolso;
     private boolean borrado;
     private List<DetalleVentaResponse> detalles;
     private BigDecimal cambio;
@@ -40,10 +40,10 @@ public class VentaResponse {
         String idCliente,
         String idSesionCaja,
         EstadoVentaResponse estadoVenta,
-        BigDecimal costoTotal,
         String claveIdempotencia,
         String motivoAnulacion,
         String idUsuarioAnulacion,
+        String referenciaReembolso,
         boolean borrado,
         List<DetalleVentaResponse> detalles,
         BigDecimal cambio,
@@ -57,10 +57,10 @@ public class VentaResponse {
         this.idCliente = idCliente;
         this.idSesionCaja = idSesionCaja;
         this.estadoVenta = estadoVenta;
-        this.costoTotal = costoTotal;
         this.claveIdempotencia = claveIdempotencia;
         this.motivoAnulacion = motivoAnulacion;
         this.idUsuarioAnulacion = idUsuarioAnulacion;
+        this.referenciaReembolso = referenciaReembolso;
         this.borrado = borrado;
         this.detalles = detalles;
         this.cambio = cambio;
@@ -87,10 +87,10 @@ public class VentaResponse {
             venta.getClienteId() != null ? venta.getClienteId().getValue() : null,
             venta.getSesionCajaId() != null ? venta.getSesionCajaId().getValue() : null,
             estadoVentaResponse,
-            venta.getCostoTotal(),
             venta.getClaveIdempotencia(),
             venta.getMotivoAnulacion(),
             venta.getUsuarioAnulacionId() != null ? venta.getUsuarioAnulacionId().getValue() : null,
+            venta.getReferenciaReembolso(),
             venta.isBorrado(),
             detalles,
             venta.getCambio(),
@@ -106,10 +106,10 @@ public class VentaResponse {
     public String getIdCliente() {return idCliente;}
     public String getIdSesionCaja() {return idSesionCaja;}
     public EstadoVentaResponse getEstadoVenta() {return estadoVenta;}
-    public BigDecimal getCostoTotal() {return costoTotal;}
     public String getClaveIdempotencia() {return claveIdempotencia;}
     public String getMotivoAnulacion() {return motivoAnulacion;}
     public String getIdUsuarioAnulacion() {return idUsuarioAnulacion;}
+    public String getReferenciaReembolso() {return referenciaReembolso;}
     public boolean isBorrado() {return borrado;}
     public List<DetalleVentaResponse> getDetalles() {return detalles;}
     public BigDecimal getCambio() {return cambio;}

@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import com.maestria.kaffehausv4.Shared.Domain.Error.BaseException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Shared.Domain.Error.SystemException;
@@ -19,7 +21,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<ErrorResponse> handleDomainException(DomainException ex) {
-        return construirRespuesta(ex.getCodigo(), ex.getTipo(), ex.getMensaje());
+        return construirRespuesta(ex.getCodigo(), ex.getTipo(), ex.getError(), ex.getMensaje(), ex.getDetalle());
     }
 
     @ExceptionHandler(SystemException.class)
@@ -87,11 +89,21 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ErrorResponse> construirRespuesta(int codigo, String tipo, String mensaje) {
+        return construirRespuesta(codigo, tipo, null, mensaje, null);
+    }
+
+    private ResponseEntity<ErrorResponse> construirRespuesta(int codigo, String tipo, String error, String mensaje, Object detalle) {
         HttpStatus status = HttpStatus.resolve(codigo);
         HttpStatus httpStatus = status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR;
-        ErrorResponse body = new ErrorResponse(codigo, tipo, mensaje, OffsetDateTime.now());
+        ErrorResponse body = new ErrorResponse(codigo, tipo, error, mensaje, detalle, OffsetDateTime.now());
         return ResponseEntity.status(httpStatus).body(body);
     }
 
-    public record ErrorResponse(int codigo, String tipo, String mensaje, OffsetDateTime timestamp) {}
+    /**
+     * Contrato unico de error (arquitectura.md 4.16). 'error' y 'detalle' solo los llevan los
+     * errores estructurados; cuando son nulos no se escriben, asi que el resto de errores
+     * conserva su forma de siempre.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ErrorResponse(int codigo, String tipo, String error, String mensaje, Object detalle, OffsetDateTime timestamp) {}
 }
