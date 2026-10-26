@@ -17,6 +17,8 @@ public class LoteResponse {
     private BigDecimal total;
     private String idProveedor;
     private String idUsuario;
+    private boolean esProduccion;
+    private String idProduccion;
     private boolean borrado;
     private List<DetalleLoteResponse> detalles;
 
@@ -26,6 +28,8 @@ public class LoteResponse {
         BigDecimal total,
         String idProveedor,
         String idUsuario,
+        boolean esProduccion,
+        String idProduccion,
         boolean borrado,
         List<DetalleLoteResponse> detalles
     ) {
@@ -34,6 +38,8 @@ public class LoteResponse {
         this.total = total;
         this.idProveedor = idProveedor;
         this.idUsuario = idUsuario;
+        this.esProduccion = esProduccion;
+        this.idProduccion = idProduccion;
         this.borrado = borrado;
         this.detalles = detalles;
     }
@@ -49,6 +55,8 @@ public class LoteResponse {
             lote.getTotal(),
             lote.getProveedorId() != null ? lote.getProveedorId().getValue() : null,
             lote.getUsuarioId() != null ? lote.getUsuarioId().getValue() : null,
+            lote.isEsProduccion(),
+            lote.getProduccionId() != null ? lote.getProduccionId().getValue() : null,
             lote.isBorrado(),
             detalles
         );
@@ -59,6 +67,8 @@ public class LoteResponse {
     public BigDecimal getTotal() {return total;}
     public String getIdProveedor() {return idProveedor;}
     public String getIdUsuario() {return idUsuario;}
+    public boolean isEsProduccion() {return esProduccion;}
+    public String getIdProduccion() {return idProduccion;}
     public boolean isBorrado() {return borrado;}
     public List<DetalleLoteResponse> getDetalles() {return detalles;}
 }

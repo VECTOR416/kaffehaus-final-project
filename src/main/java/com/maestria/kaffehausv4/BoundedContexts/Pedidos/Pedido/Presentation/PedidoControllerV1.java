@@ -26,7 +26,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.UseCa
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.UseCases.ObtenerPedidoPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.UseCases.ObtenerPedidosUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/pedido")
 public class PedidoControllerV1 {
@@ -79,8 +84,8 @@ public class PedidoControllerV1 {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<PedidoResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        ActualizarPedidoRequest request = ActualizarPedidoRequest.createFromRequest(body);
+    public ResponseEntity<PedidoResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        ActualizarPedidoRequest request = ActualizarPedidoRequest.createFromRequest(body, idUsuario);
         PedidoResponse response = actualizarPedidoUseCase.execute(id, request);
         return ResponseEntity.ok(response);
     }

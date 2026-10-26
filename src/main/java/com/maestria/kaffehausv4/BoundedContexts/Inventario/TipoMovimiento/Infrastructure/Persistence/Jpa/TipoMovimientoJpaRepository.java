@@ -12,4 +12,5 @@ public interface TipoMovimientoJpaRepository extends JpaRepository<TipoMovimient
     Optional<TipoMovimientoJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<TipoMovimientoJpaModel> findByBorradoFalse(Pageable pageable);
     Page<TipoMovimientoJpaModel> findByBorradoFalseAndNombreContainingIgnoreCase(String nombre, Pageable pageable);
+    Optional<TipoMovimientoJpaModel> findFirstByNombreIgnoreCaseAndBorradoFalse(String nombre);
 }

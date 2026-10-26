@@ -1,48 +1,43 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
- * Linea del payload de una venta. No es un request de primer nivel: solo viaja anidada
- * dentro de CrearVentaRequest o ActualizarVentaRequest, porque un detalle no se registra
- * fuera de su venta.
+ * Linea del payload de alta de una venta: solo 'idProducto' y 'cantidad'. Viaja anidada
+ * dentro de CrearVentaRequest.
  *
- * No admite 'subtotal': ese importe lo calcula el agregado a partir de precio, cantidad y
- * descuento, y aceptarlo del cliente abriria la puerta a un total incoherente.
+ * El precio, el descuento y el subtotal los pone el sistema (ventas.md VEN-13, VEN-14, VEN-15):
+ * si llegan se rechazan en lugar de ignorarse, para que el POS no crea que cobro otro importe.
  */
 public class DetalleVentaRequest {
-    private String idProducto;
-    private BigDecimal precioUnitario;
-    private BigDecimal cantidad;
-    private BigDecimal descuentoAplicado;
+    private static final List<String> CAMPOS_DERIVADOS = List.of("precioUnitario", "descuentoAplicado", "subtotal", "costoTotal");
 
-    private DetalleVentaRequest(
-        String idProducto,
-        BigDecimal precioUnitario,
-        BigDecimal cantidad,
-        BigDecimal descuentoAplicado
-    ) {
+    private String idProducto;
+    private BigDecimal cantidad;
+
+    private DetalleVentaRequest(String idProducto, BigDecimal cantidad) {
         this.idProducto = idProducto;
-        this.precioUnitario = precioUnitario;
         this.cantidad = cantidad;
-        this.descuentoAplicado = descuentoAplicado;
     }
 
     public static DetalleVentaRequest createFromRequest(Map<String, Object> request){
+        for (String campo : CAMPOS_DERIVADOS) {
+            if (request.get(campo) != null) {
+                throw DomainException.throwException(400,
+                        "El campo '" + campo + "' de una linea de venta lo calcula el sistema; no se envia");
+            }
+        }
         String idProducto = Validador.textoRequerido(request.get("idProducto"), "idProducto");
-        BigDecimal precioUnitario = BigDecimal.valueOf(Validador.numeroRequerido(request.get("precioUnitario"), "precioUnitario"));
         BigDecimal cantidad = BigDecimal.valueOf(Validador.numeroRequerido(request.get("cantidad"), "cantidad"));
-        Double descuentoTmp = Validador.numeroOpcional(request.get("descuentoAplicado"), "descuentoAplicado");
-        BigDecimal descuentoAplicado = descuentoTmp != null ? BigDecimal.valueOf(descuentoTmp) : BigDecimal.ZERO;
 
-        return new DetalleVentaRequest(idProducto, precioUnitario, cantidad, descuentoAplicado);
+        return new DetalleVentaRequest(idProducto, cantidad);
     }
 
     public String getIdProducto() {return idProducto;}
-    public BigDecimal getPrecioUnitario() {return precioUnitario;}
     public BigDecimal getCantidad() {return cantidad;}
-    public BigDecimal getDescuentoAplicado() {return descuentoAplicado;}
 }

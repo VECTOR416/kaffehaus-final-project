@@ -14,4 +14,11 @@ public interface IEstadoExistenciaRepository {
     Optional<EstadoExistencia> obtenerPorId(EstadoExistenciaId estadoExistenciaId);
     PaginatedResponse<List<EstadoExistencia>> obtenerTodos(ObtenerEstadosExistenciaRequest obtenerEstadosExistenciaRequest);
     void eliminar(EstadoExistenciaId estadoExistenciaId);
+
+    /**
+     * Busca la fila viva por nombre, sin distinguir mayusculas. Existe porque el flujo de
+     * inventario (produccion y venta) resuelve por nombre las filas de catalogo que necesita,
+     * igual que la seguridad resuelve los roles: el catalogo sigue siendo datos, no un enum.
+     */
+    Optional<EstadoExistencia> obtenerPorNombre(String nombre);
 }

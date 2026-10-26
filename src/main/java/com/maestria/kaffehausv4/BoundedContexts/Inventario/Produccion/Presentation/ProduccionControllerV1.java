@@ -26,7 +26,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.UseCases.ObtenerProduccionPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.UseCases.ObtenerProduccionesUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/produccion")
 public class ProduccionControllerV1 {
@@ -51,8 +56,8 @@ public class ProduccionControllerV1 {
     }
 
     @PostMapping
-    public ResponseEntity<ProduccionResponse> crear(@RequestBody Map<String, Object> body) {
-        CrearProduccionRequest request = CrearProduccionRequest.createFromRequest(body);
+    public ResponseEntity<ProduccionResponse> crear(@RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        CrearProduccionRequest request = CrearProduccionRequest.createFromRequest(body, idUsuario);
         ProduccionResponse response = crearProduccionUseCase.execute(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

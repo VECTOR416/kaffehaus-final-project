@@ -51,16 +51,22 @@ public class CrearProductoUseCase {
         ProductoId productoPadreId = null;
         if (crearProductoRequest.getIdProductoPadre() != null) {
             productoPadreId = new ProductoId(crearProductoRequest.getIdProductoPadre());
-            productoRepository.obtenerPorId(productoPadreId)
+            Producto padre = productoRepository.obtenerPorId(productoPadreId)
                     .orElseThrow(() -> DomainException.throwException(404, "El producto con id '" + crearProductoRequest.getIdProductoPadre() + "' no existe"));
+            // La jerarquia presentacion -> producto base tiene un solo nivel (inventario.md INV-07).
+            if (padre.esPresentacion()) {
+                throw DomainException.throwException(409,
+                        "El producto '" + padre.getNombre() + "' es una presentacion y no puede ser producto base de otra");
+            }
+            ActualizarProductoUseCase.exigirQueElPadreTengaStock(padre);
         }
 
         Producto producto = Producto.crear(
                 crearProductoRequest.getNombre(),
-                crearProductoRequest.getStock(),
                 crearProductoRequest.getPrecio(),
                 crearProductoRequest.getStockMinimo(),
                 crearProductoRequest.isVendible(),
+                crearProductoRequest.isEsStockDirecto(),
                 unidadActualId,
                 tipoId,
                 categoriaId,

@@ -21,6 +21,7 @@ public class ProductoJpaMapper {
         model.setPrecio(producto.getPrecio());
         model.setStockMinimo(producto.getStockMinimo());
         model.setVendible(producto.isVendible());
+        model.setEsStockDirecto(producto.isEsStockDirecto());
         model.setUnidadActual(UUID.fromString(producto.getUnidadActualId().getValue()));
         model.setIdTipo(UUID.fromString(producto.getTipoId().getValue()));
         model.setIdCategoria(UUID.fromString(producto.getCategoriaId().getValue()));
@@ -37,6 +38,7 @@ public class ProductoJpaMapper {
         model.setPrecio(producto.getPrecio());
         model.setStockMinimo(producto.getStockMinimo());
         model.setVendible(producto.isVendible());
+        model.setEsStockDirecto(producto.isEsStockDirecto());
         model.setUnidadActual(UUID.fromString(producto.getUnidadActualId().getValue()));
         model.setIdTipo(UUID.fromString(producto.getTipoId().getValue()));
         model.setIdCategoria(UUID.fromString(producto.getCategoriaId().getValue()));
@@ -53,6 +55,7 @@ public class ProductoJpaMapper {
                 model.getPrecio(),
                 model.getStockMinimo(),
                 model.getVendible(),
+                model.getEsStockDirecto() == null || model.getEsStockDirecto(),
                 new UnidadId(model.getUnidadActual().toString()),
                 new TipoId(model.getIdTipo().toString()),
                 new CategoriaId(model.getIdCategoria().toString()),

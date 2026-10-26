@@ -1,0 +1,374 @@
+package com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.UseCases;
+
+import static com.maestria.kaffehausv4.Soporte.DatosDePrueba.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repositories.ILoteRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.RegistrarSalidaDeInventarioRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.SalidaDeInventarioResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.UseCases.RegistrarSalidaDeInventarioUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Dtos.ActualizarProduccionRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Dtos.CrearProduccionRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Dtos.ObtenerProduccionesRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Dtos.ProduccionResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Repositories.IProduccionRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.Aggregates.Produccion;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.Repositories.IProductoRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Application.UseCases.RecalcularStockUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Repositories.IRecetaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.ValueObjects.RecetaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.Aggregates.TipoMovimiento;
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
+
+/**
+ * Pruebas unitarias de los casos de uso de Produccion. Registrar una produccion consume los
+ * insumos de la receta (a traves del caso de uso de salida, aqui simulado) y crea un lote de
+ * produccion con las unidades del terminado disponibles, sin costo, sin existencia ni movimiento
+ * de entrada (logica.md PRODUCCION-12).
+ *
+ * Escenario: la receta rinde 10 panes con 4 de harina y 2 de levadura.
+ */
+@ExtendWith(MockitoExtension.class)
+class ProduccionUseCasesTest {
+
+    private static final String ID_PRODUCCION = "cf000000-0000-0000-0000-000000000001";
+    private static final String ID_RECETA = "cf000000-0000-0000-0000-000000000002";
+    private static final String ID_PAN = "cf000000-0000-0000-0000-000000000003";
+    private static final String ID_HARINA = "cf000000-0000-0000-0000-000000000004";
+    private static final String ID_LEVADURA = "cf000000-0000-0000-0000-000000000005";
+    private static final String ID_LOTE = "cf000000-0000-0000-0000-000000000006";
+    private static final String ID_DETALLE = "cf000000-0000-0000-0000-000000000007";
+
+    @Mock private IProduccionRepository produccionRepository;
+    @Mock private IRecetaRepository recetaRepository;
+    @Mock private IProductoRepository productoRepository;
+    @Mock private IUsuarioRepository usuarioRepository;
+    @Mock private ILoteRepository loteRepository;
+    @Mock private RegistrarSalidaDeInventarioUseCase registrarSalidaDeInventarioUseCase;
+    @Mock private RecalcularStockUseCase recalcularStockUseCase;
+
+    private CrearProduccionUseCase crear;
+
+    @BeforeEach
+    void prepararCatalogosYPersistencia() {
+        crear = new CrearProduccionUseCase(produccionRepository, recetaRepository, productoRepository, usuarioRepository, loteRepository,
+                registrarSalidaDeInventarioUseCase, recalcularStockUseCase);
+
+        lenient().when(recetaRepository.obtenerPorId(any())).thenReturn(Optional.of(receta(ID_RECETA, ID_PAN, "10",
+                ingrediente("cf000000-0000-0000-0000-0000000000a1", ID_HARINA, "4"),
+                ingrediente("cf000000-0000-0000-0000-0000000000a2", ID_LEVADURA, "2"))));
+        lenient().when(productoRepository.obtenerPorId(any())).thenReturn(Optional.of(productoDirecto(ID_PAN, "Pan")));
+        lenient().when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.of(usuario()));
+        lenient().when(produccionRepository.crear(any())).thenAnswer(llamada -> {
+            Produccion nueva = llamada.getArgument(0);
+            return Produccion.restaurar(ID_PRODUCCION, nueva.getCantidadEsperada(), nueva.getCantidadReal(), nueva.getDiferencia(),
+                    nueva.getMotivoDiferencia(), nueva.getFechaProduccion(), nueva.getRecetaId(), false);
+        });
+        lenient().when(produccionRepository.actualizar(any(), any())).thenAnswer(llamada -> llamada.getArgument(1));
+        lenient().when(registrarSalidaDeInventarioUseCase.execute(any()))
+                .thenReturn(SalidaDeInventarioResponse.create(List.of()));
+        lenient().when(loteRepository.crear(any())).thenAnswer(llamada -> {
+            Lote nuevo = llamada.getArgument(0);
+            DetalleLote linea = nuevo.getDetalles().get(0);
+            return Lote.restaurar(ID_LOTE, nuevo.getFechaCompra(), nuevo.getTotal(), null, nuevo.getUsuarioId(), true, nuevo.getProduccionId(), false,
+                    List.of(DetalleLote.restaurar(ID_DETALLE, linea.getProductoId(), linea.getCantidadInicial(), linea.getCantidadRestante(),
+                            linea.getPrecioUnitario(), linea.isFraccionable(), linea.getFechaVencimiento(), false)));
+        });
+    }
+
+    private static CrearProduccionRequest produccion(String esperada, String real) {
+        Map<String, Object> datos = new HashMap<>();
+        datos.put("cantidadEsperada", esperada);
+        datos.put("cantidadReal", real);
+        datos.put("fechaProduccion", AHORA);
+        datos.put("fechaVencimiento", "2026-10-15");
+        datos.put("idReceta", ID_RECETA);
+        return CrearProduccionRequest.createFromRequest(datos, ID_USUARIO);
+    }
+
+    private static Produccion registrada() {
+        return Produccion.restaurar(ID_PRODUCCION, new BigDecimal("20.00"), new BigDecimal("18.00"), new BigDecimal("-2.00"),
+                "Se quemo una bandeja", AHORA, new RecetaId(ID_RECETA), false);
+    }
+
+    // ------------------------------------------------------------------ crear
+
+    @Test
+    void registraLaProduccionConSuDiferenciaDerivada() {
+        // Act
+        ProduccionResponse respuesta = crear.execute(produccion("20", "18"));
+
+        // Assert
+        assertEquals(ID_PRODUCCION, respuesta.getId());
+        assertEquals(new BigDecimal("20.00"), respuesta.getCantidadEsperada());
+        assertEquals(new BigDecimal("18.00"), respuesta.getCantidadReal());
+        assertEquals(new BigDecimal("-2.00"), respuesta.getDiferencia());
+        assertEquals(ID_RECETA, respuesta.getIdReceta());
+    }
+
+    @Test
+    void consumeTodosLosIngredientesEscaladosEnUnaSolaSalida() {
+        // Arrange: producir 20 con una receta que rinde 10 duplica los ingredientes.
+        ArgumentCaptor<RegistrarSalidaDeInventarioRequest> consumo = ArgumentCaptor.forClass(RegistrarSalidaDeInventarioRequest.class);
+
+        // Act
+        crear.execute(produccion("20", "18"));
+
+        // Assert: una sola salida con todas las lineas, para un solo plan de consumo (GENERAL-14).
+        verify(registrarSalidaDeInventarioUseCase, times(1)).execute(consumo.capture());
+        RegistrarSalidaDeInventarioRequest salida = consumo.getValue();
+        assertEquals(2, salida.getLineas().size());
+        assertEquals(ID_HARINA, salida.getLineas().get(0).getIdProducto());
+        assertEquals(0, new BigDecimal("8").compareTo(salida.getLineas().get(0).getCantidad()));
+        assertEquals(ID_LEVADURA, salida.getLineas().get(1).getIdProducto());
+        assertEquals(0, new BigDecimal("4").compareTo(salida.getLineas().get(1).getCantidad()));
+        assertEquals(TipoMovimiento.PRODUCCION, salida.getTipoMovimiento());
+        assertEquals(ID_PRODUCCION, salida.getIdProduccion());
+        assertNull(salida.getIdVenta());
+        assertEquals(ID_USUARIO, salida.getIdUsuario());
+        assertEquals(AHORA, salida.getFecha());
+        assertTrue(salida.getMotivo().startsWith("Consumo de la produccion"));
+    }
+
+    @Test
+    void elProductoTerminadoEntraEnUnLoteDeProduccionConSusUnidadesDisponiblesYSinCosto() {
+        // Arrange
+        ArgumentCaptor<Lote> lote = ArgumentCaptor.forClass(Lote.class);
+
+        // Act
+        crear.execute(produccion("20", "18"));
+
+        // Assert
+        verify(loteRepository).crear(lote.capture());
+        assertTrue(lote.getValue().isEsProduccion());
+        assertNull(lote.getValue().getProveedorId());
+        assertEquals(ID_PRODUCCION, lote.getValue().getProduccionId().getValue());
+        DetalleLote linea = lote.getValue().getDetalles().get(0);
+        assertEquals(ID_PAN, linea.getProductoId().getValue());
+        assertEquals(new BigDecimal("18.00"), linea.getCantidadInicial());
+        assertEquals(new BigDecimal("18.00"), linea.getCantidadRestante());
+        assertEquals(new BigDecimal("0.00"), linea.getPrecioUnitario());
+        assertEquals(new BigDecimal("0.00"), lote.getValue().getTotal());
+        assertEquals(LocalDate.of(2026, 10, 15), linea.getFechaVencimiento());
+        verify(recalcularStockUseCase).execute(ID_PAN);
+    }
+
+    @Test
+    void unaTandaPerdidaConsumeLosInsumosPeroNoCreaLoteNiSubeElStock() {
+        // Act
+        ProduccionResponse respuesta = crear.execute(produccion("20", "0"));
+
+        // Assert
+        assertEquals(new BigDecimal("-20.00"), respuesta.getDiferencia());
+        verify(registrarSalidaDeInventarioUseCase, times(1)).execute(any());
+        verifyNoInteractions(loteRepository, recalcularStockUseCase);
+    }
+
+    @Test
+    void unProductoBajoDemandaNoSeProducePorLotes() {
+        // Arrange
+        when(productoRepository.obtenerPorId(any())).thenReturn(Optional.of(productoBajoDemanda(ID_PAN, "Capuchino")));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> crear.execute(produccion("20", "18")));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("bajo demanda"));
+        verify(produccionRepository, never()).crear(any());
+        verifyNoInteractions(registrarSalidaDeInventarioUseCase);
+    }
+
+    @Test
+    void unProductoBaseConPresentacionesNoSeProduceDirecto() {
+        // Arrange (logica.md PRODUCCION-13)
+        when(productoRepository.obtenerPresentaciones(any())).thenReturn(List.of(presentacion("cf000000-0000-0000-0000-0000000000b1", "Pan en bolsa", ID_PAN)));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> crear.execute(produccion("20", "18")));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        assertTrue(error.getMensaje().contains("tiene presentaciones"));
+        verify(produccionRepository, never()).crear(any());
+        verifyNoInteractions(registrarSalidaDeInventarioUseCase);
+    }
+
+    @Test
+    void loProducidoSeCuentaEnUnidadesEnteras() {
+        // Act (logica.md GENERAL-16)
+        DomainException esperada = assertThrows(DomainException.class, () -> crear.execute(produccion("20.5", "18")));
+        DomainException real = assertThrows(DomainException.class, () -> crear.execute(produccion("20", "17.5")));
+
+        // Assert
+        assertEquals(400, esperada.getCodigo());
+        assertEquals(400, real.getCodigo());
+        verify(produccionRepository, never()).crear(any());
+        verifyNoInteractions(registrarSalidaDeInventarioUseCase);
+    }
+
+    @Test
+    void siFaltaUnInsumoElErrorSePropagaYNoSeAbreElProductoTerminado() {
+        // Arrange
+        when(registrarSalidaDeInventarioUseCase.execute(any())).thenThrow(DomainException.throwException(409, "Stock insuficiente de 'Harina'"));
+
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> crear.execute(produccion("20", "18")));
+
+        // Assert
+        assertEquals(409, error.getCodigo());
+        verifyNoInteractions(loteRepository, recalcularStockUseCase);
+    }
+
+    @Test
+    void validaQueExistanLaRecetaElProductoYElUsuario() {
+        // Arrange
+        CrearProduccionRequest peticion = produccion("20", "18");
+
+        // Act
+        when(usuarioRepository.obtenerPorId(any())).thenReturn(Optional.empty());
+        DomainException sinUsuario = assertThrows(DomainException.class, () -> crear.execute(peticion));
+        when(productoRepository.obtenerPorId(any())).thenReturn(Optional.empty());
+        DomainException sinProducto = assertThrows(DomainException.class, () -> crear.execute(peticion));
+        when(recetaRepository.obtenerPorId(any())).thenReturn(Optional.empty());
+        DomainException sinReceta = assertThrows(DomainException.class, () -> crear.execute(peticion));
+
+        // Assert
+        assertEquals(404, sinUsuario.getCodigo());
+        assertEquals(404, sinProducto.getCodigo());
+        assertEquals(404, sinReceta.getCodigo());
+        verify(produccionRepository, never()).crear(any());
+    }
+
+    @Test
+    void unaCantidadEsperadaNoPositivaSeRechazaSinConsumirNada() {
+        // Act
+        DomainException error = assertThrows(DomainException.class, () -> crear.execute(produccion("0", "0")));
+
+        // Assert
+        assertEquals(400, error.getCodigo());
+        verify(produccionRepository, never()).crear(any());
+        verifyNoInteractions(registrarSalidaDeInventarioUseCase);
+    }
+
+    @Test
+    void laPeticionExigeCantidadesRecetaYFechaDeVencimiento() {
+        // Arrange
+        Map<String, Object> sinVencimiento = new HashMap<>(Map.of("cantidadEsperada", "20", "cantidadReal", "18", "idReceta", ID_RECETA));
+        Map<String, Object> sinReceta = new HashMap<>(Map.of("cantidadEsperada", "20", "cantidadReal", "18", "fechaVencimiento", "2026-10-15"));
+
+        // Act
+        DomainException porVencimiento = assertThrows(DomainException.class, () -> CrearProduccionRequest.createFromRequest(sinVencimiento, ID_USUARIO));
+        DomainException porReceta = assertThrows(DomainException.class, () -> CrearProduccionRequest.createFromRequest(sinReceta, ID_USUARIO));
+
+        // Assert
+        assertEquals(400, porVencimiento.getCodigo());
+        assertEquals(400, porReceta.getCodigo());
+    }
+
+    // ------------------------------------------------------------------ actualizar, eliminar y consultas
+
+    @Test
+    void actualizarSoloTocaElMotivoYLaFecha() {
+        // Arrange
+        ActualizarProduccionUseCase useCase = new ActualizarProduccionUseCase(produccionRepository);
+        when(produccionRepository.obtenerPorId(any())).thenReturn(Optional.of(registrada()));
+
+        // Act
+        ProduccionResponse respuesta = useCase.execute(ID_PRODUCCION,
+                ActualizarProduccionRequest.createFromRequest(Map.of("motivoDiferencia", "Horno averiado")));
+
+        // Assert
+        assertEquals("Horno averiado", respuesta.getMotivoDiferencia());
+        assertEquals(new BigDecimal("18.00"), respuesta.getCantidadReal());
+        assertEquals(AHORA, respuesta.getFechaProduccion());
+    }
+
+    @Test
+    void actualizarUnaInexistenteRespondeNoEncontradoYNoGuarda() {
+        // Arrange
+        ActualizarProduccionUseCase useCase = new ActualizarProduccionUseCase(produccionRepository);
+        when(produccionRepository.obtenerPorId(any())).thenReturn(Optional.empty());
+
+        // Act
+        DomainException error = assertThrows(DomainException.class,
+                () -> useCase.execute(ID_PRODUCCION, ActualizarProduccionRequest.createFromRequest(Map.of())));
+
+        // Assert
+        assertEquals(404, error.getCodigo());
+        verify(produccionRepository, never()).actualizar(any(), any());
+    }
+
+    @Test
+    void eliminarDaDeBajaLaExistenteYRechazaLaInexistente() {
+        // Arrange
+        EliminarProduccionUseCase useCase = new EliminarProduccionUseCase(produccionRepository);
+        when(produccionRepository.obtenerPorId(any())).thenReturn(Optional.of(registrada())).thenReturn(Optional.empty());
+
+        // Act
+        useCase.execute(ID_PRODUCCION);
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_PRODUCCION));
+
+        // Assert
+        verify(produccionRepository, times(1)).eliminar(argThat(id -> ID_PRODUCCION.equals(id.getValue())));
+        assertEquals(404, error.getCodigo());
+    }
+
+    @Test
+    void obtenerPorIdDevuelveLaProduccionOResponde404() {
+        // Arrange
+        ObtenerProduccionPorIdUseCase useCase = new ObtenerProduccionPorIdUseCase(produccionRepository);
+        when(produccionRepository.obtenerPorId(any())).thenReturn(Optional.of(registrada())).thenReturn(Optional.empty());
+
+        // Act
+        ProduccionResponse encontrada = useCase.execute(ID_PRODUCCION);
+        DomainException error = assertThrows(DomainException.class, () -> useCase.execute(ID_PRODUCCION));
+
+        // Assert
+        assertEquals("Se quemo una bandeja", encontrada.getMotivoDiferencia());
+        assertEquals(404, error.getCodigo());
+    }
+
+    @Test
+    void elListadoConvierteCadaProduccionYConservaLaPaginacion() {
+        // Arrange
+        ObtenerProduccionesUseCase useCase = new ObtenerProduccionesUseCase(produccionRepository);
+        when(produccionRepository.obtenerTodos(any())).thenReturn(new PaginatedResponse<>(List.of(registrada()), 0, 10, 1, false));
+
+        // Act
+        PaginatedResponse<List<ProduccionResponse>> pagina = useCase.execute(ObtenerProduccionesRequest.createFromRequest(Map.of()));
+
+        // Assert
+        assertEquals(ID_PRODUCCION, pagina.getData().get(0).getId());
+        assertEquals(1, pagina.getTotal());
+    }
+}

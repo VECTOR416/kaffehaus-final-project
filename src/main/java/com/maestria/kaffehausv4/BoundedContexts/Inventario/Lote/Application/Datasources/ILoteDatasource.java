@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Datasources;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -7,6 +8,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 public interface ILoteDatasource {
@@ -20,6 +22,40 @@ public interface ILoteDatasource {
      * Lo usa Existencia para validar la linea de la que sale su stock.
      */
     Optional<Lote> obtenerPorDetalleId(DetalleLoteId detalleLoteId);
+
+    /**
+     * Lotes vivos con al menos una linea viva de alguno de los productos. Es el punto de
+     * partida para localizar las existencias y las unidades cerradas de un insumo base y de
+     * sus presentaciones, y el que da el costo de cada una.
+     */
+    List<Lote> obtenerPorProductos(List<ProductoId> productoIds);
+
+    /** Los mismos lotes que obtenerPorProductos, sin cargarlos en el contexto de persistencia. */
+    List<Lote> obtenerPorProductosSinCargar(List<ProductoId> productoIds);
+
+    /**
+     * Como obtenerPorDetalleId, pero bloqueando el lote por su raiz (SELECT ... FOR UPDATE)
+     * antes de leer sus lineas (logica.md LOTE-27).
+     */
+    Optional<Lote> obtenerPorDetalleIdParaActualizar(DetalleLoteId detalleLoteId);
+
+    /** El lote bloqueado por su raiz antes de leer sus lineas. */
+    Optional<Lote> obtenerPorIdParaActualizar(LoteId loteId);
+
+    /** Varios lotes bloqueados por su raiz, en orden de id. */
+    List<Lote> obtenerPorIdsParaActualizar(List<LoteId> loteIds);
+
+    /** El lote de una linea viva, sin cargar la linea. */
+    Optional<LoteId> obtenerLoteDeDetalle(DetalleLoteId detalleLoteId);
+
+    /** El producto de una linea viva, sin cargar la linea en el contexto de persistencia. */
+    Optional<ProductoId> obtenerProductoDeDetalle(DetalleLoteId detalleLoteId);
     PaginatedResponse<List<Lote>> obtenerTodos(ObtenerLotesRequest obtenerLotesRequest);
     void eliminar(LoteId loteId);
+
+    /**
+     * Lotes vivos con alguna linea viva con unidades disponibles que vence hasta esa fecha, incluida
+     * (logica.md VENCIMIENTO-04). Trae el lote completo; quien consulta filtra sus lineas.
+     */
+    List<Lote> obtenerConUnidadesQueVencenHasta(LocalDate fecha);
 }

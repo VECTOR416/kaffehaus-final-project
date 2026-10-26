@@ -14,4 +14,7 @@ public interface IConversionDatasource {
     Optional<Conversion> obtenerPorId(ConversionId conversionId);
     PaginatedResponse<List<Conversion>> obtenerTodos(ObtenerConversionesRequest obtenerConversionesRequest);
     void eliminar(ConversionId conversionId);
+
+    /** Todas las conversiones vivas: el grafo sobre el que Conversion.factorEntre resuelve (INV-09). */
+    List<Conversion> obtenerVivas();
 }

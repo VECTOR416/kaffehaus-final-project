@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Datasources;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -9,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Datasources.IDescuentoDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dtos.ObtenerDescuentosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.Aggregates.Descuento;
@@ -16,6 +18,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.ValueObj
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaMapper;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaModel;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Persistence.Jpa.DescuentoJpaRepository;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.ValueObjects.TipoDescuentoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 import com.maestria.kaffehausv4.Shared.Infrastructure.Persistence.OffsetPageRequest;
@@ -86,11 +89,33 @@ public class DescuentoDatasourceImpl implements IDescuentoDatasource {
         descuentoJpaRepository.save(model);
     }
 
+    @Override
+    public List<Descuento> obtenerVigentes(ProductoId productoId, LocalDateTime fecha) {
+        return descuentoJpaRepository
+                .findByIdProductoAndEstadoTrueAndBorradoFalseAndFechaInicioLessThanEqualAndFechaFinalGreaterThanEqual(
+                        aUuid(productoId.getValue()), fecha, fecha)
+                .stream()
+                .map(DescuentoJpaMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);
         } catch (IllegalArgumentException | NullPointerException e) {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
+    }
+
+    @Override
+    public boolean existeConTipoDescuento(TipoDescuentoId tipoDescuentoId) {
+        return descuentoJpaRepository.existsByIdTipoDescuentoAndBorradoFalse(aUuid(tipoDescuentoId.getValue()));
+    }
+
+    @Override
+    public List<Descuento> obtenerPorProducto(ProductoId productoId) {
+        return descuentoJpaRepository.findByIdProductoAndBorradoFalse(aUuid(productoId.getValue())).stream()
+                .map(DescuentoJpaMapper::toDomain)
+                .collect(Collectors.toList());
     }
 }

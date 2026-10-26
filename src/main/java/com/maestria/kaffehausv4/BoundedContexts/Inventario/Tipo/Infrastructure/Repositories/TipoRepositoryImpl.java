@@ -46,4 +46,8 @@ public class TipoRepositoryImpl implements ITipoRepository{
         this.tipoDatasource.eliminar(tipoId);
     }
 
+    @Override
+    public Optional<Tipo> obtenerPorNombre(String nombre) {
+        return this.tipoDatasource.obtenerPorNombre(nombre);
+    }
 }

@@ -12,4 +12,5 @@ public interface PedidoJpaRepository extends JpaRepository<PedidoJpaModel, UUID>
     Optional<PedidoJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<PedidoJpaModel> findByBorradoFalse(Pageable pageable);
     Page<PedidoJpaModel> findByBorradoFalseAndDescripcionContainingIgnoreCase(String descripcion, Pageable pageable);
+    Optional<PedidoJpaModel> findFirstByIdVentaAndBorradoFalse(UUID idVenta);
 }

@@ -18,8 +18,8 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
  * coleccion de Venta, y la columna 'detalle_venta.id_venta' la resuelve el mapper a partir
  * de la raiz al persistir.
  *
- * El borrado es logico, como en todo el sistema: una linea dada de baja conserva su fila y su
- * identificador, y solo cambia su campo 'borrado'.
+ * Una linea registrada es inmutable en sus importes (ventas.md VEN-30): precio y descuento se
+ * copian al registrarla (VEN-13, VEN-14). No guarda costo (logica.md VENTA-20).
  */
 public class DetalleVenta {
 
@@ -81,8 +81,8 @@ public class DetalleVenta {
     }
 
     /**
-     * Crea una linea nueva validando sus invariantes y calculando el subtotal.
-     * Package-private: solo Venta puede llamarla.
+     * Crea una linea nueva validando sus invariantes y calculando el subtotal. Package-private:
+     * solo Venta puede llamarla.
      */
     static DetalleVenta crear(
         ProductoId productoId,
@@ -109,34 +109,16 @@ public class DetalleVenta {
                 false);
     }
 
-    /**
-     * Corrige los importes de una linea viva y recalcula su subtotal. Package-private: la
-     * conciliacion del PUT pasa por la raiz.
-     */
-    void actualizarImportes(BigDecimal precioUnitario, BigDecimal cantidad, BigDecimal descuentoAplicado) {
-        BigDecimal nuevoPrecio = precioUnitario != null ? precioUnitario : this.precioUnitario;
-        BigDecimal nuevaCantidad = cantidad != null ? cantidad : this.cantidad;
-        BigDecimal nuevoDescuento = descuentoAplicado != null ? descuentoAplicado : this.descuentoAplicado;
-
-        exigirImportesValidos(nuevoPrecio, nuevaCantidad, nuevoDescuento);
-
-        this.precioUnitario = aEscalaMonetaria(nuevoPrecio);
-        this.cantidad = nuevaCantidad;
-        this.descuentoAplicado = aEscalaMonetaria(nuevoDescuento);
-        this.subtotal = aEscalaMonetaria(nuevoPrecio.multiply(nuevaCantidad).subtract(nuevoDescuento));
-    }
-
-    /** Baja logica de la linea. Solo la raiz puede invocarla. */
-    void eliminar() {
-        this.borrado = true;
-    }
-
     private static void exigirImportesValidos(BigDecimal precioUnitario, BigDecimal cantidad, BigDecimal descuento) {
         if (precioUnitario == null || precioUnitario.signum() < 0) {
             throw DomainException.throwException(400, "El precio unitario del detalle de venta no puede ser negativo");
         }
         if (cantidad == null || cantidad.signum() <= 0) {
             throw DomainException.throwException(400, "La cantidad del detalle de venta debe ser mayor a cero");
+        }
+        // Se vende por unidades enteras (logica.md GENERAL-16): medio pan solo existe dentro de una receta.
+        if (cantidad.stripTrailingZeros().scale() > 0) {
+            throw DomainException.throwException(400, "La cantidad del detalle de venta debe ser un numero entero de unidades");
         }
         if (descuento == null || descuento.signum() < 0) {
             throw DomainException.throwException(400, "El descuento aplicado del detalle de venta no puede ser negativo");

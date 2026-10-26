@@ -1,10 +1,13 @@
 package com.maestria.kaffehausv4.Shared.Presentation.Security;
 
+import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -17,6 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -27,10 +31,16 @@ import com.maestria.kaffehausv4.Shared.Domain.Error.AutorizacionException;
  *
  * El esquema es deliberadamente corto y tiene dos piezas:
  *
- * 1. La cadena de filtros cierra el API: solo /api/v1/auth queda abierto, todo lo demas exige
- *    un access token valido. Quien lo valida es JwtAuthenticationFilter.
- * 2. Los roles se exigen endpoint por endpoint con @RequiereRol, que aplica GuardiaDeRoles.
- *    No hay tabla de rutas que mantener en paralelo a los controllers.
+ * 1. La cadena de filtros cierra el API: solo /api/v1/auth queda abierto (y /api/v1/seed
+ *    mientras la siembra de primer arranque este habilitada), todo lo demas exige un access
+ *    token valido. Quien lo valida es JwtAuthenticationFilter.
+ * 2. Los roles se exigen con @RequiereRol, que aplica GuardiaDeRoles. Todo controller de un
+ *    agregado lleva @RequiereRol({"Operador", "Administrador"}) a nivel de clase; un metodo
+ *    puede restringirlo mas con su propia anotacion. No hay tabla de rutas que mantener en
+ *    paralelo a los controllers.
+ *
+ * Y un complemento: @UsuarioEnSesion inyecta en el controller el id del usuario del token, que
+ * resuelve ResolvedorDeUsuarioEnSesion. El frontend nunca envia 'idUsuario'.
  *
  * Politica de la cadena:
  *
@@ -48,22 +58,39 @@ public class SecurityConfig implements WebMvcConfigurer {
     public static final String RUTA_DE_AUTENTICACION = "/api/v1/auth";
 
     /**
+     * Siembra de primer arranque (SembrarSistemaUseCase). En una base vacia no hay ningun
+     * usuario que pueda pedir un token, asi que tiene que poder llamarse sin el. Con
+     * 'seguridad.seed-habilitado' en false deja de ser publica y solo la alcanza un
+     * Administrador: es idempotente, pero no tiene por que quedar abierta en produccion.
+     */
+    public static final String RUTA_DE_SIEMBRA = "/api/v1/seed";
+
+    /**
+     * Health check (SaludControllerV1). Publica para que la consulten un balanceador o un
+     * monitor sin credenciales; solo el GET, y solo responde "UP" o "DOWN".
+     */
+    public static final String RUTA_DE_SALUD = "/api/v1/salud";
+
+    /**
      * Lo unico que se inyecta por constructor es el guardia, porque hace falta para configurar
      * Spring MVC. El filtro y el escritor llegan como parametros del @Bean de abajo: asi no se
      * construyen hasta que se arma la cadena, y la configuracion de MVC no arrastra media
      * aplicacion al arrancar.
      */
     private final GuardiaDeRoles guardiaDeRoles;
+    private final ResolvedorDeUsuarioEnSesion resolvedorDeUsuarioEnSesion;
 
-    public SecurityConfig(GuardiaDeRoles guardiaDeRoles) {
+    public SecurityConfig(GuardiaDeRoles guardiaDeRoles, ResolvedorDeUsuarioEnSesion resolvedorDeUsuarioEnSesion) {
         this.guardiaDeRoles = guardiaDeRoles;
+        this.resolvedorDeUsuarioEnSesion = resolvedorDeUsuarioEnSesion;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            EscritorDeErrorHttp escritorDeErrorHttp) throws Exception {
+            EscritorDeErrorHttp escritorDeErrorHttp,
+            @Value("${seguridad.seed-habilitado:false}") boolean seedHabilitado) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -71,26 +98,67 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 401 en JSON en vez de la redireccion a un formulario que aqui no existe.
                 .exceptionHandling(errores -> errores.authenticationEntryPoint(
                         (peticion, respuesta, excepcion) -> escritorDeErrorHttp.escribir(respuesta,
                                 new AutorizacionException(401,
                                         "Falta la cabecera Authorization con un token Bearer valido"))))
-                // .authorizeHttpRequests(rutas -> rutas
-                //         .requestMatchers(RUTA_DE_AUTENTICACION + "/**").permitAll()
-                //         .anyRequest().authenticated())
+                // Solo el login, los tokens, el health check y la siembra habilitada quedan abiertos;
+                // todo lo demas exige un token valido. SecurityUser concede ROLE_ADMINISTRADOR al rol
+                // 'Administrador'.
+                .authorizeHttpRequests(rutas -> {
+                    rutas.requestMatchers(RUTA_DE_AUTENTICACION + "/**").permitAll();
+                    rutas.requestMatchers(HttpMethod.GET, RUTA_DE_SALUD).permitAll();
+                    if (seedHabilitado) {
+                        rutas.requestMatchers(RUTA_DE_SIEMBRA).permitAll();
+                    } else {
+                        rutas.requestMatchers(RUTA_DE_SIEMBRA).hasRole("ADMINISTRADOR");
+                    }
+                    rutas.anyRequest().authenticated();
+                })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
+    /** Registra el guardia de @RequiereRol. Sobre un endpoint sin anotar no hace nada. */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(guardiaDeRoles).addPathPatterns("/**");
     }
 
+    /** Registra el resolvedor de @UsuarioEnSesion. */
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.add(resolvedorDeUsuarioEnSesion);
+    }
+
+    /**
+     * CORS de la API.
+     *
+     * Se declara dentro de la cadena de seguridad, y no como WebMvcConfigurer, porque los
+     * filtros corren antes que Spring MVC: si el preflight OPTIONS no se resuelve aqui, el
+     * navegador recibe un 401 antes de que MVC llegue a opinar.
+     *
+     * Los origenes se enumeran en 'seguridad.cors.origenes-permitidos' (CORS_ORIGENES), sin
+     * valor por defecto. Aunque la autenticacion viaja en la cabecera
+     * Authorization y no en cookies, abrir la API a cualquier sitio no aporta nada, asi que el
+     * comodin '*' a secas se rechaza al arrancar. Se admiten patrones acotados, como un puerto
+     * cualquiera de localhost ('http://localhost:[*]') o los subdominios de un dominio propio.
+     */
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${seguridad.cors.origenes-permitidos}") String[] origenesPermitidos) {
+        List<String> origenes = Arrays.stream(origenesPermitidos)
+                .map(String::trim)
+                .filter(origen -> !origen.isEmpty())
+                .toList();
+        if (origenes.isEmpty() || origenes.contains("*")) {
+            throw new IllegalStateException(
+                    "seguridad.cors.origenes-permitidos (CORS_ORIGENES) debe enumerar los origenes del frontend; el comodin '*' no esta permitido");
+        }
+
         CorsConfiguration configuracion = new CorsConfiguration();
-        configuracion.setAllowedOriginPatterns(List.of("*"));
+        configuracion.setAllowedOriginPatterns(origenes);
         configuracion.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuracion.setAllowedHeaders(List.of("*"));
         configuracion.setAllowCredentials(false);

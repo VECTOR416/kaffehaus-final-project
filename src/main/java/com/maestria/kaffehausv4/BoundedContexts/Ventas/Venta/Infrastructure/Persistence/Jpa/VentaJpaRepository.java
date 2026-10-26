@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Infrastructure.Persistence.Jpa;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -12,4 +13,7 @@ public interface VentaJpaRepository extends JpaRepository<VentaJpaModel, UUID>{
 
     Optional<VentaJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<VentaJpaModel> findByBorradoFalse(Pageable pageable);
+    Optional<VentaJpaModel> findByClaveIdempotenciaAndBorradoFalse(String claveIdempotencia);
+    Optional<VentaJpaModel> findByNumeroTicketAndBorradoFalse(Long numeroTicket);
+    List<VentaJpaModel> findByIdSesionCajaAndBorradoFalse(UUID idSesionCaja);
 }

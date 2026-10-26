@@ -11,6 +11,8 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.ValueObjects.MovimientoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 
 @Repository
 public class MovimientoRepositoryImpl implements IMovimientoRepository{
@@ -44,6 +46,16 @@ public class MovimientoRepositoryImpl implements IMovimientoRepository{
     @Override
     public void eliminar(MovimientoId movimientoId) {
         this.movimientoDatasource.eliminar(movimientoId);
+    }
+
+    @Override
+    public List<Movimiento> obtenerPorExistencias(List<ExistenciaId> existenciaIds) {
+        return this.movimientoDatasource.obtenerPorExistencias(existenciaIds);
+    }
+
+    @Override
+    public List<Movimiento> obtenerPorVenta(VentaId ventaId) {
+        return this.movimientoDatasource.obtenerPorVenta(ventaId);
     }
 
 }

@@ -1,5 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.UseCases;
 
+import java.time.LocalDate;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,11 +15,10 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Repositories.IExistenciaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.Aggregates.Existencia;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Application.Repositories.IUnidadRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.Aggregates.Unidad;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Unidad.Domain.ValueObjects.UnidadId;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
-import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 @Service
@@ -27,19 +28,16 @@ public class ActualizarExistenciaUseCase {
     private final ILoteRepository loteRepository;
     private final IEstadoExistenciaRepository estadoExistenciaRepository;
     private final IUnidadRepository unidadRepository;
-    private final IUsuarioRepository usuarioRepository;
 
     public ActualizarExistenciaUseCase(
             IExistenciaRepository existenciaRepository,
             ILoteRepository loteRepository,
             IEstadoExistenciaRepository estadoExistenciaRepository,
-            IUnidadRepository unidadRepository,
-            IUsuarioRepository usuarioRepository) {
+            IUnidadRepository unidadRepository) {
         this.existenciaRepository = existenciaRepository;
         this.loteRepository = loteRepository;
         this.estadoExistenciaRepository = estadoExistenciaRepository;
         this.unidadRepository = unidadRepository;
-        this.usuarioRepository = usuarioRepository;
     }
 
     public ExistenciaResponse execute(String existenciaId, ActualizarExistenciaRequest actualizarExistenciaRequest) {
@@ -67,13 +65,6 @@ public class ActualizarExistenciaUseCase {
                     .orElseThrow(() -> DomainException.throwException(404, "La unidad con id '" + actualizarExistenciaRequest.getIdUnidad() + "' no existe"));
         }
 
-        UsuarioId usuarioId = null;
-        if (actualizarExistenciaRequest.getIdUsuario() != null) {
-            usuarioId = new UsuarioId(actualizarExistenciaRequest.getIdUsuario());
-            usuarioRepository.obtenerPorId(usuarioId)
-                    .orElseThrow(() -> DomainException.throwException(404, "El usuario con id '" + actualizarExistenciaRequest.getIdUsuario() + "' no existe"));
-        }
-
         existencia.actualizar(
                 actualizarExistenciaRequest.getContenidoInicial(),
                 actualizarExistenciaRequest.getContenidoActual(),
@@ -83,11 +74,26 @@ public class ActualizarExistenciaUseCase {
                 detalleLoteId,
                 estadoExistenciaId,
                 unidadId,
-                usuarioId);
+                null);
+
+        if (actualizarExistenciaRequest.getFechaVencimiento() != null) {
+            existencia.exigirQueNoVenzaDespuesDe(vencimientoDeSuLinea(existencia));
+        }
 
         Existencia existenciaActualizada = existenciaRepository.actualizar(id, existencia);
 
         return toResponse(existenciaActualizada);
+    }
+
+    /** Vencimiento de la linea de lote de la que se abrio, aunque esa linea ya no tenga unidades. */
+    private LocalDate vencimientoDeSuLinea(Existencia existencia) {
+        String idDetalle = existencia.getDetalleLoteId().getValue();
+        return loteRepository.obtenerPorDetalleId(existencia.getDetalleLoteId())
+                .flatMap(lote -> lote.getDetalles().stream()
+                        .filter(detalle -> detalle.getId().getValue().equals(idDetalle))
+                        .findFirst())
+                .map(DetalleLote::getFechaVencimiento)
+                .orElse(null);
     }
 
     private ExistenciaResponse toResponse(Existencia existencia) {

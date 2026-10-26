@@ -2,6 +2,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,53 +13,84 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.Value
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Cliente.Domain.ValueObjects.ClienteId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.EstadoVenta.Domain.ValueObjects.EstadoVentaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.ValueObjects.SesionCajaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoPago.Domain.ValueObjects.TipoPagoId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
 /**
- * Raiz del agregado Venta.
+ * Raiz del agregado Venta (ventas.md).
  *
- * Venta contiene sus lineas (DetalleVenta) y es la unica puerta de entrada para crearlas,
- * corregirlas y darlas de baja. La coleccion se expone como vista de solo lectura, de modo que
- * ninguna capa externa puede mutarla sin pasar por agregarDetalle/actualizarDetalle/
- * removerDetalle.
+ * Venta contiene sus lineas (DetalleVenta) y sus pagos (PagoVenta), y es la unica puerta de
+ * entrada para crear unas y otros. Ambas colecciones se exponen como vistas de solo lectura.
  *
- * El total NO se recibe desde fuera: es un valor derivado que la raiz recalcula en cada
- * mutacion como la suma de los subtotales de sus lineas vivas. Asi no puede existir una venta
- * cuyo encabezado contradiga a su detalle.
+ * El total NO se recibe desde fuera: es la suma de los subtotales de sus lineas vivas. Los
+ * pagos deben sumar exactamente ese total (CAJ-11).
  *
- * El borrado es logico en todo el sistema, tambien aqui: las lineas dadas de baja siguen en la
- * coleccion marcadas como borradas, porque esa baja debe llegar a la base como un UPDATE.
+ * Toda venta pertenece a la sesion de caja abierta en la que se cobro (CAJ-01) y a un cliente,
+ * que es el cliente 'Mostrador' cuando no se identifica a nadie (CAJ-02). 'numeroTicket' lo
+ * asigna la base (seq_numero_ticket) y es nulo hasta guardarse.
+ *
+ * Una venta nace 'Completada' con su inventario ya descontado (VEN-01) y es inmutable en todo
+ * lo que movio inventario (VEN-30): no se corrigen lineas, importes, fecha ni usuario, y no se
+ * da de baja (VEN-33). Solo admite asociarle el cliente (VEN-31) y anularse (VEN-40). Como el
+ * dominio no conoce los ids del catalogo 'estado_venta', quien la usa le pasa los de
+ * 'Completada' y 'Anulada' resueltos por nombre.
  */
 public class Venta {
+    /** Margen sobre la hora del servidor para una fecha de contingencia (logica.md VENTA-28). */
+    private static final Duration TOLERANCIA_DE_RELOJ = Duration.ofMinutes(1);
+    /** Largo maximo de 'referenciaReembolso' (logica.md VENTA-27). */
+    private static final int LARGO_REFERENCIA_REEMBOLSO = 255;
 
     private VentaId id;
+    private Long numeroTicket;
     private LocalDateTime fechaVenta;
     private BigDecimal total;
     private UsuarioId usuarioId;
     private ClienteId clienteId;
+    private SesionCajaId sesionCajaId;
     private EstadoVentaId estadoVentaId;
+    private String claveIdempotencia;
+    private String motivoAnulacion;
+    private UsuarioId usuarioAnulacionId;
+    private String referenciaReembolso;
     private boolean borrado;
     private final List<DetalleVenta> detalles;
+    private final List<PagoVenta> pagos;
 
     private Venta(
         VentaId id,
+        Long numeroTicket,
         LocalDateTime fechaVenta,
         BigDecimal total,
         UsuarioId usuarioId,
         ClienteId clienteId,
+        SesionCajaId sesionCajaId,
         EstadoVentaId estadoVentaId,
+        String claveIdempotencia,
+        String motivoAnulacion,
+        UsuarioId usuarioAnulacionId,
+        String referenciaReembolso,
         boolean borrado,
-        List<DetalleVenta> detalles
+        List<DetalleVenta> detalles,
+        List<PagoVenta> pagos
     ){
         this.id = id;
+        this.numeroTicket = numeroTicket;
         this.fechaVenta = fechaVenta;
         this.total = total;
         this.usuarioId = usuarioId;
         this.clienteId = clienteId;
+        this.sesionCajaId = sesionCajaId;
         this.estadoVentaId = estadoVentaId;
+        this.claveIdempotencia = claveIdempotencia;
+        this.motivoAnulacion = motivoAnulacion;
+        this.usuarioAnulacionId = usuarioAnulacionId;
+        this.referenciaReembolso = referenciaReembolso;
         this.borrado = borrado;
         this.detalles = detalles != null ? new ArrayList<>(detalles) : new ArrayList<>();
+        this.pagos = pagos != null ? new ArrayList<>(pagos) : new ArrayList<>();
     }
 
     /**
@@ -67,44 +99,69 @@ public class Venta {
      */
     public static Venta restaurar(
         String id,
+        Long numeroTicket,
         LocalDateTime fechaVenta,
         BigDecimal total,
         UsuarioId usuarioId,
         ClienteId clienteId,
+        SesionCajaId sesionCajaId,
         EstadoVentaId estadoVentaId,
+        String claveIdempotencia,
+        String motivoAnulacion,
+        UsuarioId usuarioAnulacionId,
+        String referenciaReembolso,
         boolean borrado,
-        List<DetalleVenta> detalles
+        List<DetalleVenta> detalles,
+        List<PagoVenta> pagos
     ){
-        return new Venta(new VentaId(id), fechaVenta, total, usuarioId, clienteId, estadoVentaId, borrado, detalles);
+        return new Venta(new VentaId(id), numeroTicket, fechaVenta, total, usuarioId, clienteId, sesionCajaId, estadoVentaId,
+                claveIdempotencia, motivoAnulacion, usuarioAnulacionId, referenciaReembolso, borrado, detalles, pagos);
     }
 
     /**
-     * Crea una venta sin lineas y con total en cero. Las lineas se incorporan despues con
-     * agregarDetalle(...), que es lo que mantiene el total en sincronia.
+     * Crea una venta 'Completada' sin lineas ni pagos y con total en cero (VEN-01, VEN-02). Las
+     * lineas se incorporan despues con agregarDetalle(...), que mantiene el total en sincronia,
+     * y los pagos con agregarPago(...). 'usuarioId' es el empleado que cobra; la sesion de caja
+     * y el cliente son obligatorios (CAJ-01, CAJ-02).
      */
     public static Venta crear(
         LocalDateTime fechaVenta,
         UsuarioId usuarioId,
         ClienteId clienteId,
-        EstadoVentaId estadoVentaId
+        SesionCajaId sesionCajaId,
+        EstadoVentaId completada,
+        String claveIdempotencia
     ){
-        return new Venta(null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, estadoVentaId, false, null);
+        if (clienteId == null) {
+            throw DomainException.throwException(400, "Una venta requiere un cliente");
+        }
+        if (sesionCajaId == null) {
+            throw DomainException.throwException(409, "Una venta requiere una sesion de caja abierta");
+        }
+        return new Venta(null, null, fechaVenta, aEscalaMonetaria(BigDecimal.ZERO), usuarioId, clienteId, sesionCajaId, completada,
+                claveIdempotencia, null, null, null, false, null, null);
     }
 
     /**
-     * Actualiza los datos de encabezado. El total no es parametro: solo cambia al mutar las
-     * lineas del agregado.
+     * Fecha de una venta (logica.md VENTA-28). Sin fecha manual, la del servidor. Solo un
+     * Administrador fija una, para asentar ventas fisicas atrasadas por una contingencia, y debe
+     * caer en el turno de la caja abierta que la recibe: entre su apertura y ahora, con un minuto
+     * de tolerancia por el desfase de relojes. Si no, 400.
      */
-    public void actualizar(
-        LocalDateTime fechaVenta,
-        UsuarioId usuarioId,
-        ClienteId clienteId,
-        EstadoVentaId estadoVentaId
-    ){
-        this.fechaVenta = fechaVenta != null ? fechaVenta : this.fechaVenta;
-        this.usuarioId = usuarioId != null ? usuarioId : this.usuarioId;
-        this.clienteId = clienteId != null ? clienteId : this.clienteId;
-        this.estadoVentaId = estadoVentaId != null ? estadoVentaId : this.estadoVentaId;
+    public static LocalDateTime fechaDeVenta(LocalDateTime fechaManual, boolean esAdministrador, LocalDateTime aperturaCaja, LocalDateTime ahora) {
+        if (fechaManual == null) {
+            return ahora;
+        }
+        if (!esAdministrador) {
+            throw DomainException.throwException(400,
+                    "Solo un Administrador puede fijar 'fechaVenta'; sin ella la venta toma la fecha del servidor");
+        }
+        LocalDateTime limite = ahora.plus(TOLERANCIA_DE_RELOJ);
+        if (fechaManual.isBefore(aperturaCaja) || fechaManual.isAfter(limite)) {
+            throw DomainException.throwException(400,
+                    "La 'fechaVenta' debe estar entre la apertura de la caja (" + aperturaCaja + ") y el momento actual");
+        }
+        return fechaManual;
     }
 
     /** Unica via para incorporar una linea. Valida la linea y recalcula el total. */
@@ -118,33 +175,71 @@ public class Venta {
         recalcularTotal();
     }
 
-    /** Corrige los importes de una linea viva y reajusta el total. */
-    public void actualizarDetalle(
-        String detalleVentaId,
-        BigDecimal precioUnitario,
-        BigDecimal cantidad,
-        BigDecimal descuentoAplicado
-    ){
-        detalleVivo(detalleVentaId).actualizarImportes(precioUnitario, cantidad, descuentoAplicado);
-        recalcularTotal();
+    /**
+     * Unica via para incorporar un pago (CAJ-10). Como el dominio no conoce el catalogo
+     * 'tipo_pago', quien la usa le indica si el tipo es efectivo: solo el efectivo da cambio.
+     */
+    public void agregarPago(TipoPagoId tipoPagoId, boolean esEfectivo, BigDecimal monto, BigDecimal montoRecibido, String referencia) {
+        this.pagos.add(PagoVenta.crear(tipoPagoId, esEfectivo, monto, montoRecibido, referencia));
     }
 
-    /** Da de baja logica una linea y descuenta su subtotal del total. */
-    public void removerDetalle(String detalleVentaId) {
-        detalleVivo(detalleVentaId).eliminar();
-        recalcularTotal();
+    /**
+     * Invariante de cobro: los pagos vivos suman exactamente el total (CAJ-11). Se comprueba
+     * despues de incorporar lineas y pagos, antes de persistir.
+     */
+    public void validarPagos() {
+        BigDecimal pagado = getTotalPagado();
+        if (pagado.compareTo(this.total) != 0) {
+            throw DomainException.throwException(400,
+                    "La suma de los pagos (" + pagado + ") no coincide con el total de la venta (" + this.total + ")");
+        }
     }
 
-    /** Baja logica del agregado entero: el encabezado y todas sus lineas. */
+    /** Asocia el cliente a una venta ya cobrada (VEN-31). Una venta anulada no cambia (VEN-32). */
+    public void asignarCliente(ClienteId clienteId, EstadoVentaId anulada) {
+        exigirNoAnulada(anulada);
+        this.clienteId = clienteId != null ? clienteId : this.clienteId;
+    }
+
+    /**
+     * Anula la venta (VEN-40). Solo una venta 'Completada' se anula, y siempre con motivo. Las
+     * lineas, importes y pagos se conservan: la anulacion no borra nada.
+     */
+    public void anular(EstadoVentaId completada, EstadoVentaId anulada, UsuarioId usuarioId, String motivo, String referenciaReembolso) {
+        exigirNoAnulada(anulada);
+        if (!this.estadoVentaId.getValue().equals(completada.getValue())) {
+            throw DomainException.throwException(409, "Solo se puede anular una venta completada");
+        }
+        if (motivo == null || motivo.isBlank()) {
+            throw DomainException.throwException(400, "La anulacion de una venta requiere un motivo");
+        }
+        if (referenciaReembolso != null && referenciaReembolso.length() > LARGO_REFERENCIA_REEMBOLSO) {
+            throw DomainException.throwException(400,
+                    "La referencia del reembolso no puede superar " + LARGO_REFERENCIA_REEMBOLSO + " caracteres");
+        }
+        this.estadoVentaId = anulada;
+        this.motivoAnulacion = motivo;
+        this.usuarioAnulacionId = usuarioId;
+        // Constancia del reembolso de un pago con tarjeta o QR hecho fuera del sistema (logica.md VENTA-27).
+        this.referenciaReembolso = referenciaReembolso;
+    }
+
+    public boolean estaEn(EstadoVentaId estado) {
+        return this.estadoVentaId.getValue().equals(estado.getValue());
+    }
+
+    /**
+     * Una venta no se da de baja (VEN-33): esconderla dejaria sin explicacion el inventario que
+     * ya descontaron sus movimientos. Se anula.
+     */
     public void eliminar(){
-        this.borrado = true;
-        this.detalles.forEach(DetalleVenta::eliminar);
-        recalcularTotal();
+        throw DomainException.throwException(409,
+                "Una venta no se da de baja; anulala con POST api/v1/venta/{id}/anulacion");
     }
 
     /**
      * Invariante de agregado: una venta registrada tiene al menos una linea viva. La comprueba
-     * el caso de uso antes de persistir, en el alta y tras modificar los detalles.
+     * el caso de uso antes de persistir.
      */
     public void validarRegistrable() {
         if (getDetallesActivos().isEmpty()) {
@@ -152,13 +247,10 @@ public class Venta {
         }
     }
 
-    private DetalleVenta detalleVivo(String detalleVentaId) {
-        return this.detalles.stream()
-                .filter(detalle -> !detalle.isBorrado())
-                .filter(detalle -> detalle.getId() != null && detalle.getId().getValue().equals(detalleVentaId))
-                .findFirst()
-                .orElseThrow(() -> DomainException.throwException(404,
-                        "El detalle con id '" + detalleVentaId + "' no pertenece a esta venta"));
+    private void exigirNoAnulada(EstadoVentaId anulada) {
+        if (estaEn(anulada)) {
+            throw DomainException.throwException(409, "La venta con id '" + this.id.getValue() + "' esta anulada y no admite cambios");
+        }
     }
 
     private void recalcularTotal() {
@@ -174,11 +266,17 @@ public class Venta {
     }
 
     public VentaId getId() {return id;}
+    public Long getNumeroTicket() {return numeroTicket;}
     public LocalDateTime getFechaVenta() {return fechaVenta;}
     public BigDecimal getTotal() {return total;}
     public UsuarioId getUsuarioId() {return usuarioId;}
     public ClienteId getClienteId() {return clienteId;}
+    public SesionCajaId getSesionCajaId() {return sesionCajaId;}
     public EstadoVentaId getEstadoVentaId() {return estadoVentaId;}
+    public String getClaveIdempotencia() {return claveIdempotencia;}
+    public String getMotivoAnulacion() {return motivoAnulacion;}
+    public String getReferenciaReembolso() {return referenciaReembolso;}
+    public UsuarioId getUsuarioAnulacionId() {return usuarioAnulacionId;}
     public boolean isBorrado() {return borrado;}
 
     /** Todas las lineas, incluidas las dadas de baja: es lo que la persistencia debe escribir. */
@@ -189,5 +287,27 @@ public class Venta {
         return detalles.stream()
                 .filter(detalle -> !detalle.isBorrado())
                 .collect(Collectors.toList());
+    }
+
+    /** Todos los pagos, incluidos los dados de baja: es lo que la persistencia debe escribir. */
+    public List<PagoVenta> getPagos() {return Collections.unmodifiableList(pagos);}
+
+    public List<PagoVenta> getPagosActivos() {
+        return pagos.stream()
+                .filter(pago -> !pago.isBorrado())
+                .collect(Collectors.toList());
+    }
+
+    public BigDecimal getTotalPagado() {
+        return aEscalaMonetaria(getPagosActivos().stream()
+                .map(PagoVenta::getMonto)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
+
+    /** Cambio total entregado al cliente: solo lo genera el efectivo. */
+    public BigDecimal getCambio() {
+        return aEscalaMonetaria(getPagosActivos().stream()
+                .map(PagoVenta::getCambio)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 }

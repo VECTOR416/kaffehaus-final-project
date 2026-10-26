@@ -26,7 +26,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Applicatio
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.UseCases.ObtenerMovimientoPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.UseCases.ObtenerMovimientosUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/movimiento")
 public class MovimientoControllerV1 {
@@ -51,8 +56,8 @@ public class MovimientoControllerV1 {
     }
 
     @PostMapping
-    public ResponseEntity<MovimientoResponse> crear(@RequestBody Map<String, Object> body) {
-        CrearMovimientoRequest request = CrearMovimientoRequest.createFromRequest(body);
+    public ResponseEntity<MovimientoResponse> crear(@RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        CrearMovimientoRequest request = CrearMovimientoRequest.createFromRequest(body, idUsuario);
         MovimientoResponse response = crearMovimientoUseCase.execute(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

@@ -46,4 +46,8 @@ public class UnidadRepositoryImpl implements IUnidadRepository{
         this.unidadDatasource.eliminar(unidadId);
     }
 
+    @Override
+    public Optional<Unidad> obtenerPorNombre(String nombre) {
+        return this.unidadDatasource.obtenerPorNombre(nombre);
+    }
 }

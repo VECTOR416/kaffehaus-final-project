@@ -88,6 +88,12 @@ public class TipoDatasourceImpl implements ITipoDatasource {
         tipoJpaRepository.save(model);
     }
 
+    @Override
+    public Optional<Tipo> obtenerPorNombre(String nombre) {
+        return tipoJpaRepository.findFirstByNombreIgnoreCaseAndBorradoFalse(nombre)
+                .map(TipoJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

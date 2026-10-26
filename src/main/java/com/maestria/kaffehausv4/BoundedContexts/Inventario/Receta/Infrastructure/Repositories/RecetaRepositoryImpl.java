@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Datasources.IRecetaDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Dtos.ObtenerRecetasRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Repositories.IRecetaRepository;
@@ -46,4 +47,18 @@ public class RecetaRepositoryImpl implements IRecetaRepository{
         this.recetaDatasource.eliminar(recetaId);
     }
 
+    @Override
+    public Optional<Receta> obtenerPorProductoObtenido(ProductoId productoId) {
+        return this.recetaDatasource.obtenerPorProductoObtenido(productoId);
+    }
+
+    @Override
+    public List<Receta> obtenerPorIngrediente(ProductoId productoId) {
+        return this.recetaDatasource.obtenerPorIngrediente(productoId);
+    }
+
+    @Override
+    public List<Receta> obtenerVivasPorProductoObtenido(ProductoId productoId) {
+        return this.recetaDatasource.obtenerVivasPorProductoObtenido(productoId);
+    }
 }

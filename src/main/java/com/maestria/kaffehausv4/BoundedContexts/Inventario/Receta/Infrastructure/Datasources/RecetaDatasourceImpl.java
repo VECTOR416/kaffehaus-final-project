@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Datasources.IRecetaDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Application.Dtos.ObtenerRecetasRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Receta.Domain.Aggregates.IngredienteReceta;
@@ -233,11 +234,37 @@ public class RecetaDatasourceImpl implements IRecetaDatasource {
                         .collect(Collectors.toList()));
     }
 
+    @Override
+    public Optional<Receta> obtenerPorProductoObtenido(ProductoId productoId) {
+        return recetaJpaRepository.findFirstByIdProductoObtenidoAndBorradoFalseOrderByFecCDesc(aUuid(productoId.getValue()))
+                .flatMap(model -> obtenerPorId(new RecetaId(model.getId().toString())));
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);
         } catch (IllegalArgumentException | NullPointerException e) {
             throw DomainException.throwException(400, "El identificador '" + valor + "' no es un UUID valido");
         }
+    }
+
+    @Override
+    public List<Receta> obtenerPorIngrediente(ProductoId productoId) {
+        List<UUID> idsReceta = ingredienteRecetaJpaRepository.findByIdProductoAndBorradoFalse(aUuid(productoId.getValue())).stream()
+                .map(IngredienteRecetaJpaModel::getIdReceta)
+                .distinct()
+                .collect(Collectors.toList());
+        return idsReceta.stream()
+                .map(idReceta -> obtenerPorId(new RecetaId(idReceta.toString())))
+                .flatMap(Optional::stream)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Receta> obtenerVivasPorProductoObtenido(ProductoId productoId) {
+        return recetaJpaRepository.findByIdProductoObtenidoAndBorradoFalseOrderByFecCDesc(aUuid(productoId.getValue())).stream()
+                .map(model -> obtenerPorId(new RecetaId(model.getId().toString())))
+                .flatMap(Optional::stream)
+                .collect(Collectors.toList());
     }
 }

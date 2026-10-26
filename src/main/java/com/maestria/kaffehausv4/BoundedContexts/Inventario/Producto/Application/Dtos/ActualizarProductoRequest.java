@@ -4,13 +4,18 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * Modificacion de un producto. 'stock' se rechaza en lugar de ignorarse: es la proyeccion de
+ * sus existencias (inventario.md INV-20) y solo cambia con aperturas, consumos y ajustes.
+ */
 public class ActualizarProductoRequest {
     private String nombre;
-    private BigDecimal stock;
     private BigDecimal precio;
     private BigDecimal stockMinimo;
     private Boolean vendible;
+    private Boolean esStockDirecto;
     private String idUnidadActual;
     private String idTipo;
     private String idCategoria;
@@ -18,20 +23,20 @@ public class ActualizarProductoRequest {
 
     private ActualizarProductoRequest(
         String nombre,
-        BigDecimal stock,
         BigDecimal precio,
         BigDecimal stockMinimo,
         Boolean vendible,
+        Boolean esStockDirecto,
         String idUnidadActual,
         String idTipo,
         String idCategoria,
         String idProductoPadre
     ) {
         this.nombre = nombre;
-        this.stock = stock;
         this.precio = precio;
         this.stockMinimo = stockMinimo;
         this.vendible = vendible;
+        this.esStockDirecto = esStockDirecto;
         this.idUnidadActual = idUnidadActual;
         this.idTipo = idTipo;
         this.idCategoria = idCategoria;
@@ -40,27 +45,30 @@ public class ActualizarProductoRequest {
 
     public static ActualizarProductoRequest createFromRequest(Map<String, Object> request){
         String nombre = Validador.textoOpcional(request.get("nombre"), "nombre");
-        Double stockTmp = Validador.numeroOpcional(request.get("stock"), "stock");
-        BigDecimal stock = stockTmp != null ? BigDecimal.valueOf(stockTmp) : null;
+        if (request.get("stock") != null) {
+            throw DomainException.throwException(400,
+                    "El campo 'stock' no se modifica a mano; cambia con aperturas, consumos y ajustes de inventario");
+        }
         Double precioTmp = Validador.numeroOpcional(request.get("precio"), "precio");
         BigDecimal precio = precioTmp != null ? BigDecimal.valueOf(precioTmp) : null;
         Double stockMinimoTmp = Validador.numeroOpcional(request.get("stockMinimo"), "stockMinimo");
         BigDecimal stockMinimo = stockMinimoTmp != null ? BigDecimal.valueOf(stockMinimoTmp) : null;
         Boolean vendibleTmp = Validador.booleanoOpcional(request.get("vendible"), "vendible");
         Boolean vendible = vendibleTmp;
+        Boolean esStockDirecto = Validador.booleanoOpcional(request.get("esStockDirecto"), "esStockDirecto");
         String idUnidadActual = Validador.textoOpcional(request.get("idUnidadActual"), "idUnidadActual");
         String idTipo = Validador.textoOpcional(request.get("idTipo"), "idTipo");
         String idCategoria = Validador.textoOpcional(request.get("idCategoria"), "idCategoria");
         String idProductoPadre = Validador.textoOpcional(request.get("idProductoPadre"), "idProductoPadre");
 
-        return new ActualizarProductoRequest(nombre, stock, precio, stockMinimo, vendible, idUnidadActual, idTipo, idCategoria, idProductoPadre);
+        return new ActualizarProductoRequest(nombre, precio, stockMinimo, vendible, esStockDirecto, idUnidadActual, idTipo, idCategoria, idProductoPadre);
     }
 
     public String getNombre() {return nombre;}
-    public BigDecimal getStock() {return stock;}
     public BigDecimal getPrecio() {return precio;}
     public BigDecimal getStockMinimo() {return stockMinimo;}
     public Boolean getVendible() {return vendible;}
+    public Boolean getEsStockDirecto() {return esStockDirecto;}
     public String getIdUnidadActual() {return idUnidadActual;}
     public String getIdTipo() {return idTipo;}
     public String getIdCategoria() {return idCategoria;}

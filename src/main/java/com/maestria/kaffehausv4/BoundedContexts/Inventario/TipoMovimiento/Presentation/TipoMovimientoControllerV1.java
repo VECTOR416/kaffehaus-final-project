@@ -26,7 +26,11 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Applic
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.UseCases.ObtenerTipoMovimientoPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Application.UseCases.ObtenerTiposMovimientoUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/tipo-movimiento")
 public class TipoMovimientoControllerV1 {
@@ -85,6 +89,8 @@ public class TipoMovimientoControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    // Solo un Administrador da de baja recetas y filas de catalogo (logica.md GENERAL-17).
+    @RequiereRol("Administrador")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarTipoMovimientoUseCase.execute(id);

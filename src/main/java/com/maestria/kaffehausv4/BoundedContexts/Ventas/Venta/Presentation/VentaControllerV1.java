@@ -17,16 +17,25 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ActualizarVentaRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.AnularVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.CrearVentaRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ObtenerVentasRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.TicketVentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.VentaResponse;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ActualizarVentaUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.AnularVentaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.CrearVentaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.EliminarVentaUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ObtenerVentaPorIdUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ObtenerVentaPorTicketUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.UseCases.ObtenerVentasUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/venta")
 public class VentaControllerV1 {
@@ -36,25 +45,37 @@ public class VentaControllerV1 {
     private final ObtenerVentaPorIdUseCase obtenerVentaPorIdUseCase;
     private final ObtenerVentasUseCase obtenerVentasUseCase;
     private final EliminarVentaUseCase eliminarVentaUseCase;
+    private final AnularVentaUseCase anularVentaUseCase;
+    private final ObtenerVentaPorTicketUseCase obtenerVentaPorTicketUseCase;
 
     public VentaControllerV1(
             CrearVentaUseCase crearVentaUseCase,
             ActualizarVentaUseCase actualizarVentaUseCase,
             ObtenerVentaPorIdUseCase obtenerVentaPorIdUseCase,
             ObtenerVentasUseCase obtenerVentasUseCase,
-            EliminarVentaUseCase eliminarVentaUseCase) {
+            EliminarVentaUseCase eliminarVentaUseCase,
+            AnularVentaUseCase anularVentaUseCase,
+            ObtenerVentaPorTicketUseCase obtenerVentaPorTicketUseCase) {
         this.crearVentaUseCase = crearVentaUseCase;
         this.actualizarVentaUseCase = actualizarVentaUseCase;
         this.obtenerVentaPorIdUseCase = obtenerVentaPorIdUseCase;
         this.obtenerVentasUseCase = obtenerVentasUseCase;
         this.eliminarVentaUseCase = eliminarVentaUseCase;
+        this.anularVentaUseCase = anularVentaUseCase;
+        this.obtenerVentaPorTicketUseCase = obtenerVentaPorTicketUseCase;
     }
 
     @PostMapping
-    public ResponseEntity<VentaResponse> crear(@RequestBody Map<String, Object> body) {
-        CrearVentaRequest request = CrearVentaRequest.createFromRequest(body);
+    public ResponseEntity<VentaResponse> crear(@RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        CrearVentaRequest request = CrearVentaRequest.createFromRequest(body, idUsuario);
         VentaResponse response = crearVentaUseCase.execute(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // Recuperacion rapida por el numero impreso en el ticket (arquitectura.md 4.11, CAJ-14).
+    @GetMapping("/ticket/{numeroTicket}")
+    public ResponseEntity<TicketVentaResponse> obtenerPorTicket(@PathVariable String numeroTicket) {
+        return ResponseEntity.ok(obtenerVentaPorTicketUseCase.execute(numeroTicket));
     }
 
     @GetMapping("/{id}")
@@ -89,5 +110,13 @@ public class VentaControllerV1 {
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarVentaUseCase.execute(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Unico modo de deshacer una venta (ventas.md VEN-40). Solo un Administrador.
+    @RequiereRol("Administrador")
+    @PostMapping("/{id}/anulacion")
+    public ResponseEntity<VentaResponse> anular(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        AnularVentaRequest request = AnularVentaRequest.createFromRequest(body, idUsuario);
+        return ResponseEntity.ok(anularVentaUseCase.execute(id, request));
     }
 }

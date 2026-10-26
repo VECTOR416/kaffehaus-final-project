@@ -1,15 +1,18 @@
 package com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Infrastructure.Repositories;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Datasources.IDescuentoDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Dtos.ObtenerDescuentosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Application.Repositories.IDescuentoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.Aggregates.Descuento;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Descuento.Domain.ValueObjects.DescuentoId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.TipoDescuento.Domain.ValueObjects.TipoDescuentoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 @Repository
@@ -46,4 +49,18 @@ public class DescuentoRepositoryImpl implements IDescuentoRepository{
         this.descuentoDatasource.eliminar(descuentoId);
     }
 
+    @Override
+    public List<Descuento> obtenerVigentes(ProductoId productoId, LocalDateTime fecha) {
+        return this.descuentoDatasource.obtenerVigentes(productoId, fecha);
+    }
+
+    @Override
+    public boolean existeConTipoDescuento(TipoDescuentoId tipoDescuentoId) {
+        return this.descuentoDatasource.existeConTipoDescuento(tipoDescuentoId);
+    }
+
+    @Override
+    public List<Descuento> obtenerPorProducto(ProductoId productoId) {
+        return this.descuentoDatasource.obtenerPorProducto(productoId);
+    }
 }

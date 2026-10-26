@@ -88,6 +88,12 @@ public class EstadoExistenciaDatasourceImpl implements IEstadoExistenciaDatasour
         estadoExistenciaJpaRepository.save(model);
     }
 
+    @Override
+    public Optional<EstadoExistencia> obtenerPorNombre(String nombre) {
+        return estadoExistenciaJpaRepository.findFirstByNombreIgnoreCaseAndBorradoFalse(nombre)
+                .map(EstadoExistenciaJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

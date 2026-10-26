@@ -12,4 +12,5 @@ public interface TipoDescuentoJpaRepository extends JpaRepository<TipoDescuentoJ
     Optional<TipoDescuentoJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<TipoDescuentoJpaModel> findByBorradoFalse(Pageable pageable);
     Page<TipoDescuentoJpaModel> findByBorradoFalseAndNombreContainingIgnoreCase(String nombre, Pageable pageable);
+    Optional<TipoDescuentoJpaModel> findFirstByNombreIgnoreCaseAndBorradoFalse(String nombre);
 }

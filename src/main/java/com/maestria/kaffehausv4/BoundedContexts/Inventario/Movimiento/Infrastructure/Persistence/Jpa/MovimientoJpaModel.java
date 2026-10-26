@@ -27,14 +27,23 @@ public class MovimientoJpaModel {
     @Column(name = "motivo")
     private String motivo;
 
-    @Column(name = "id_existencia", nullable = false)
+    @Column(name = "id_existencia")
     private UUID idExistencia;
+
+    @Column(name = "id_detalle_lote")
+    private UUID idDetalleLote;
 
     @Column(name = "id_tipo_movimiento", nullable = false)
     private UUID idTipoMovimiento;
 
     @Column(name = "id_usuario", nullable = false)
     private UUID idUsuario;
+
+    @Column(name = "id_produccion")
+    private UUID idProduccion;
+
+    @Column(name = "id_venta")
+    private UUID idVenta;
 
     @Column(name = "fec_c", nullable = false)
     private OffsetDateTime fecC;
@@ -57,10 +66,16 @@ public class MovimientoJpaModel {
     public void setMotivo(String motivo) {this.motivo = motivo;}
     public UUID getIdExistencia() {return idExistencia;}
     public void setIdExistencia(UUID idExistencia) {this.idExistencia = idExistencia;}
+    public UUID getIdDetalleLote() {return idDetalleLote;}
+    public void setIdDetalleLote(UUID idDetalleLote) {this.idDetalleLote = idDetalleLote;}
     public UUID getIdTipoMovimiento() {return idTipoMovimiento;}
     public void setIdTipoMovimiento(UUID idTipoMovimiento) {this.idTipoMovimiento = idTipoMovimiento;}
     public UUID getIdUsuario() {return idUsuario;}
     public void setIdUsuario(UUID idUsuario) {this.idUsuario = idUsuario;}
+    public UUID getIdProduccion() {return idProduccion;}
+    public void setIdProduccion(UUID idProduccion) {this.idProduccion = idProduccion;}
+    public UUID getIdVenta() {return idVenta;}
+    public void setIdVenta(UUID idVenta) {this.idVenta = idVenta;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}

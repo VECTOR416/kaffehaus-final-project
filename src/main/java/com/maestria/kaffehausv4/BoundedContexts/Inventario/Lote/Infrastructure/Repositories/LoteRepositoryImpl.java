@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Repositories;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,6 +12,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Repo
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.LoteId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Producto.Domain.ValueObjects.ProductoId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 @Repository
@@ -43,6 +45,41 @@ public class LoteRepositoryImpl implements ILoteRepository{
     }
 
     @Override
+    public Optional<Lote> obtenerPorIdParaActualizar(LoteId loteId) {
+        return this.loteDatasource.obtenerPorIdParaActualizar(loteId);
+    }
+
+    @Override
+    public List<Lote> obtenerPorIdsParaActualizar(List<LoteId> loteIds) {
+        return this.loteDatasource.obtenerPorIdsParaActualizar(loteIds);
+    }
+
+    @Override
+    public Optional<LoteId> obtenerLoteDeDetalle(DetalleLoteId detalleLoteId) {
+        return this.loteDatasource.obtenerLoteDeDetalle(detalleLoteId);
+    }
+
+    @Override
+    public List<Lote> obtenerPorProductosSinCargar(List<ProductoId> productoIds) {
+        return this.loteDatasource.obtenerPorProductosSinCargar(productoIds);
+    }
+
+    @Override
+    public Optional<ProductoId> obtenerProductoDeDetalle(DetalleLoteId detalleLoteId) {
+        return this.loteDatasource.obtenerProductoDeDetalle(detalleLoteId);
+    }
+
+    @Override
+    public List<Lote> obtenerPorProductos(List<ProductoId> productoIds) {
+        return this.loteDatasource.obtenerPorProductos(productoIds);
+    }
+
+    @Override
+    public Optional<Lote> obtenerPorDetalleIdParaActualizar(DetalleLoteId detalleLoteId) {
+        return this.loteDatasource.obtenerPorDetalleIdParaActualizar(detalleLoteId);
+    }
+
+    @Override
     public PaginatedResponse<List<Lote>> obtenerTodos(ObtenerLotesRequest obtenerLotesRequest) {
         return this.loteDatasource.obtenerTodos(obtenerLotesRequest);
     }
@@ -52,4 +89,8 @@ public class LoteRepositoryImpl implements ILoteRepository{
         this.loteDatasource.eliminar(loteId);
     }
 
+    @Override
+    public List<Lote> obtenerConUnidadesQueVencenHasta(LocalDate fecha) {
+        return this.loteDatasource.obtenerConUnidadesQueVencenHasta(fecha);
+    }
 }

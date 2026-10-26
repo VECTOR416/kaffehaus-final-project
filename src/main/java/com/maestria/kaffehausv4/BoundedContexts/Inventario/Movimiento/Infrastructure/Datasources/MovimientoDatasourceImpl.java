@@ -1,5 +1,6 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Infrastructure.Datasources;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -9,6 +10,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Datasources.IMovimientoDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Application.Dtos.ObtenerMovimientosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
@@ -81,11 +84,34 @@ public class MovimientoDatasourceImpl implements IMovimientoDatasource {
         MovimientoJpaModel model = movimientoJpaRepository.findByIdAndBorradoFalse(aUuid(movimientoId.getValue()))
                 .orElseThrow(() -> DomainException.throwException(404, "El movimiento con id '" + movimientoId.getValue() + "' no existe"));
 
+        // El dominio decide la baja y la rechaza: un movimiento es auditoria inmutable.
         Movimiento movimiento = MovimientoJpaMapper.toDomain(model);
         movimiento.eliminar();
 
         MovimientoJpaMapper.copiarCambios(movimiento, model);
         movimientoJpaRepository.save(model);
+    }
+
+    @Override
+    public List<Movimiento> obtenerPorExistencias(List<ExistenciaId> existenciaIds) {
+        if (existenciaIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<UUID> ids = existenciaIds.stream()
+                .map(existenciaId -> aUuid(existenciaId.getValue()))
+                .collect(Collectors.toList());
+
+        return movimientoJpaRepository.findByIdExistenciaInAndBorradoFalse(ids).stream()
+                .map(MovimientoJpaMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Movimiento> obtenerPorVenta(VentaId ventaId) {
+        return movimientoJpaRepository.findByIdVentaAndBorradoFalseOrderByIdAsc(aUuid(ventaId.getValue())).stream()
+                .map(MovimientoJpaMapper::toDomain)
+                .collect(Collectors.toList());
     }
 
     private static UUID aUuid(String valor) {

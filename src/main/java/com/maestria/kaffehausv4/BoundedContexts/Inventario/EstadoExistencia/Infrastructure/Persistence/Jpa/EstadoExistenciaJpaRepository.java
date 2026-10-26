@@ -12,4 +12,5 @@ public interface EstadoExistenciaJpaRepository extends JpaRepository<EstadoExist
     Optional<EstadoExistenciaJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<EstadoExistenciaJpaModel> findByBorradoFalse(Pageable pageable);
     Page<EstadoExistenciaJpaModel> findByBorradoFalseAndNombreContainingIgnoreCase(String nombre, Pageable pageable);
+    Optional<EstadoExistenciaJpaModel> findFirstByNombreIgnoreCaseAndBorradoFalse(String nombre);
 }

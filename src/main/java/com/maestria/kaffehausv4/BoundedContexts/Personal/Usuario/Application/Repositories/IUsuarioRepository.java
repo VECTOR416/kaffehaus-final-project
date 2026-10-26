@@ -3,6 +3,7 @@ package com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Re
 import java.util.List;
 import java.util.Optional;
 
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.ValueObjects.RolId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dtos.ObtenerUsuariosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.Aggregates.Usuario;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
@@ -20,4 +21,7 @@ public interface IUsuarioRepository {
     Optional<Usuario> obtenerPorCorreo(String correo);
     PaginatedResponse<List<Usuario>> obtenerTodos(ObtenerUsuariosRequest obtenerUsuariosRequest);
     void eliminar(UsuarioId usuarioId);
+
+    /** Usuarios vivos con ese rol (logica.md GENERAL-18, USUARIO-04). */
+    long contarPorRol(RolId rolId);
 }

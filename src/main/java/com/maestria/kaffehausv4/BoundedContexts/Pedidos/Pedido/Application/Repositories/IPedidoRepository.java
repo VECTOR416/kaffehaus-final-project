@@ -6,6 +6,7 @@ import java.util.Optional;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Dtos.ObtenerPedidosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.Aggregates.Pedido;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.ValueObjects.PedidoId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 public interface IPedidoRepository {
@@ -14,4 +15,7 @@ public interface IPedidoRepository {
     Optional<Pedido> obtenerPorId(PedidoId pedidoId);
     PaginatedResponse<List<Pedido>> obtenerTodos(ObtenerPedidosRequest obtenerPedidosRequest);
     void eliminar(PedidoId pedidoId);
+
+    /** Pedido vivo de una venta, si lo tiene: una venta tiene a lo sumo uno (ventas.md VEN-63). */
+    Optional<Pedido> obtenerPorVentaId(VentaId ventaId);
 }

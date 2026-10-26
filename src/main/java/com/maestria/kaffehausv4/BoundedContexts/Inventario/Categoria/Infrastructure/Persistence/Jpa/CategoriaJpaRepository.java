@@ -12,4 +12,5 @@ public interface CategoriaJpaRepository extends JpaRepository<CategoriaJpaModel,
     Optional<CategoriaJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<CategoriaJpaModel> findByBorradoFalse(Pageable pageable);
     Page<CategoriaJpaModel> findByBorradoFalseAndNombreContainingIgnoreCase(String nombre, Pageable pageable);
+    Optional<CategoriaJpaModel> findFirstByNombreIgnoreCaseAndBorradoFalse(String nombre);
 }

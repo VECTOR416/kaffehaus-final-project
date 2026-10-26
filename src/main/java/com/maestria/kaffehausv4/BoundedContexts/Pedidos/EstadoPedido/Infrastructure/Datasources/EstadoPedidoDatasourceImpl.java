@@ -88,6 +88,12 @@ public class EstadoPedidoDatasourceImpl implements IEstadoPedidoDatasource {
         estadoPedidoJpaRepository.save(model);
     }
 
+    @Override
+    public Optional<EstadoPedido> obtenerPorNombre(String nombre) {
+        return estadoPedidoJpaRepository.findFirstByNombreIgnoreCaseAndBorradoFalse(nombre)
+                .map(EstadoPedidoJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

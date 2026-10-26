@@ -10,6 +10,7 @@ import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Dtos.
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Application.Repositories.IPedidoRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.Aggregates.Pedido;
 import com.maestria.kaffehausv4.BoundedContexts.Pedidos.Pedido.Domain.ValueObjects.PedidoId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
 
 @Repository
@@ -44,6 +45,11 @@ public class PedidoRepositoryImpl implements IPedidoRepository{
     @Override
     public void eliminar(PedidoId pedidoId) {
         this.pedidoDatasource.eliminar(pedidoId);
+    }
+
+    @Override
+    public Optional<Pedido> obtenerPorVentaId(VentaId ventaId) {
+        return this.pedidoDatasource.obtenerPorVentaId(ventaId);
     }
 
 }

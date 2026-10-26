@@ -88,6 +88,12 @@ public class CategoriaDatasourceImpl implements ICategoriaDatasource {
         categoriaJpaRepository.save(model);
     }
 
+    @Override
+    public Optional<Categoria> obtenerPorNombre(String nombre) {
+        return categoriaJpaRepository.findFirstByNombreIgnoreCaseAndBorradoFalse(nombre)
+                .map(CategoriaJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

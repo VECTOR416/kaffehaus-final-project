@@ -5,11 +5,17 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.Generated;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+/**
+ * 'numero_ticket' lo asigna la base con seq_numero_ticket: no se inserta ni se actualiza desde
+ * aqui, y @Generated hace que Hibernate lo relea tras el INSERT.
+ */
 @Entity
 @Table(name = "venta")
 public class VentaJpaModel {
@@ -17,6 +23,10 @@ public class VentaJpaModel {
     @Id
     @Column(name = "id")
     private UUID id;
+
+    @Generated
+    @Column(name = "numero_ticket", insertable = false, updatable = false)
+    private Long numeroTicket;
 
     @Column(name = "fecha_venta", nullable = false)
     private LocalDateTime fechaVenta;
@@ -27,11 +37,26 @@ public class VentaJpaModel {
     @Column(name = "id_usuario", nullable = false)
     private UUID idUsuario;
 
-    @Column(name = "id_cliente")
+    @Column(name = "id_cliente", nullable = false)
     private UUID idCliente;
+
+    @Column(name = "id_sesion_caja", nullable = false)
+    private UUID idSesionCaja;
 
     @Column(name = "id_estado_venta", nullable = false)
     private UUID idEstadoVenta;
+
+    @Column(name = "clave_idempotencia")
+    private String claveIdempotencia;
+
+    @Column(name = "motivo_anulacion")
+    private String motivoAnulacion;
+
+    @Column(name = "id_usuario_anulacion")
+    private UUID idUsuarioAnulacion;
+
+    @Column(name = "referencia_reembolso")
+    private String referenciaReembolso;
 
     @Column(name = "fec_c", nullable = false)
     private OffsetDateTime fecC;
@@ -46,6 +71,7 @@ public class VentaJpaModel {
 
     public UUID getId() {return id;}
     public void setId(UUID id) {this.id = id;}
+    public Long getNumeroTicket() {return numeroTicket;}
     public LocalDateTime getFechaVenta() {return fechaVenta;}
     public void setFechaVenta(LocalDateTime fechaVenta) {this.fechaVenta = fechaVenta;}
     public BigDecimal getTotal() {return total;}
@@ -54,8 +80,18 @@ public class VentaJpaModel {
     public void setIdUsuario(UUID idUsuario) {this.idUsuario = idUsuario;}
     public UUID getIdCliente() {return idCliente;}
     public void setIdCliente(UUID idCliente) {this.idCliente = idCliente;}
+    public UUID getIdSesionCaja() {return idSesionCaja;}
+    public void setIdSesionCaja(UUID idSesionCaja) {this.idSesionCaja = idSesionCaja;}
     public UUID getIdEstadoVenta() {return idEstadoVenta;}
     public void setIdEstadoVenta(UUID idEstadoVenta) {this.idEstadoVenta = idEstadoVenta;}
+    public String getClaveIdempotencia() {return claveIdempotencia;}
+    public void setClaveIdempotencia(String claveIdempotencia) {this.claveIdempotencia = claveIdempotencia;}
+    public String getMotivoAnulacion() {return motivoAnulacion;}
+    public void setMotivoAnulacion(String motivoAnulacion) {this.motivoAnulacion = motivoAnulacion;}
+    public UUID getIdUsuarioAnulacion() {return idUsuarioAnulacion;}
+    public void setIdUsuarioAnulacion(UUID idUsuarioAnulacion) {this.idUsuarioAnulacion = idUsuarioAnulacion;}
+    public String getReferenciaReembolso() {return referenciaReembolso;}
+    public void setReferenciaReembolso(String referenciaReembolso) {this.referenciaReembolso = referenciaReembolso;}
     public void setFecC(OffsetDateTime fecC) {this.fecC = fecC;}
     public void setFecU(OffsetDateTime fecU) {this.fecU = fecU;}
     public Boolean getBorrado() {return borrado;}

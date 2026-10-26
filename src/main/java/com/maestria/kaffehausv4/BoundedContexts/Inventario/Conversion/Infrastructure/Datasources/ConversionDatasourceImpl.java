@@ -86,6 +86,13 @@ public class ConversionDatasourceImpl implements IConversionDatasource {
         conversionJpaRepository.save(model);
     }
 
+    @Override
+    public List<Conversion> obtenerVivas() {
+        return conversionJpaRepository.findByBorradoFalse().stream()
+                .map(ConversionJpaMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

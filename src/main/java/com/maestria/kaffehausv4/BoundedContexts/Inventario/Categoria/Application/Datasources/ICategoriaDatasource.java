@@ -14,4 +14,7 @@ public interface ICategoriaDatasource {
     Optional<Categoria> obtenerPorId(CategoriaId categoriaId);
     PaginatedResponse<List<Categoria>> obtenerTodos(ObtenerCategoriasRequest obtenerCategoriasRequest);
     void eliminar(CategoriaId categoriaId);
+
+    /** Fila viva con ese nombre, sin distinguir mayusculas. La usa la siembra para no duplicar. */
+    Optional<Categoria> obtenerPorNombre(String nombre);
 }

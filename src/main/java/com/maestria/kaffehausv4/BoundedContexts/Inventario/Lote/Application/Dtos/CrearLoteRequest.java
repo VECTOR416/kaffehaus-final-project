@@ -31,11 +31,15 @@ public class CrearLoteRequest {
         this.detalles = detalles;
     }
 
-    public static CrearLoteRequest createFromRequest(Map<String, Object> request){
+    /**
+     * 'idUsuarioEnSesion' es quien firma la peticion: lo pone el controller desde el token con
+     * @UsuarioEnSesion. El frontend no envia 'idUsuario'; si llegara en el cuerpo, se ignora.
+     */
+    public static CrearLoteRequest createFromRequest(Map<String, Object> request, String idUsuarioEnSesion){
         LocalDateTime fechaCompra = Validador.fechaOpcional(request.get("fechaCompra"), "fechaCompra");
         fechaCompra = fechaCompra != null ? fechaCompra : LocalDateTime.now();
         String idProveedor = Validador.textoRequerido(request.get("idProveedor"), "idProveedor");
-        String idUsuario = Validador.textoRequerido(request.get("idUsuario"), "idUsuario");
+        String idUsuario = Validador.textoRequerido(idUsuarioEnSesion, "idUsuario");
 
         List<DetalleLoteRequest> detalles = Validador.listaDeObjetosRequerida(request.get("detalles"), "detalles").stream()
                 .map(DetalleLoteRequest::createFromRequest)

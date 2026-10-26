@@ -88,6 +88,12 @@ public class UnidadDatasourceImpl implements IUnidadDatasource {
         unidadJpaRepository.save(model);
     }
 
+    @Override
+    public Optional<Unidad> obtenerPorNombre(String nombre) {
+        return unidadJpaRepository.findFirstByUnidadIgnoreCaseAndBorradoFalse(nombre)
+                .map(UnidadJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

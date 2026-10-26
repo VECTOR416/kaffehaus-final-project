@@ -26,7 +26,12 @@ import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Use
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.UseCases.ObtenerUsuarioPorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.UseCases.ObtenerUsuariosUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/usuario")
 public class UsuarioControllerV1 {
@@ -50,6 +55,7 @@ public class UsuarioControllerV1 {
         this.eliminarUsuarioUseCase = eliminarUsuarioUseCase;
     }
 
+    @RequiereRol("Administrador")
     @PostMapping
     public ResponseEntity<UsuarioResponse> crear(@RequestBody Map<String, Object> body) {
         CrearUsuarioRequest request = CrearUsuarioRequest.createFromRequest(body);
@@ -78,6 +84,7 @@ public class UsuarioControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @PutMapping("/{id}")
     public ResponseEntity<UsuarioResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body) {
         ActualizarUsuarioRequest request = ActualizarUsuarioRequest.createFromRequest(body);
@@ -85,9 +92,10 @@ public class UsuarioControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable String id) {
-        eliminarUsuarioUseCase.execute(id);
+    public ResponseEntity<Void> eliminar(@PathVariable String id, @UsuarioEnSesion String idUsuario) {
+        eliminarUsuarioUseCase.execute(id, idUsuario);
         return ResponseEntity.noContent().build();
     }
 }

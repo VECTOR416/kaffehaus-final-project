@@ -1,5 +1,7 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Infrastructure.Persistence.Jpa;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -15,11 +17,26 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * que ademas es lo unico compatible con la FK ON DELETE RESTRICT de 'existencias'.
  *
  * findByIdLoteInAndBorradoFalse existe para que el listado paginado resuelva los detalles de
- * toda la pagina en una sola consulta en lugar de una por lote.
+ * toda la pagina en una sola consulta en lugar de una por lote. findByIdProductoInAndBorradoFalse
+ * localiza las lineas de un insumo base y de sus presentaciones.
+ *
+ * Las lineas no se bloquean por separado: se bloquea el agregado por su raiz
+ * (LoteJpaRepository.readBy..., logica.md LOTE-27) y despues se leen sus lineas.
  */
 public interface DetalleLoteJpaRepository extends JpaRepository<DetalleLoteJpaModel, UUID>{
 
     Optional<DetalleLoteJpaModel> findByIdAndBorradoFalse(UUID id);
     List<DetalleLoteJpaModel> findByIdLoteAndBorradoFalse(UUID idLote);
     List<DetalleLoteJpaModel> findByIdLoteInAndBorradoFalse(Collection<UUID> idsLote);
+    List<DetalleLoteJpaModel> findByIdProductoInAndBorradoFalse(Collection<UUID> idsProducto);
+
+    // Lineas completas sin cargarlas en el contexto de persistencia (ver DetalleLoteLecturaProyeccion).
+    List<DetalleLoteLecturaProyeccion> findLecturaByIdProductoInAndBorradoFalse(Collection<UUID> idsProducto);
+    List<DetalleLoteLecturaProyeccion> findLecturaByIdLoteInAndBorradoFalse(Collection<UUID> idsLote);
+
+    Optional<DetalleLoteLecturaProyeccion> findLecturaByIdAndBorradoFalse(UUID id);
+
+    // Alerta de vencimiento (logica.md VENCIMIENTO-04). Las que no vencen no entran: NULL no cumple <=.
+    List<DetalleLoteJpaModel> findByBorradoFalseAndCantidadRestanteGreaterThanAndFechaVencimientoLessThanEqual(
+            BigDecimal cantidadMinima, LocalDate fecha);
 }

@@ -14,4 +14,11 @@ public interface ITipoMovimientoDatasource {
     Optional<TipoMovimiento> obtenerPorId(TipoMovimientoId tipoMovimientoId);
     PaginatedResponse<List<TipoMovimiento>> obtenerTodos(ObtenerTiposMovimientoRequest obtenerTiposMovimientoRequest);
     void eliminar(TipoMovimientoId tipoMovimientoId);
+
+    /**
+     * Busca la fila viva por nombre, sin distinguir mayusculas. Existe porque el flujo de
+     * inventario (produccion y venta) resuelve por nombre las filas de catalogo que necesita,
+     * igual que la seguridad resuelve los roles: el catalogo sigue siendo datos, no un enum.
+     */
+    Optional<TipoMovimiento> obtenerPorNombre(String nombre);
 }

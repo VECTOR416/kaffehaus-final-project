@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
+import com.maestria.kaffehausv4.BoundedContexts.Personal.Rol.Domain.ValueObjects.RolId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Datasources.IUsuarioDatasource;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Dtos.ObtenerUsuariosRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Application.Repositories.IUsuarioRepository;
@@ -49,5 +50,10 @@ public class UsuarioRepositoryImpl implements IUsuarioRepository{
     @Override
     public void eliminar(UsuarioId usuarioId) {
         this.usuarioDatasource.eliminar(usuarioId);
+    }
+
+    @Override
+    public long contarPorRol(RolId rolId) {
+        return this.usuarioDatasource.contarPorRol(rolId);
     }
 }

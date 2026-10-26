@@ -12,4 +12,5 @@ public interface RolJpaRepository extends JpaRepository<RolJpaModel, UUID>{
     Optional<RolJpaModel> findByIdAndBorradoFalse(UUID id);
     Page<RolJpaModel> findByBorradoFalse(Pageable pageable);
     Page<RolJpaModel> findByBorradoFalseAndNombreContainingIgnoreCase(String nombre, Pageable pageable);
+    Optional<RolJpaModel> findFirstByNombreIgnoreCaseAndBorradoFalse(String nombre);
 }

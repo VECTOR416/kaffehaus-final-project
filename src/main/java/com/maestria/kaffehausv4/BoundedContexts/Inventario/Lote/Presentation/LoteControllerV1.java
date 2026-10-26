@@ -25,8 +25,24 @@ import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseC
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.EliminarLoteUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerLotePorIdUseCase;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerLotesUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Application.Dtos.ExistenciaResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.AbrirDetalleLoteRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.DarDeBajaVencidoDetalleLoteRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.DetalleAperturableResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.ObtenerDetallesAperturablesRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.ObtenerVencimientosRequest;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.Dtos.VencimientoResponse;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.AbrirDetalleLoteUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.DarDeBajaVencidoDetalleLoteUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerDetallesAperturablesUseCase;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Application.UseCases.ObtenerVencimientosUseCase;
 import com.maestria.kaffehausv4.Shared.Application.Dtos.Pagination.PaginatedResponse;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.RequiereRol;
+import com.maestria.kaffehausv4.Shared.Presentation.Security.UsuarioEnSesion;
 
+// Todo el recurso exige sesion con rol Operador o Administrador; un metodo puede
+// restringirlo mas con su propio @RequiereRol (GuardiaDeRoles).
+@RequiereRol({"Operador", "Administrador"})
 @RestController
 @RequestMapping("api/v1/lote")
 public class LoteControllerV1 {
@@ -36,23 +52,35 @@ public class LoteControllerV1 {
     private final ObtenerLotePorIdUseCase obtenerLotePorIdUseCase;
     private final ObtenerLotesUseCase obtenerLotesUseCase;
     private final EliminarLoteUseCase eliminarLoteUseCase;
+    private final ObtenerDetallesAperturablesUseCase obtenerDetallesAperturablesUseCase;
+    private final AbrirDetalleLoteUseCase abrirDetalleLoteUseCase;
+    private final DarDeBajaVencidoDetalleLoteUseCase darDeBajaVencidoDetalleLoteUseCase;
+    private final ObtenerVencimientosUseCase obtenerVencimientosUseCase;
 
     public LoteControllerV1(
             CrearLoteUseCase crearLoteUseCase,
             ActualizarLoteUseCase actualizarLoteUseCase,
             ObtenerLotePorIdUseCase obtenerLotePorIdUseCase,
             ObtenerLotesUseCase obtenerLotesUseCase,
-            EliminarLoteUseCase eliminarLoteUseCase) {
+            EliminarLoteUseCase eliminarLoteUseCase,
+            ObtenerDetallesAperturablesUseCase obtenerDetallesAperturablesUseCase,
+            AbrirDetalleLoteUseCase abrirDetalleLoteUseCase,
+            DarDeBajaVencidoDetalleLoteUseCase darDeBajaVencidoDetalleLoteUseCase,
+            ObtenerVencimientosUseCase obtenerVencimientosUseCase) {
         this.crearLoteUseCase = crearLoteUseCase;
         this.actualizarLoteUseCase = actualizarLoteUseCase;
         this.obtenerLotePorIdUseCase = obtenerLotePorIdUseCase;
         this.obtenerLotesUseCase = obtenerLotesUseCase;
         this.eliminarLoteUseCase = eliminarLoteUseCase;
+        this.obtenerDetallesAperturablesUseCase = obtenerDetallesAperturablesUseCase;
+        this.abrirDetalleLoteUseCase = abrirDetalleLoteUseCase;
+        this.darDeBajaVencidoDetalleLoteUseCase = darDeBajaVencidoDetalleLoteUseCase;
+        this.obtenerVencimientosUseCase = obtenerVencimientosUseCase;
     }
 
     @PostMapping
-    public ResponseEntity<LoteResponse> crear(@RequestBody Map<String, Object> body) {
-        CrearLoteRequest request = CrearLoteRequest.createFromRequest(body);
+    public ResponseEntity<LoteResponse> crear(@RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        CrearLoteRequest request = CrearLoteRequest.createFromRequest(body, idUsuario);
         LoteResponse response = crearLoteUseCase.execute(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -78,9 +106,10 @@ public class LoteControllerV1 {
         return ResponseEntity.ok(response);
     }
 
+    @RequiereRol("Administrador")
     @PutMapping("/{id}")
-    public ResponseEntity<LoteResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        ActualizarLoteRequest request = ActualizarLoteRequest.createFromRequest(body);
+    public ResponseEntity<LoteResponse> actualizar(@PathVariable String id, @RequestBody Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        ActualizarLoteRequest request = ActualizarLoteRequest.createFromRequest(body, idUsuario);
         LoteResponse response = actualizarLoteUseCase.execute(id, request);
         return ResponseEntity.ok(response);
     }
@@ -89,5 +118,42 @@ public class LoteControllerV1 {
     public ResponseEntity<Void> eliminar(@PathVariable String id) {
         eliminarLoteUseCase.execute(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Operaciones de inventario sobre las lineas del lote (inventario.md INV-13, INV-14).
+    // Viven bajo la raiz porque detalle_lote no tiene endpoints propios (arquitectura.md 4.7).
+
+    @GetMapping("/detalles-aperturables")
+    public ResponseEntity<List<DetalleAperturableResponse>> obtenerDetallesAperturables(
+            @RequestParam(required = false) String idProducto) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("idProducto", idProducto);
+
+        ObtenerDetallesAperturablesRequest request = ObtenerDetallesAperturablesRequest.createFromRequest(params);
+        return ResponseEntity.ok(obtenerDetallesAperturablesUseCase.execute(request));
+    }
+
+    @PostMapping("/detalles/{idDetalleLote}/apertura")
+    public ResponseEntity<ExistenciaResponse> abrirDetalle(@PathVariable String idDetalleLote, @RequestBody(required = false) Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        AbrirDetalleLoteRequest request = AbrirDetalleLoteRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
+        ExistenciaResponse response = abrirDetalleLoteUseCase.execute(idDetalleLote, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // Vencimientos (logica.md VENCIMIENTO-03, VENCIMIENTO-04): Operador o Administrador.
+
+    @GetMapping("/vencimientos")
+    public ResponseEntity<List<VencimientoResponse>> obtenerVencimientos(@RequestParam(required = false) String dias) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("dias", dias);
+
+        ObtenerVencimientosRequest request = ObtenerVencimientosRequest.createFromRequest(params);
+        return ResponseEntity.ok(obtenerVencimientosUseCase.execute(request));
+    }
+
+    @PostMapping("/detalles/{idDetalleLote}/vencimiento")
+    public ResponseEntity<LoteResponse> darDeBajaVencido(@PathVariable String idDetalleLote, @RequestBody(required = false) Map<String, Object> body, @UsuarioEnSesion String idUsuario) {
+        DarDeBajaVencidoDetalleLoteRequest request = DarDeBajaVencidoDetalleLoteRequest.createFromRequest(body != null ? body : Map.of(), idUsuario);
+        return ResponseEntity.ok(darDeBajaVencidoDetalleLoteUseCase.execute(idDetalleLote, request));
     }
 }

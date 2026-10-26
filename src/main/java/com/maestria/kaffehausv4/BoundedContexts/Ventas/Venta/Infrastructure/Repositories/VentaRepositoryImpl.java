@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Datasources.IVentaDatasource;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.SesionCaja.Domain.ValueObjects.SesionCajaId;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Dtos.ObtenerVentasRequest;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Application.Repositories.IVentaRepository;
 import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.Aggregates.Venta;
@@ -42,8 +43,22 @@ public class VentaRepositoryImpl implements IVentaRepository{
     }
 
     @Override
+    public Optional<Venta> obtenerPorClaveIdempotencia(String claveIdempotencia) {
+        return this.ventaDatasource.obtenerPorClaveIdempotencia(claveIdempotencia);
+    }
+
+    @Override
     public void eliminar(VentaId ventaId) {
         this.ventaDatasource.eliminar(ventaId);
     }
 
+    @Override
+    public Optional<Venta> obtenerPorNumeroTicket(Long numeroTicket) {
+        return this.ventaDatasource.obtenerPorNumeroTicket(numeroTicket);
+    }
+
+    @Override
+    public List<Venta> obtenerPorSesionCaja(SesionCajaId sesionCajaId) {
+        return this.ventaDatasource.obtenerPorSesionCaja(sesionCajaId);
+    }
 }

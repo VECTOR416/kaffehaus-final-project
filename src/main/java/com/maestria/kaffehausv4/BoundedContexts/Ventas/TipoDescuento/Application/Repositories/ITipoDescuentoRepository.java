@@ -14,4 +14,7 @@ public interface ITipoDescuentoRepository {
     Optional<TipoDescuento> obtenerPorId(TipoDescuentoId tipoDescuentoId);
     PaginatedResponse<List<TipoDescuento>> obtenerTodos(ObtenerTiposDescuentoRequest obtenerTiposDescuentoRequest);
     void eliminar(TipoDescuentoId tipoDescuentoId);
+
+    /** Fila viva con ese nombre, sin distinguir mayusculas. La usa la siembra para no duplicar. */
+    Optional<TipoDescuento> obtenerPorNombre(String nombre);
 }

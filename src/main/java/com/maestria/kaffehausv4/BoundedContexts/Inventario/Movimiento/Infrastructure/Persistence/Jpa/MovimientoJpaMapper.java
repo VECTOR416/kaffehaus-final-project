@@ -4,9 +4,12 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Existencia.Domain.ValueObjects.ExistenciaId;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.ValueObjects.DetalleLoteId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Movimiento.Domain.Aggregates.Movimiento;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.ValueObjects.ProduccionId;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.TipoMovimiento.Domain.ValueObjects.TipoMovimientoId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
+import com.maestria.kaffehausv4.BoundedContexts.Ventas.Venta.Domain.ValueObjects.VentaId;
 
 public class MovimientoJpaMapper {
     private MovimientoJpaMapper() {
@@ -18,9 +21,12 @@ public class MovimientoJpaMapper {
         model.setCantidad(movimiento.getCantidad());
         model.setFechaMovimiento(movimiento.getFechaMovimiento());
         model.setMotivo(movimiento.getMotivo());
-        model.setIdExistencia(UUID.fromString(movimiento.getExistenciaId().getValue()));
+        model.setIdExistencia(movimiento.getExistenciaId() != null ? UUID.fromString(movimiento.getExistenciaId().getValue()) : null);
+        model.setIdDetalleLote(movimiento.getDetalleLoteId() != null ? UUID.fromString(movimiento.getDetalleLoteId().getValue()) : null);
         model.setIdTipoMovimiento(UUID.fromString(movimiento.getTipoMovimientoId().getValue()));
         model.setIdUsuario(UUID.fromString(movimiento.getUsuarioId().getValue()));
+        model.setIdProduccion(movimiento.getProduccionId() != null ? UUID.fromString(movimiento.getProduccionId().getValue()) : null);
+        model.setIdVenta(movimiento.getVentaId() != null ? UUID.fromString(movimiento.getVentaId().getValue()) : null);
         model.setBorrado(movimiento.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
@@ -31,9 +37,12 @@ public class MovimientoJpaMapper {
         model.setCantidad(movimiento.getCantidad());
         model.setFechaMovimiento(movimiento.getFechaMovimiento());
         model.setMotivo(movimiento.getMotivo());
-        model.setIdExistencia(UUID.fromString(movimiento.getExistenciaId().getValue()));
+        model.setIdExistencia(movimiento.getExistenciaId() != null ? UUID.fromString(movimiento.getExistenciaId().getValue()) : null);
+        model.setIdDetalleLote(movimiento.getDetalleLoteId() != null ? UUID.fromString(movimiento.getDetalleLoteId().getValue()) : null);
         model.setIdTipoMovimiento(UUID.fromString(movimiento.getTipoMovimientoId().getValue()));
         model.setIdUsuario(UUID.fromString(movimiento.getUsuarioId().getValue()));
+        model.setIdProduccion(movimiento.getProduccionId() != null ? UUID.fromString(movimiento.getProduccionId().getValue()) : null);
+        model.setIdVenta(movimiento.getVentaId() != null ? UUID.fromString(movimiento.getVentaId().getValue()) : null);
         model.setBorrado(movimiento.isBorrado());
         model.setFecU(OffsetDateTime.now());
     }
@@ -44,9 +53,12 @@ public class MovimientoJpaMapper {
                 model.getCantidad(),
                 model.getFechaMovimiento(),
                 model.getMotivo(),
-                new ExistenciaId(model.getIdExistencia().toString()),
+                model.getIdExistencia() != null ? new ExistenciaId(model.getIdExistencia().toString()) : null,
+                model.getIdDetalleLote() != null ? new DetalleLoteId(model.getIdDetalleLote().toString()) : null,
                 new TipoMovimientoId(model.getIdTipoMovimiento().toString()),
                 new UsuarioId(model.getIdUsuario().toString()),
+                model.getIdProduccion() != null ? new ProduccionId(model.getIdProduccion().toString()) : null,
+                model.getIdVenta() != null ? new VentaId(model.getIdVenta().toString()) : null,
                 model.getBorrado() != null && model.getBorrado());
     }
 }

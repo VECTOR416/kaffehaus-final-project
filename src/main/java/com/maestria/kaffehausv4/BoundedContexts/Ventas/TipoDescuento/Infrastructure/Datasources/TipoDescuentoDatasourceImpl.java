@@ -88,6 +88,12 @@ public class TipoDescuentoDatasourceImpl implements ITipoDescuentoDatasource {
         tipoDescuentoJpaRepository.save(model);
     }
 
+    @Override
+    public Optional<TipoDescuento> obtenerPorNombre(String nombre) {
+        return tipoDescuentoJpaRepository.findFirstByNombreIgnoreCaseAndBorradoFalse(nombre)
+                .map(TipoDescuentoJpaMapper::toDomain);
+    }
+
     private static UUID aUuid(String valor) {
         try {
             return UUID.fromString(valor);

@@ -32,7 +32,15 @@ build/
 ### VS Code ###
 .vscode/
 
-*.env
-.diagramas
 *.sql
+!src/main/resources/db/*.sql
+!src/test/resources/h2/*.sql
 *.md
+.diagramas
+!README.md
+!CLAUDE.md
+!.rules/**
+
+### Variables de entorno ###
+.env
+*.env

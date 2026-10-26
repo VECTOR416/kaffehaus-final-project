@@ -13,4 +13,7 @@ public interface UsuarioJpaRepository extends JpaRepository<UsuarioJpaModel, UUI
     Optional<UsuarioJpaModel> findByCorreoIgnoreCaseAndBorradoFalse(String correo);
     Page<UsuarioJpaModel> findByBorradoFalse(Pageable pageable);
     Page<UsuarioJpaModel> findByBorradoFalseAndCorreoContainingIgnoreCase(String correo, Pageable pageable);
+
+    // Usuarios vivos de un rol (logica.md GENERAL-18, USUARIO-04).
+    long countByIdRolAndBorradoFalse(UUID idRol);
 }

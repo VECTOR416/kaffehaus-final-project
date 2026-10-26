@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.DetalleLote;
 import com.maestria.kaffehausv4.BoundedContexts.Inventario.Lote.Domain.Aggregates.Lote;
+import com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Domain.ValueObjects.ProduccionId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Proveedor.Domain.ValueObjects.ProveedorId;
 import com.maestria.kaffehausv4.BoundedContexts.Personal.Usuario.Domain.ValueObjects.UsuarioId;
 
@@ -24,8 +25,10 @@ public class LoteJpaMapper {
         model.setId(lote.getId() != null ? UUID.fromString(lote.getId().getValue()) : UUID.randomUUID());
         model.setFechaCompra(lote.getFechaCompra());
         model.setTotal(lote.getTotal());
-        model.setIdProveedor(UUID.fromString(lote.getProveedorId().getValue()));
+        model.setIdProveedor(lote.getProveedorId() != null ? UUID.fromString(lote.getProveedorId().getValue()) : null);
         model.setIdUsuario(UUID.fromString(lote.getUsuarioId().getValue()));
+        model.setEsProduccion(lote.isEsProduccion());
+        model.setIdProduccion(lote.getProduccionId() != null ? UUID.fromString(lote.getProduccionId().getValue()) : null);
         model.setBorrado(lote.isBorrado());
         model.setFecC(OffsetDateTime.now());
 
@@ -35,10 +38,30 @@ public class LoteJpaMapper {
     public static void copiarCambios(Lote lote, LoteJpaModel model) {
         model.setFechaCompra(lote.getFechaCompra());
         model.setTotal(lote.getTotal());
-        model.setIdProveedor(UUID.fromString(lote.getProveedorId().getValue()));
+        model.setIdProveedor(lote.getProveedorId() != null ? UUID.fromString(lote.getProveedorId().getValue()) : null);
         model.setIdUsuario(UUID.fromString(lote.getUsuarioId().getValue()));
+        model.setEsProduccion(lote.isEsProduccion());
+        model.setIdProduccion(lote.getProduccionId() != null ? UUID.fromString(lote.getProduccionId().getValue()) : null);
         model.setBorrado(lote.isBorrado());
         model.setFecU(OffsetDateTime.now());
+    }
+
+    /** El mismo agregado reconstruido desde sus proyecciones de lectura (arquitectura.md 5.7). */
+    public static Lote toDomain(LoteLecturaProyeccion lectura, List<DetalleLoteLecturaProyeccion> detallesLectura) {
+        List<DetalleLote> detalles = detallesLectura.stream()
+                .map(DetalleLoteJpaMapper::toDomain)
+                .collect(Collectors.toList());
+
+        return Lote.restaurar(
+                lectura.getId().toString(),
+                lectura.getFechaCompra(),
+                lectura.getTotal(),
+                lectura.getIdProveedor() != null ? new ProveedorId(lectura.getIdProveedor().toString()) : null,
+                new UsuarioId(lectura.getIdUsuario().toString()),
+                lectura.getEsProduccion() != null && lectura.getEsProduccion(),
+                lectura.getIdProduccion() != null ? new ProduccionId(lectura.getIdProduccion().toString()) : null,
+                lectura.getBorrado() != null && lectura.getBorrado(),
+                detalles);
     }
 
     public static Lote toDomain(LoteJpaModel model, List<DetalleLoteJpaModel> detallesModel) {
@@ -50,8 +73,10 @@ public class LoteJpaMapper {
                 model.getId().toString(),
                 model.getFechaCompra(),
                 model.getTotal(),
-                new ProveedorId(model.getIdProveedor().toString()),
+                model.getIdProveedor() != null ? new ProveedorId(model.getIdProveedor().toString()) : null,
                 new UsuarioId(model.getIdUsuario().toString()),
+                model.getEsProduccion() != null && model.getEsProduccion(),
+                model.getIdProduccion() != null ? new ProduccionId(model.getIdProduccion().toString()) : null,
                 model.getBorrado() != null && model.getBorrado(),
                 detalles);
     }

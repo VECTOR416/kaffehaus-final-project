@@ -1,53 +1,47 @@
 package com.maestria.kaffehausv4.BoundedContexts.Inventario.Produccion.Application.Dtos;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 import com.maestria.kaffehausv4.Shared.Application.Validation.Validador;
+import com.maestria.kaffehausv4.Shared.Domain.Error.DomainException;
 
+/**
+ * Correccion de una produccion ya registrada. Solo 'motivoDiferencia' y 'fechaProduccion'.
+ *
+ * Las cantidades y la receta se rechazan en lugar de ignorarse: ya produjeron movimientos de
+ * consumo y un lote, que son auditoria inmutable, y aceptarlas en silencio haria creer al
+ * cliente que el inventario se recalculo.
+ */
 public class ActualizarProduccionRequest {
-    private BigDecimal cantidadEsperada;
-    private BigDecimal cantidadReal;
-    private BigDecimal diferencia;
+    private static final List<String> CAMPOS_INMUTABLES = List.of("cantidadEsperada", "cantidadReal", "diferencia", "idReceta");
+
     private String motivoDiferencia;
     private LocalDateTime fechaProduccion;
-    private String idReceta;
 
     private ActualizarProduccionRequest(
-        BigDecimal cantidadEsperada,
-        BigDecimal cantidadReal,
-        BigDecimal diferencia,
         String motivoDiferencia,
-        LocalDateTime fechaProduccion,
-        String idReceta
+        LocalDateTime fechaProduccion
     ) {
-        this.cantidadEsperada = cantidadEsperada;
-        this.cantidadReal = cantidadReal;
-        this.diferencia = diferencia;
         this.motivoDiferencia = motivoDiferencia;
         this.fechaProduccion = fechaProduccion;
-        this.idReceta = idReceta;
     }
 
     public static ActualizarProduccionRequest createFromRequest(Map<String, Object> request){
-        Double cantidadEsperadaTmp = Validador.numeroOpcional(request.get("cantidadEsperada"), "cantidadEsperada");
-        BigDecimal cantidadEsperada = cantidadEsperadaTmp != null ? BigDecimal.valueOf(cantidadEsperadaTmp) : null;
-        Double cantidadRealTmp = Validador.numeroOpcional(request.get("cantidadReal"), "cantidadReal");
-        BigDecimal cantidadReal = cantidadRealTmp != null ? BigDecimal.valueOf(cantidadRealTmp) : null;
-        Double diferenciaTmp = Validador.numeroOpcional(request.get("diferencia"), "diferencia");
-        BigDecimal diferencia = diferenciaTmp != null ? BigDecimal.valueOf(diferenciaTmp) : null;
+        for (String campo : CAMPOS_INMUTABLES) {
+            if (request.get(campo) != null) {
+                throw DomainException.throwException(400,
+                        "El campo '" + campo + "' de una produccion registrada no se puede modificar");
+            }
+        }
+
         String motivoDiferencia = Validador.textoOpcional(request.get("motivoDiferencia"), "motivoDiferencia");
         LocalDateTime fechaProduccion = Validador.fechaOpcional(request.get("fechaProduccion"), "fechaProduccion");
-        String idReceta = Validador.textoOpcional(request.get("idReceta"), "idReceta");
 
-        return new ActualizarProduccionRequest(cantidadEsperada, cantidadReal, diferencia, motivoDiferencia, fechaProduccion, idReceta);
+        return new ActualizarProduccionRequest(motivoDiferencia, fechaProduccion);
     }
 
-    public BigDecimal getCantidadEsperada() {return cantidadEsperada;}
-    public BigDecimal getCantidadReal() {return cantidadReal;}
-    public BigDecimal getDiferencia() {return diferencia;}
     public String getMotivoDiferencia() {return motivoDiferencia;}
     public LocalDateTime getFechaProduccion() {return fechaProduccion;}
-    public String getIdReceta() {return idReceta;}
 }
